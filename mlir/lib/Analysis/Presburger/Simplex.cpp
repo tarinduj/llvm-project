@@ -601,6 +601,15 @@ Optional<SmallVector<int64_t, 8>> Simplex::getSamplePointIfIntegral() const {
   return sample;
 }
 
+void Simplex::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
+  assert(cs.getNumDimIds() + cs.getNumSymbolIds() == numberVariables() &&
+         "FlatAffineConstraints must have same dimensionality as simplex");
+  for (unsigned i = 0; i < cs.getNumInequalities(); ++i)
+    addInequality(cs.getInequality(i));
+  for (unsigned i = 0; i < cs.getNumEqualities(); ++i)
+    addEquality(cs.getEquality(i));
+}
+
 /// Given a simplex for a polytope, construct a new simplex whose variables are
 /// identified with a pair of points (x, y) in the original polytope. Supports
 /// some operations needed for generalized basis reduction. In what follows,
@@ -845,8 +854,8 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
     return width[i + 1 - level];
   };
 
-  // In the ith iteration of the loop, gbrSimplex has constraints for directions
-  // from `level` to i - 1.
+  // In the ith iteration of the loop, gbrSimplex has constraints for
+  // directions from `level` to i - 1.
   unsigned i = level;
   while (i < basis.getNumRows() - 1) {
     if (i >= level + width.size()) {
@@ -1018,7 +1027,7 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
   }
 
   return {};
-}
+} // namespace mlir
 
 /// Compute the minimum and maximum integer values the expression can take. We
 /// compute each separately.

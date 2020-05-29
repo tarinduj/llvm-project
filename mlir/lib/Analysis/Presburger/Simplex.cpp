@@ -854,8 +854,8 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
     return width[i + 1 - level];
   };
 
-  // In the ith iteration of the loop, gbrSimplex has constraints for
-  // directions from `level` to i - 1.
+  // In the ith iteration of the loop, gbrSimplex has constraints for directions
+  // from `level` to i - 1.
   unsigned i = level;
   while (i < basis.getNumRows() - 1) {
     if (i >= level + width.size()) {

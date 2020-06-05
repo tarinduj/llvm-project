@@ -209,6 +209,8 @@ public:
   void addFlatAffineConstraints(const FlatAffineConstraints &cs);
   // void addFlatAffineConstraintsAsIneqs(const FlatAffineConstraints &cs);
 
+  void detectImplicitEqualities();
+
 private:
   friend class GBRSimplex;
 
@@ -224,11 +226,13 @@ private:
   struct Unknown {
     Unknown(Orientation oOrientation, bool oRestricted, unsigned oPos)
         : pos(oPos), orientation(oOrientation), restricted(oRestricted),
-          redundant(false) {}
+          redundant(false), marked(false), zero(false) {}
     unsigned pos;
     Orientation orientation;
     bool restricted : 1;
     bool redundant;
+    bool marked;
+    bool zero;
 
     void print(raw_ostream &os) const {
       os << (orientation == Orientation::Row ? "r" : "c");
@@ -280,12 +284,27 @@ private:
   /// Returns the unknown associated with row.
   Unknown &unknownFromRow(unsigned row);
 
+  /// Check if \p row is obviously non-integral.
+  ///
+  /// \returns True if \p unknown is obviously non-integral, False otherwise.
+  bool rowIsObviouslyNonIntegral(unsigned row) const;
+
+  int indexFromUnknown(const Unknown &u) const;
+
   /// Add a new row to the tableau and the associated data structures.
   unsigned addRow(ArrayRef<int64_t> coeffs);
 
   /// Normalize the given row by removing common factors between the numerator
   /// and the denominator.
   void normalizeRow(unsigned row);
+
+  /// Mark the column as zero.
+  ///
+  /// \returns True if the column is interchanged with a later column, False
+  /// otherwise. This is used when iterating through the columns; if the return
+  /// is true, the same column index must be processed again.
+  bool killCol(unsigned col);
+  void closeRow(unsigned row, bool temp_row);
 
   /// Mark the row as being redundant.
   ///
@@ -297,6 +316,9 @@ private:
   /// Swap the two rows in the tableau and associated data structures.
   void swapRows(unsigned i, unsigned j);
 
+  /// Swap the two cols in the tableau and associated data structures.
+  void swapColumns(unsigned i, unsigned j);
+
   /// Restore the unknown to a non-negative sample value.
   ///
   /// Returns true if the unknown was successfully restored to a non-negative
@@ -306,7 +328,8 @@ private:
   enum class UndoLogEntry {
     RemoveLastConstraint,
     UnmarkEmpty,
-    UnmarkRedundant
+    UnmarkRedundant,
+    UnmarkZero
   };
 
   /// Undo the operation represented by the log entry.
@@ -336,6 +359,9 @@ private:
 
   /// The number of constraints marked redundant.
   unsigned nRedundant;
+
+  /// The index of the first live column.
+  unsigned liveColBegin;
 
   /// The matrix representing the tableau.
   Matrix tableau;

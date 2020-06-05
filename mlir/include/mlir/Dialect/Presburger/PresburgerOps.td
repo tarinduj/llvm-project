@@ -2,7 +2,7 @@
 #define Presburger_OPS
 
 include "PresburgerDialect.td"
-include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 
 def Presburger_SetOp : Presburger_Op<"set", [NoSideEffect]> {

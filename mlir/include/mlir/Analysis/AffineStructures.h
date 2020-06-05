@@ -153,6 +153,10 @@ public:
   /// Returns such a point if one exists, or an empty Optional otherwise.
   Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
 
+  // A more complex check to eliminate redundant inequalities. Uses Simplex
+  // to check if a constraint is redundant.
+  void removeRedundantConstraints();
+
   // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;
 

@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 //
 // Functionality to perform analysis on FlatAffineConstraints. In particular,
-// support for performing emptiness checks.
+// support for performing emptiness checks and constraint simplilifaction to
+// detect redundant constraints.
 //
 //===----------------------------------------------------------------------===//
 
@@ -33,8 +34,11 @@ class GBRSimplex;
 /// by specifying the dimensionality of the set. It supports adding affine
 /// inequalities and equalities, and can perform emptiness checks, i.e., it can
 /// find a solution to the set of constraints if one exists, or say that the
-/// set is empty if no solution exists. Currently, this only works for bounded
-/// sets. Simplex can also be constructed from a FlatAffineConstraints object.
+/// set is empty if no solution exists. Furthermore it can find a subset of
+/// these constraint that are redundant, i.e. a subset of constraints that
+/// doesn't constrain the affine set further after addinf the non-redundant
+/// constraints. Currently, this only works for bounded sets. Simplex can also
+/// be constructed from a FlatAffineConstraints object.
 ///
 /// The implementation of this Simplex class, other than the functionality
 /// for sampling, is based on the paper
@@ -132,6 +136,12 @@ public:
   /// false otherwise.
   bool isEmpty() const;
 
+  /// Check for redundant constraints and mark them as redundant.
+  void detectRedundant();
+
+  /// Check whether the constraint has been marked redundant.
+  bool isMarkedRedundant(int conIndex) const;
+
   /// Add an inequality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
   /// is the current number of variables, then the corresponding inequality is
   /// c_n + c_0*x_0 + c_1*x_1 + ... + c_{n-1}*x_{n-1} >= 0.
@@ -213,10 +223,12 @@ private:
   /// violating other constraints, the tableau is empty.
   struct Unknown {
     Unknown(Orientation oOrientation, bool oRestricted, unsigned oPos)
-        : pos(oPos), orientation(oOrientation), restricted(oRestricted) {}
+        : pos(oPos), orientation(oOrientation), restricted(oRestricted),
+          redundant(false) {}
     unsigned pos;
     Orientation orientation;
     bool restricted : 1;
+    bool redundant;
 
     void print(raw_ostream &os) const {
       os << (orientation == Orientation::Row ? "r" : "c");
@@ -246,6 +258,15 @@ private:
   void pivot(unsigned row, unsigned col);
   void pivot(Pivot pair);
 
+  /// Check if the constraint is redundant by computing its minimum value in
+  /// the tableau. If this returns true, the constraint is left in row position
+  /// upon return.
+  ///
+  /// \param conIndex must be a constraint that is not a dead column
+  ///
+  /// \returns True if the constraint is redundant, False otherwise.
+  bool constraintIsRedundant(unsigned conIndex);
+
   /// Returns the unknown associated with index.
   const Unknown &unknownFromIndex(int index) const;
   /// Returns the unknown associated with col.
@@ -266,6 +287,13 @@ private:
   /// and the denominator.
   void normalizeRow(unsigned row);
 
+  /// Mark the row as being redundant.
+  ///
+  /// \returns True if the row is interchanged with a later row, False
+  /// otherwise. This is used when iterating through the rows; if the return is
+  /// true, the same row index must be processed again.
+  bool markRedundant(unsigned row);
+
   /// Swap the two rows in the tableau and associated data structures.
   void swapRows(unsigned i, unsigned j);
 
@@ -275,10 +303,14 @@ private:
   /// sample value, false otherwise.
   LogicalResult restoreRow(Unknown &u);
 
-  enum class UndoLogEntry { RemoveLastConstraint, UnmarkEmpty };
+  enum class UndoLogEntry {
+    RemoveLastConstraint,
+    UnmarkEmpty,
+    UnmarkRedundant
+  };
 
   /// Undo the operation represented by the log entry.
-  void undo(UndoLogEntry entry);
+  void undo(UndoLogEntry entry, Optional<int> index);
 
   /// Find a row that can be used to pivot the column in the specified
   /// direction. If skipRow is not null, then this row is excluded
@@ -302,6 +334,9 @@ private:
   /// and the constant column.
   unsigned nCol;
 
+  /// The number of constraints marked redundant.
+  unsigned nRedundant;
+
   /// The matrix representing the tableau.
   Matrix tableau;
 
@@ -310,7 +345,7 @@ private:
   bool empty;
 
   /// Holds a log of operations, used for rolling back to a previous state.
-  SmallVector<UndoLogEntry, 8> undoLog;
+  SmallVector<std::pair<UndoLogEntry, Optional<int>>, 8> undoLog;
 
   /// These hold the indexes of the unknown at a given row or column position.
   /// We keep these as signed integers since that makes it convenient to check

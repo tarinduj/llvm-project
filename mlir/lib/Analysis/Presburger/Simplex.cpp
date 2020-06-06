@@ -408,6 +408,21 @@ bool Simplex::isMarkedRedundant(int conIndex) const {
   return con[conIndex].redundant;
 }
 
+/// Check whether the constraint is an equality.
+///
+/// The constraint is an equality if it has been marked zero, if it is a dead
+/// column, or if the row is obviously equal to zero.
+bool Simplex::constraintIsEquality(int con_index) const {
+  const Unknown &u = con[con_index];
+  if (u.zero)
+    return true;
+  if (u.redundant)
+    return false;
+  if (u.orientation == Orientation::Column)
+    return u.pos < liveColBegin;
+  return rowIsObviouslyZero(u.pos);
+}
+
 /// Add an inequality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
 /// is the curent number of variables, then the corresponding inequality is
 /// c_n + c_0*x_0 + c_1*x_1 + ... + c_{n-1}*x_{n-1} >= 0.
@@ -1247,9 +1262,20 @@ inline bool Simplex::rowIsObviouslyNotZero(unsigned row) const {
   return tableau(row, 1) >= tableau(row, 0);
 }
 
+// A row is equal to zero if its constant term and all coefficients for live
+// columns are equal to zero.
+inline bool Simplex::rowIsObviouslyZero(unsigned row) const {
+  if (tableau(row, 1) != 0)
+    return false;
+  for (unsigned col = liveColBegin; col < nCol; col++) {
+    if (tableau(row, col) != 0)
+      return false;
+  }
+  return true;
+}
+
 // An unknown is considered to be relevant if it is neither a redundant row nor
 // a dead column
-// TODO currently no support for dead rows.
 inline bool Simplex::unknownIsRelevant(Unknown &unknown) const {
   if (unknown.orientation == Orientation::Row && unknown.pos < nRedundant)
     return false;

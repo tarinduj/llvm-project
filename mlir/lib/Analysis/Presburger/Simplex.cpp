@@ -375,8 +375,6 @@ bool Simplex::constraintIsRedundant(unsigned conIndex) {
   if (con[conIndex].redundant)
     return true;
 
-  dump();
-
   if (con[conIndex].orientation == Orientation::Column) {
     unsigned col = con[conIndex].pos;
     auto maybeRow = findPivotRow({}, Direction::Down, col);

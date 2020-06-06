@@ -1055,6 +1055,10 @@ bool FlatAffineConstraints::isIntegerEmpty() const {
 
 Optional<SmallVector<int64_t, 8>>
 FlatAffineConstraints::findIntegerSample() const {
+  FlatAffineConstraints cone = makeRecessionCone();
+  if (cone.getNumEqualities() < getNumDimIds())
+    llvm_unreachable("unbounded currently not supported!");
+
   return Simplex(*this).findIntegerSample();
 }
 
@@ -1099,30 +1103,30 @@ void FlatAffineConstraints::updateFromSimplex(const Simplex &simplex) {
     return;
   }
 
-  unsigned simplexIneqsOffset = getNumEqualities();
-  for (unsigned i = 0; i < getNumEqualities();) {
+  unsigned simplexEqsOffset = getNumInequalities();
+  for (unsigned i = 0, ineqsIndex = 0; i < simplexEqsOffset; ++i) {
     if (simplex.isMarkedRedundant(i)) {
-      equalities.erase(equalities.begin() + i);
-      // We need to test index i again.
-      continue;
-    }
-    i++;
-  }
-  for (unsigned i = simplexIneqsOffset, ineqsIndex = 0;
-       i < simplex.numConstraints(); i++) {
-    if (simplex.isMarkedRedundant(i)) {
-      inequalities.erase(inequalities.begin() + ineqsIndex);
+      removeInequality(ineqsIndex);
       continue;
     }
     if (simplex.constraintIsEquality(i)) {
-      equalities.emplace_back(std::move(inequalities[ineqsIndex]));
-      // previously:
-      // Constraint::equalityFromInequality(std::move(ineqs[ineqsIndex]))
-      inequalities.erase(inequalities.begin() + ineqsIndex);
+      addEquality(getInequality(ineqsIndex));
+      removeInequality(ineqsIndex);
       continue;
     }
-    // If nothing was removed, we go to the next index in ineqs.
-    ineqsIndex++;
+    ++ineqsIndex;
+  }
+
+  assert((simplex.numConstraints() - simplexEqsOffset) % 2 == 0 &&
+         "expecting simplex to contain two ineqs for each eq");
+
+  for (unsigned i = simplexEqsOffset, eqsIndex = 0;
+       i < simplex.numConstraints(); i += 2) {
+    if (simplex.isMarkedRedundant(i) && simplex.isMarkedRedundant(i + 1)) {
+      removeEquality(eqsIndex);
+      continue;
+    }
+    ++eqsIndex;
   }
 
   // NOTE isl does gauss here.

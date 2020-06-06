@@ -27,6 +27,7 @@ class IntegerSet;
 class MLIRContext;
 class Value;
 class MemRefType;
+class Simplex;
 struct MutableAffineMap;
 
 /// A flat list of affine equalities and inequalities in the form.
@@ -152,6 +153,8 @@ public:
   ///
   /// Returns such a point if one exists, or an empty Optional otherwise.
   Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
+
+  FlatAffineConstraints makeRecessionCone() const;
 
   // A more complex check to eliminate redundant inequalities. Uses Simplex
   // to check if a constraint is redundant.
@@ -601,6 +604,12 @@ private:
   /// remaining valid data into place, updates member variables, and resizes
   /// arrays as needed.
   void removeIdRange(unsigned idStart, unsigned idLimit);
+
+  /// Given \p simplex which was constructed from this basic set, some
+  /// inequalities may have been detected to be equalities and some constraints
+  /// may have been detected to be redundant. Update this basic set to reflect
+  /// this.
+  void updateFromSimplex(const Simplex &simplex);
 
   /// Coefficients of affine equalities (in == 0 form).
   SmallVector<int64_t, 64> equalities;

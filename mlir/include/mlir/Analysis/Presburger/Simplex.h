@@ -136,11 +136,18 @@ public:
   /// false otherwise.
   bool isEmpty() const;
 
+  /// Given a constraint con >= 0, add another constraint to force con = 0.
+  /// Before the function returns the added constraint is removed again, but the
+  /// effects on the other unknowns remain.
+  void cutToHyperplane(int con_index);
+
   /// Check for redundant constraints and mark them as redundant.
   void detectRedundant();
 
   /// Check whether the constraint has been marked redundant.
   bool isMarkedRedundant(int conIndex) const;
+
+  void extendConstraints(unsigned n_new);
 
   /// Add an inequality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
   /// is the current number of variables, then the corresponding inequality is
@@ -262,6 +269,12 @@ private:
   void pivot(unsigned row, unsigned col);
   void pivot(Pivot pair);
 
+  /// Pivot \p unknown down or up to row position depending on \p direction.
+  ///
+  /// If \p direction is empty, both directions are allowed. \p unknown is
+  /// assumed to be bounded in the allowed directions.
+  void toRow(Unknown &unknown, Direction direction);
+
   /// Check if the constraint is redundant by computing its minimum value in
   /// the tableau. If this returns true, the constraint is left in row position
   /// upon return.
@@ -270,6 +283,13 @@ private:
   ///
   /// \returns True if the constraint is redundant, False otherwise.
   bool constraintIsRedundant(unsigned conIndex);
+
+  /// Compare the maximum value of \p u with \p origin.
+  ///
+  /// \returns +1 if the maximum value is greater than \p origin, 0 if they are
+  // equal, and -1 if it is less than \p origin.
+  template <int origin>
+  int64_t signOfMax(Unknown &u);
 
   /// Returns the unknown associated with index.
   const Unknown &unknownFromIndex(int index) const;
@@ -337,6 +357,9 @@ private:
   /// true, the same row index must be processed again.
   bool markRedundant(unsigned row);
 
+  /// Drop row \p row from the tableau.
+  void dropRow(unsigned row);
+
   /// Swap the two rows in the tableau and associated data structures.
   void swapRows(unsigned i, unsigned j);
 
@@ -369,6 +392,8 @@ private:
   /// is unbounded in the specified direction.
   Optional<unsigned> findPivotRow(Optional<unsigned> skipRow,
                                   Direction direction, unsigned col) const;
+
+  int64_t sign(int64_t num, int64_t den = 1, int64_t origin = 0) const;
 
   /// Reduce the given basis, starting at the specified level, using general
   /// basis reduction.

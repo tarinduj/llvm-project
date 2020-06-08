@@ -48,6 +48,11 @@ public:
   /// Swap the given rows.
   void swapRows(unsigned row, unsigned otherRow);
 
+  /// Negate the column.
+  ///
+  /// \returns True if overflow occurs, False otherwise.
+  void negateColumn(unsigned column);
+
   unsigned getNumRows() const;
 
   unsigned getNumColumns() const;
@@ -57,6 +62,8 @@ public:
 
   /// Add `scale` multiples of the source row to the target row.
   void addToRow(unsigned sourceRow, unsigned targetRow, int64_t scale);
+
+  void addToColumn(unsigned sourceColumn, unsigned targetColumn, INT scale);
 
   /// Resize the matrix to the specified dimensions. If a dimension is smaller,
   /// the values are truncated; if it is bigger, the new values are default

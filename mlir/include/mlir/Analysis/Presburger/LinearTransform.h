@@ -16,7 +16,7 @@ namespace mlir {
 // algebraic terms
 class LinearTransform {
 public:
-  using MatrixType = Matrix<int64_t>;
+  using MatrixType = Matrix;
   // Return a unimodular transform which, when postmultiplied to M, brings M to
   // column echelon form.
   static LinearTransform makeTransformToColumnEchelon(MatrixType M);

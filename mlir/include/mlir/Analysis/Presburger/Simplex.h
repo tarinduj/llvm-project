@@ -209,8 +209,11 @@ public:
   /// otherwise. This should only be called for bounded sets.
   Optional<SmallVector<int64_t, 8>> findIntegerSample();
 
+  std::pair<int64_t, std::vector<int64_t>> findRationalSample() const;
+
   /// Print the tableau's internal state.
   void print(raw_ostream &os) const;
+
   void dump() const;
 
   void addFlatAffineConstraints(const FlatAffineConstraints &cs);

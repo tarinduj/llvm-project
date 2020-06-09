@@ -63,7 +63,7 @@ public:
   /// Add `scale` multiples of the source row to the target row.
   void addToRow(unsigned sourceRow, unsigned targetRow, int64_t scale);
 
-  void addToColumn(unsigned sourceColumn, unsigned targetColumn, INT scale);
+  void addToColumn(unsigned sourceColumn, unsigned targetColumn, int64_t scale);
 
   /// Resize the matrix to the specified dimensions. If a dimension is smaller,
   /// the values are truncated; if it is bigger, the new values are default

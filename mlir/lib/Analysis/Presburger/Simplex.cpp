@@ -1186,6 +1186,31 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
   return {};
 }
 
+std::pair<int64_t, std::vector<int64_t>> Simplex::findRationalSample() const {
+  int64_t denom = 1;
+  for (const Unknown &u : var) {
+    if (u.orientation == Orientation::Row)
+      denom = lcm(denom, tableau(u.pos, 0));
+  }
+  std::vector<int64_t> sample;
+  int64_t gcd = denom;
+  for (const Unknown &u : var) {
+    if (u.orientation == Orientation::Column)
+      sample.push_back(0);
+    else {
+      sample.push_back((tableau(u.pos, 1) * denom) / tableau(u.pos, 0));
+      gcd = llvm::greatestCommonDivisor(std::abs(gcd), std::abs(sample.back()));
+    }
+  }
+  if (gcd != 0) {
+    denom /= gcd;
+    for (int64_t &elem : sample)
+      elem /= gcd;
+  }
+
+  return {denom, std::move(sample)};
+}
+
 /// Compute the minimum and maximum integer values the expression can take. We
 /// compute each separately.
 std::pair<int64_t, int64_t>

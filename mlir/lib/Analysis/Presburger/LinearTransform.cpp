@@ -27,7 +27,7 @@ static void subtractColumns(LinearTransform::MatrixType &M, unsigned row,
 // doesn't help in that case or only helps 1/3rd of the time (when we need both)
 LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType M) {
   // Padding of one is required by the LinearTransform constructor.
-  MatrixType resultMatrix = MatrixType::getIdentityMatrix(M.getNumColumns());
+  MatrixType resultMatrix = MatrixType::identity(M.getNumColumns());
 
   for (unsigned row = 0, col = 0; row < M.getNumRows(); ++row) {
     bool found = false;

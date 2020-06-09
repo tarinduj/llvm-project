@@ -1159,7 +1159,10 @@ Optional<SmallVector<int64_t, 8>> FlatAffineConstraints::findSampleFullCone() {
   }
 
   auto sample = findRationalSample();
-  assert(sample && "Shifted set became empty!");
+  if (!sample)
+    return {};
+  // TODO: This is only guaranteed if simplify is present
+  // assert(sample && "Shifted set became empty!");
   for (auto &value : sample->second)
     value = ceilDiv(value, sample->first);
 

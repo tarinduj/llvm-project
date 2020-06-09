@@ -1186,13 +1186,14 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
   return {};
 }
 
-std::pair<int64_t, std::vector<int64_t>> Simplex::findRationalSample() const {
+std::pair<int64_t, SmallVector<int64_t, 8>>
+Simplex::findRationalSample() const {
   int64_t denom = 1;
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Row)
       denom = lcm(denom, tableau(u.pos, 0));
   }
-  std::vector<int64_t> sample;
+  SmallVector<int64_t, 8> sample;
   int64_t gcd = denom;
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Column)

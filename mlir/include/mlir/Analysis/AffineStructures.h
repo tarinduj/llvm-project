@@ -13,6 +13,7 @@
 #ifndef MLIR_ANALYSIS_AFFINE_STRUCTURES_H
 #define MLIR_ANALYSIS_AFFINE_STRUCTURES_H
 
+#include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Support/LogicalResult.h"
@@ -153,6 +154,11 @@ public:
   ///
   /// Returns such a point if one exists, or an empty Optional otherwise.
   Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
+
+  /// Get a {denominator, sample} pair representing a rational sample point in
+  /// this basic set.
+  Optional<std::pair<int64_t, SmallVector<int64_t, 8>>>
+  findRationalSample() const;
 
   FlatAffineConstraints makeRecessionCone() const;
 
@@ -561,6 +567,44 @@ private:
   /// after elimination. Returns 'true' if an invalid constraint is found;
   /// 'false'otherwise.
   bool hasInvalidConstraint() const;
+
+  /// Find a sample point in this basic set, when it is known that this basic
+  /// set has no unbounded directions.
+  ///
+  /// \returns the sample point or an empty llvm::Optional if the set is empty.
+  Optional<SmallVector<int64_t, 8>> findSampleBounded() const;
+
+  /// Find a sample for only the bounded dimensions of this basic set.
+  ///
+  /// \param cone should be the recession cone of this basic set.
+  ///
+  /// \returns the sample or an empty std::optional if no sample exists.
+  Optional<SmallVector<int64_t, 8>>
+  findBoundedDimensionsSample(const FlatAffineConstraints &cone) const;
+
+  /// Find a sample for this basic set, which is known to be a full-dimensional
+  /// cone.
+  ///
+  /// \returns the sample point or an empty std::optional if the set is empty.
+  Optional<SmallVector<int64_t, 8>> findSampleFullCone();
+
+  /// Project this basic set to its bounded dimensions. It is assumed that the
+  /// unbounded dimensions occupy the last \p unboundedDims dimensions.
+  void projectOutUnboundedDimensions(unsigned unboundedDims);
+
+  bool dropLastNDimensionsOfEq(unsigned eqIndex, unsigned n);
+  bool dropLastNDimensionsOfIneq(unsigned eqIndex, unsigned n);
+
+  /// Find a sample point in this basic set, which has unbounded directions.
+  ///
+  /// \param cone should be the recession cone of this basic set.
+  ///
+  /// \returns the sample point or an empty std::optiollvm::Optional if the set
+  /// is empty.
+  llvm::Optional<SmallVector<int64_t, 8>>
+  findSampleUnbounded(FlatAffineConstraints &cone) const;
+
+  Matrix coefficientMatrixFromEqs() const;
 
   /// Returns the constant lower bound bound if isLower is true, and the upper
   /// bound if isLower is false.

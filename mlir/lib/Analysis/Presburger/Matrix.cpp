@@ -67,6 +67,14 @@ void Matrix::swapColumns(unsigned column, unsigned otherColumn) {
     std::swap(at(row, column), at(row, otherColumn));
 }
 
+void Matrix::negateColumn(unsigned column) {
+  assert(column < getNumColumns() && "Given column out of bounds");
+  for (unsigned row = 0, e = getNumRows(); row < e; ++row) {
+    // TODO not overflow safe
+    at(row, column) = -at(row, column);
+  }
+}
+
 ArrayRef<int64_t> Matrix::getRow(unsigned row) const {
   return {&data[row * nColumns], nColumns};
 }
@@ -76,6 +84,15 @@ void Matrix::addToRow(unsigned sourceRow, unsigned targetRow, int64_t scale) {
     return;
   for (unsigned col = 0; col < nColumns; ++col)
     at(targetRow, col) += scale * at(sourceRow, col);
+  return;
+}
+
+void Matrix::addToColumn(unsigned sourceColumn, unsigned targetColumn,
+                         int64_t scale) {
+  if (scale == 0)
+    return;
+  for (unsigned row = 0, e = getNumRows(); row < e; ++row)
+    at(row, targetColumn) += scale * at(row, sourceColumn);
   return;
 }
 

@@ -12,7 +12,6 @@
 
 namespace mlir {
 using Direction = Simplex::Direction;
-
 const int nullIndex = std::numeric_limits<int>::max();
 
 /// Construct a Simplex object with `nVar` variables.
@@ -135,7 +134,7 @@ bool signMatchesDirection(int64_t elem, Direction direction) {
 }
 
 Direction flippedDirection(Direction direction) {
-  return direction == Direction::Up ? Direction::Down : Simplex::Direction::Up;
+  return direction == Direction::Up ? Direction::Down : Direction::Up;
 }
 } // anonymous namespace
 
@@ -406,8 +405,8 @@ bool Simplex::isMarkedRedundant(int conIndex) const {
 ///
 /// The constraint is an equality if it has been marked zero, if it is a dead
 /// column, or if the row is obviously equal to zero.
-bool Simplex::constraintIsEquality(int con_index) const {
-  const Unknown &u = con[con_index];
+bool Simplex::constraintIsEquality(int conIndex) const {
+  const Unknown &u = con[conIndex];
   if (u.zero)
     return true;
   if (u.redundant)
@@ -637,6 +636,11 @@ bool Simplex::isUnbounded() {
 ///
 /// It has column layout:
 ///   denominator, constant, A's columns, B's columns.
+/// TODO reconsider the following:
+/// TODO we don't need the dead columns or the redundant constraints. The caller
+/// only cares about duals of the new constraints that are added after returning
+/// from this function, so we can safely drop redundant constraints from the
+/// original simplex.
 Simplex Simplex::makeProduct(const Simplex &a, const Simplex &b) {
   unsigned numVar = a.numVariables() + b.numVariables();
   unsigned numCon = a.numConstraints() + b.numConstraints();
@@ -1229,15 +1233,15 @@ Simplex::computeIntegerBounds(ArrayRef<int64_t> coeffs) {
   return {minRoundedUp, maxRoundedDown};
 }
 
-// The minimum of an unknown is obviously unbounded if it is a column variable
-// and no constraint limits its value from below.
-//
-// The minimum of a row variable is not obvious because it depends on the
-// boundedness of all referenced column variables.
-//
-// A column variable is bounded from below if there a exists a constraint for
-// which the corresponding column coefficient is strictly positive and the row
-// variable is non-negative (restricted).
+/// The minimum of an unknown is obviously unbounded if it is a column variable
+/// and no constraint limits its value from below.
+///
+/// The minimum of a row variable is not obvious because it depends on the
+/// boundedness of all referenced column variables.
+///
+/// A column variable is bounded from below if there a exists a constraint for
+/// which the corresponding column coefficient is strictly positive and the row
+/// variable is non-negative (restricted).
 inline bool Simplex::minIsObviouslyUnbounded(Unknown &unknown) const {
   // tableau.checkSparsity();
   if (unknown.orientation == Orientation::Row)
@@ -1250,15 +1254,15 @@ inline bool Simplex::minIsObviouslyUnbounded(Unknown &unknown) const {
   return true;
 }
 
-// The maximum of an unknown is obviously unbounded if it is a column variable
-// and no constraint limits its value from above.
-//
-// The maximum of a row variable is not obvious because it depends on the
-// boundedness of all referenced column variables.
-//
-// A column variable is surely unbounded from above if there does not exist a
-// constraint for which the corresponding column coefficient is strictly
-// negative and the row variable is non-negative (restricted).
+/// The maximum of an unknown is obviously unbounded if it is a column variable
+/// and no constraint limits its value from above.
+///
+/// The maximum of a row variable is not obvious because it depends on the
+/// boundedness of all referenced column variables.
+///
+/// A column variable is surely unbounded from above if there does not exist a
+/// constraint for which the corresponding column coefficient is strictly
+/// negative and the row variable is non-negative (restricted).
 inline bool Simplex::maxIsObviouslyUnbounded(Unknown &unknown) const {
   if (unknown.orientation == Orientation::Row)
     return false;
@@ -1270,20 +1274,20 @@ inline bool Simplex::maxIsObviouslyUnbounded(Unknown &unknown) const {
   return true;
 }
 
-// A row is obviously not constrained to be zero if
-// - the tableau is rational and the constant term is not zero
-// - the tableau is integer and the constant term is at least one (it is also
-//   not zero if the constant term is at most negative one, but this is only
-//   called for restricted rows, so it doesn't cost anything to be imprecise)
-//
-// This is because of the invariant that the sample value is always a valid
-// point in the tableau (assuming the tableau is not empty).
+/// A row is obviously not constrained to be zero if
+/// - the tableau is rational and the constant term is not zero
+/// - the tableau is integer and the constant term is at least one (it is also
+///   not zero if the constant term is at most negative one, but this is only
+///   called for restricted rows, so it doesn't cost anything to be imprecise)
+///
+/// This is because of the invariant that the sample value is always a valid
+/// point in the tableau (assuming the tableau is not empty).
 inline bool Simplex::rowIsObviouslyNotZero(unsigned row) const {
   return tableau(row, 1) >= tableau(row, 0);
 }
 
-// A row is equal to zero if its constant term and all coefficients for live
-// columns are equal to zero.
+/// A row is equal to zero if its constant term and all coefficients for live
+/// columns are equal to zero.
 inline bool Simplex::rowIsObviouslyZero(unsigned row) const {
   if (tableau(row, 1) != 0)
     return false;
@@ -1294,8 +1298,8 @@ inline bool Simplex::rowIsObviouslyZero(unsigned row) const {
   return true;
 }
 
-// An unknown is considered to be relevant if it is neither a redundant row nor
-// a dead column
+/// An unknown is considered to be relevant if it is neither a redundant row nor
+/// a dead column
 inline bool Simplex::unknownIsRelevant(Unknown &unknown) const {
   if (unknown.orientation == Orientation::Row && unknown.pos < nRedundant)
     return false;
@@ -1305,12 +1309,12 @@ inline bool Simplex::unknownIsRelevant(Unknown &unknown) const {
   return true;
 }
 
-// A row is obviously non integral if all of its non-dead column entries are
-// zero and the constant term denominator is not divisible by the row
-// denominator.
-//
-// If there are non-zero entries then integrality depends on the values of all
-// referenced column variables.
+/// A row is obviously non integral if all of its non-dead column entries are
+/// zero and the constant term denominator is not divisible by the row
+/// denominator.
+///
+/// If there are non-zero entries then integrality depends on the values of all
+/// referenced column variables.
 inline bool Simplex::rowIsObviouslyNonIntegral(unsigned row) const {
   for (unsigned j = liveColBegin; j < nCol; j++) {
     if (tableau(row, j) != 0)
@@ -1319,14 +1323,14 @@ inline bool Simplex::rowIsObviouslyNonIntegral(unsigned row) const {
   return tableau(row, 1) % tableau(row, 0) != 0;
 }
 
-// Pivot the unknown to row position in the specified direction. If no direction
-// is provided, both directions are allowed. The unknown is assumed to be
-// bounded in the specified direction. If no direction is specified, the unknown
-// is assumed to be unbounded in both directions.
-//
-// If the unknown is already in row position we need not do anything. Otherwise,
-// we find a row to pivot to via findPivotRow and pivot to it.
-// TODO currently doesn't support an optional direction
+/// Pivot the unknown to row position in the specified direction. If no
+/// direction is provided, both directions are allowed. The unknown is assumed
+/// to be bounded in the specified direction. If no direction is specified, the
+/// unknown is assumed to be unbounded in both directions.
+///
+/// If the unknown is already in row position we need not do anything.
+/// Otherwise, we find a row to pivot to via findPivotRow and pivot to it.
+/// TODO currently doesn't support an optional direction
 inline void Simplex::toRow(Unknown &unknown, Direction direction) {
   if (unknown.orientation == Orientation::Row)
     return;
@@ -1348,17 +1352,17 @@ inline int64_t Simplex::sign(int64_t num, int64_t den, int64_t origin) const {
     return 0;
 }
 
-// Compare the maximum value of the unknown to origin. Return +1 if the maximum
-// value is greater than origin, 0 if they are equal, and -1 if it is less
-// than origin.
-//
-// If the unknown is marked zero, then its maximum value is zero and we can
-// return accordingly.
-//
-// If the maximum is obviously unbounded, we can return 1.
-//
-// Otherwise, we move the unknown up to a row and keep trying to find upward
-// pivots until the unknown becomes unbounded or becomes maximised.
+/// Compare the maximum value of the unknown to origin. Return +1 if the maximum
+/// value is greater than origin, 0 if they are equal, and -1 if it is less
+/// than origin.
+///
+/// If the unknown is marked zero, then its maximum value is zero and we can
+/// return accordingly.
+///
+/// If the maximum is obviously unbounded, we can return 1.
+///
+/// Otherwise, we move the unknown up to a row and keep trying to find upward
+/// pivots until the unknown becomes unbounded or becomes maximised.
 template <int origin>
 int64_t Simplex::signOfMax(Unknown &u) {
   static_assert(origin >= 0, "");
@@ -1403,11 +1407,11 @@ inline void Simplex::swapColumns(unsigned i, unsigned j) {
   unknownFromColumn(j).pos = j;
 }
 
-// Remove the row from the tableau.
-//
-// If the row is not already the last one, swap it with the last row.
-// Then decrement the row count, remove the constraint entry, and remove the
-// entry in row_var.
+/// Remove the row from the tableau.
+///
+/// If the row is not already the last one, swap it with the last row.
+/// Then decrement the row count, remove the constraint entry, and remove the
+/// entry in row_var.
 inline void Simplex::dropRow(unsigned row) {
   // It is unclear why this restriction exists. Perhaps because bmaps outside
   // keep track of the number of equalities, and hence moving around constraints
@@ -1439,13 +1443,13 @@ inline int Simplex::indexFromUnknown(const Unknown &u) const {
   return colUnknown[u.pos];
 }
 
-// If temp_row is set, the last row is a temporary unknown and undo entries
-// should not be written for this row.
-inline void Simplex::closeRow(unsigned row, bool temp_row) {
+/// If temp_row is set, the last row is a temporary unknown and undo entries
+/// should not be written for this row.
+inline void Simplex::closeRow(unsigned row, bool tempRow) {
   Unknown *u = &unknownFromRow(row);
   assert(u->restricted && "expected restricted variable\n");
 
-  if (!u->zero && !temp_row) {
+  if (!u->zero && !tempRow) {
     // pushUndoEntryIfNeeded(UndoOp::UNMARK_ZERO, *u);
     undoLog.emplace_back(UndoLogEntry::UnmarkZero, indexFromUnknown(*u));
   }
@@ -1460,7 +1464,7 @@ inline void Simplex::closeRow(unsigned row, bool temp_row) {
     if (killCol(col))
       col--;
   }
-  if (!temp_row)
+  if (!tempRow)
     markRedundant(u->pos);
 
   if (!empty)
@@ -1473,39 +1477,40 @@ inline void Simplex::closeRow(unsigned row, bool temp_row) {
       }
 }
 
-inline void Simplex::extendConstraints(unsigned n_new) {
-  if (con.capacity() < con.size() + n_new)
-    con.reserve(con.size() + n_new);
-  if (tableau.getNumRows() < nRow + n_new) {
-    tableau.resizeVertically(nRow + n_new);
-    rowUnknown.reserve(nRow + n_new);
+inline void Simplex::extendConstraints(unsigned nNew) {
+  if (con.capacity() < con.size() + nNew)
+    con.reserve(con.size() + nNew);
+  if (tableau.getNumRows() < nRow + nNew) {
+    tableau.resizeVertically(nRow + nNew);
+    rowUnknown.reserve(nRow + nNew);
   }
 }
 
-// Given a constraint con >= 0, add another constraint -con >= 0 so that we cut
-// our polytope to the hyperplane con = 0. Before the function returns the added
-// constraint is removed again, but the effects on the other unknowns remain.
-//
-// If the constraint is in row position, add a new row with all the terms
-// negated. If the constrain is in column position, add a row with a single
-// -1 coefficient for that column and all zeroes in other columns.
-//
-// If our new constraint cannot achieve non-negative values, then the tableau is
-// empty and we marked it as such. Otherwise, we know that its value must always
-// be zero so we close the row and then drop it. Closing the row results in some
-// columns being killed, so the effect of fixing it to be zero remains even
-// after it is dropped.
-inline void Simplex::cutToHyperplane(int con_index) {
-  if (con[con_index].zero)
+/// Given a constraint con >= 0, add another constraint -con >= 0 so that we cut
+/// our polytope to the hyperplane con = 0. Before the function returns the
+/// added constraint is removed again, but the effects on the other unknowns
+/// remain.
+///
+/// If the constraint is in row position, add a new row with all the terms
+/// negated. If the constrain is in column position, add a row with a single
+/// -1 coefficient for that column and all zeroes in other columns.
+///
+/// If our new constraint cannot achieve non-negative values, then the tableau
+/// is empty and we marked it as such. Otherwise, we know that its value must
+/// always be zero so we close the row and then drop it. Closing the row results
+/// in some columns being killed, so the effect of fixing it to be zero remains
+/// even after it is dropped.
+inline void Simplex::cutToHyperplane(int conIndex) {
+  if (con[conIndex].zero)
     return;
-  assert(!con[con_index].redundant && con[con_index].restricted &&
+  assert(!con[conIndex].redundant && con[conIndex].restricted &&
          "expecting non-redundant non-negative variable");
 
   extendConstraints(1);
   rowUnknown.push_back(~con.size());
   con.emplace_back(Orientation::Row, false, nRow);
-  Unknown &unknown = con[con_index];
-  Unknown &temp_var = con.back();
+  Unknown &unknown = con[conIndex];
+  Unknown &tempVar = con.back();
 
   if (unknown.orientation == Orientation::Row) {
     tableau(nRow, 0) = tableau(unknown.pos, 0);
@@ -1520,24 +1525,24 @@ inline void Simplex::cutToHyperplane(int con_index) {
   // tableau.updateRowSparsity(nRow);
   nRow++;
 
-  int64_t sgn = signOfMax<0>(temp_var);
+  int64_t sgn = signOfMax<0>(tempVar);
   if (sgn < 0) {
-    assert(temp_var.orientation == Orientation::Row &&
+    assert(tempVar.orientation == Orientation::Row &&
            "temp_var is in column position");
     dropRow(nRow - 1);
     markEmpty();
     return;
   }
-  temp_var.restricted = true;
+  tempVar.restricted = true;
   assert(sgn <= 0 && "signOfMax is positive for the negated constraint");
 
-  assert(temp_var.orientation == Orientation::Row &&
+  assert(tempVar.orientation == Orientation::Row &&
          "temp_var is in column position");
-  if (temp_var.pos != nRow - 1)
-    tableau.swapRows(temp_var.pos, nRow - 1);
+  if (tempVar.pos != nRow - 1)
+    tableau.swapRows(tempVar.pos, nRow - 1);
 
-  closeRow(temp_var.pos, true);
-  dropRow(temp_var.pos);
+  closeRow(tempVar.pos, true);
+  dropRow(tempVar.pos);
 }
 
 /// Check for constraints that are constrained to be equal to zero. i.e. check

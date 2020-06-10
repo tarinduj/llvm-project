@@ -1169,29 +1169,6 @@ Optional<SmallVector<int64_t, 8>> FlatAffineConstraints::findSampleFullCone() {
   return sample->second;
 }
 
-// TODO refactor this
-bool FlatAffineConstraints::dropLastNDimensionsOfEq(unsigned eqIndex,
-                                                    unsigned n) {
-  bool wasNonZero = false;
-  for (unsigned j = n, e = getNumDimIds(); j < e; j++) {
-    int64_t &coef = atEq(eqIndex, j);
-    wasNonZero |= coef != 0;
-    coef = 0;
-  }
-  return wasNonZero;
-}
-
-bool FlatAffineConstraints::dropLastNDimensionsOfIneq(unsigned ineqIndex,
-                                                      unsigned n) {
-  bool wasNonZero = false;
-  for (unsigned j = n, e = getNumDimIds(); j < e; j++) {
-    int64_t &coef = atIneq(ineqIndex, j);
-    wasNonZero |= coef != 0;
-    coef = 0;
-  }
-  return wasNonZero;
-}
-
 // Project this basic set to its bounded dimensions. It is assumed that the
 // unbounded dimensions occupy the last \p unboundedDims dimensions.
 //
@@ -1208,22 +1185,42 @@ bool FlatAffineConstraints::dropLastNDimensionsOfIneq(unsigned ineqIndex,
 // directions lie in the span of the first `nDim - unboundedDims` directions.
 void FlatAffineConstraints::projectOutUnboundedDimensions(
     unsigned unboundedDims) {
-
   unsigned remainingDims = getNumDimIds() - unboundedDims;
+
+  // TODO: suport for symbols
+
   for (unsigned i = 0; i < getNumEqualities();) {
-    if (dropLastNDimensionsOfEq(i, remainingDims)) {
+    bool nonZero = false;
+    for (unsigned j = remainingDims, e = getNumDimIds(); j < e; j++) {
+      if (atEq(i, j) != 0) {
+        nonZero = true;
+        break;
+      }
+    }
+
+    if (nonZero) {
       removeEquality(i);
       // We need to test the index i again.
       continue;
     }
+
     i++;
   }
   for (unsigned i = 0; i < getNumInequalities();) {
-    if (dropLastNDimensionsOfIneq(i, remainingDims)) {
+    bool nonZero = false;
+    for (unsigned j = remainingDims, e = getNumDimIds(); j < e; j++) {
+      if (atIneq(i, j) != 0) {
+        nonZero = true;
+        break;
+      }
+    }
+
+    if (nonZero) {
       removeInequality(i);
-      // We need to test the same index i again.
+      // We need to test the index i again.
       continue;
     }
+
     i++;
   }
   for (unsigned j = 0; j < unboundedDims; j++)

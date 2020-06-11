@@ -439,7 +439,7 @@ private:
   Parser parser;
 };
 
-}; // namespace presburger
-}; // namespace mlir
+} // namespace presburger
+} // namespace mlir
 
 #endif // PRESBURGER_PARSER_H

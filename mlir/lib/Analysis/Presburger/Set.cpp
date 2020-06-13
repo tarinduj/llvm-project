@@ -1,9 +1,8 @@
-#include "mlir/Dialect/Presburger/Set.h"
+#include "mlir/Analysis/Presburger/Set.h"
 #include "mlir/Analysis/Presburger/Simplex.h"
 
 // TODO should we change this to a storage type?
 using namespace mlir;
-using namespace mlir::presburger;
 
 PresburgerSet::PresburgerSet(FlatAffineConstraints cs)
     : nDim(cs.getNumDimIds()), nSym(cs.getNumSymbolIds()), markedEmpty(false) {
@@ -140,7 +139,7 @@ void subtractRecursively(FlatAffineConstraints &b, Simplex &simplex,
   }
   const FlatAffineConstraints &sI = s.getFlatAffineConstraints()[i];
   auto initialSnap = simplex.getSnapshot();
-  unsigned offset = simplex.numberConstraints();
+  unsigned offset = simplex.numConstraints();
   simplex.addFlatAffineConstraints(sI);
 
   if (simplex.isEmpty()) {

@@ -596,9 +596,9 @@ private:
   ///
   /// \param cone should be the recession cone of this basic set.
   ///
-  /// \returns the sample point or an empty std::optiollvm::Optional if the set
+  /// \returns the sample point or an empty llvm::Optional if the set
   /// is empty.
-  llvm::Optional<SmallVector<int64_t, 8>>
+  Optional<SmallVector<int64_t, 8>>
   findSampleUnbounded(FlatAffineConstraints &cone) const;
 
   Matrix coefficientMatrixFromEqs() const;

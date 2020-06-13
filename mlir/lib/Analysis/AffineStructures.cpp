@@ -1187,7 +1187,7 @@ void FlatAffineConstraints::projectOutUnboundedDimensions(
     unsigned unboundedDims) {
   unsigned remainingDims = getNumDimIds() - unboundedDims;
 
-  // TODO: suport for symbols
+  // TODO: support for symbols
 
   for (unsigned i = 0; i < getNumEqualities();) {
     bool nonZero = false;

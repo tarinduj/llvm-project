@@ -1,12 +1,12 @@
-#include "llvm/Analysis/ML/InlineFeaturesAnalysis.h"
+#include "llvm/Analysis/ML/FunctionPropertiesAnalysis.h"
 #include "llvm/IR/Instructions.h"
 
 using namespace llvm;
 
-AnalysisKey InlineFeaturesAnalysis::Key;
+AnalysisKey FunctionPropertiesAnalysis::Key;
 
-InlineFeaturesAnalysis::Result
-InlineFeaturesAnalysis::run(const Function &F, FunctionAnalysisManager &FAM) {
+FunctionPropertiesAnalysis::Result
+FunctionPropertiesAnalysis::run(const Function &F, FunctionAnalysisManager &FAM) {
   Result Ret;
   Ret.Uses = ((!F.hasLocalLinkage()) ? 1 : 0) + F.getNumUses();
   for (const auto &BB : F) {

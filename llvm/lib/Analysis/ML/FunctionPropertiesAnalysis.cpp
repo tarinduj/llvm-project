@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <llvm/Analysis/LoopInfo.h>
 #include "llvm/Analysis/ML/FunctionPropertiesAnalysis.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -19,9 +20,11 @@
 
 using namespace llvm;
 
-void FunctionPropertiesInfo::analyze(const Function &F) {
+void FunctionPropertiesInfo::analyze(const Function &F, 
+                                     const LoopInfo &LI) {
   
   Uses = ((!F.hasLocalLinkage()) ? 1 : 0) + F.getNumUses();
+  int64_t LoopDepth;
 
   for (const auto &BB : F) {
     ++BasicBlockCount;
@@ -40,7 +43,19 @@ void FunctionPropertiesInfo::analyze(const Function &F) {
         if (Callee && !Callee->isIntrinsic() && !Callee->isDeclaration())
           ++DirectCallsToDefinedFunctions;
       }
+      if (I.getOpcode() == Instruction::Load) {
+        ++LoadInstCount;
+      }else if (I.getOpcode() == Instruction::Store) {
+        ++StoreInstCount;
+      }
     }
+    //Loop Depth of the Basic Block
+    LoopDepth = LI.getLoopDepth(&BB);
+    if (MaxLoopDepth < LoopDepth)
+      MaxLoopDepth = LoopDepth;
+  }
+  for( LoopInfo::iterator li = LI.begin(), le=LI.end(); li != le; ++li) {
+    ++LoopCount; 
   }
 }
 
@@ -48,17 +63,27 @@ void FunctionPropertiesInfo::print(raw_ostream &OS) const {
   OS << "BasicBlockCount: " << BasicBlockCount << "\n"
      << "BlocksReachedFromConditionalInstruction: " << BlocksReachedFromConditionalInstruction << "\n"
      << "Uses: " << Uses << "\n"
-     << "DirectCallsToDefinedFunctions: " << DirectCallsToDefinedFunctions << "\n\n";
+     << "DirectCallsToDefinedFunctions: " << DirectCallsToDefinedFunctions << "\n"
+     << "LoadInstCount: " << LoadInstCount << "\n"
+     << "StoreInstCount: " << StoreInstCount << "\n"
+     << "MaxLoopDepth: " << MaxLoopDepth << "\n"
+     << "LoopCount: " << LoopCount << "\n\n";
+}
+
+FunctionPropertiesInfo::FunctionPropertiesInfo() = default;
+
+FunctionPropertiesInfo::FunctionPropertiesInfo(const Function &F,
+                                               const LoopInfo &LI) {
+  analyze(F, LI);
 }
 
 AnalysisKey FunctionPropertiesAnalysis::Key;
 
 FunctionPropertiesInfo FunctionPropertiesAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
   FunctionPropertiesInfo FPI;
-  FPI.analyze(F);
+  FPI.analyze(F, FAM.getResult<LoopAnalysis>(F));
   return FPI;
 }
-
 
 PreservedAnalyses FunctionPropertiesPrinterPass::run(Function &F, FunctionAnalysisManager &AM) {
   OS << "Printing analysis results of CFA for function "
@@ -67,3 +92,4 @@ PreservedAnalyses FunctionPropertiesPrinterPass::run(Function &F, FunctionAnalys
   AM.getResult<FunctionPropertiesAnalysis>(F).print(OS);
   return PreservedAnalyses::all();
 }
+

@@ -21,6 +21,13 @@ class Function;
 
 class FunctionPropertiesInfo{
   public:
+    FunctionPropertiesInfo();
+    FunctionPropertiesInfo(const Function &F, const LoopInfo &LI);
+
+    void analyze(const Function &F, const LoopInfo &LI);
+
+    void print(raw_ostream &OS) const;
+
     /// Number of basic blocks
     int64_t BasicBlockCount = 0;
 
@@ -40,9 +47,17 @@ class FunctionPropertiesInfo{
     /// defined in this module.
     int64_t DirectCallsToDefinedFunctions = 0;
 
-    void analyze(const Function &F);
+    //Load Instruction Count
+    int64_t LoadInstCount = 0;
 
-    void print(raw_ostream &OS) const;
+    //Store Instruction Count
+    int64_t StoreInstCount = 0;
+
+    //Maximum Loop Depth in the Function
+    int64_t MaxLoopDepth = 0;
+
+    //Number of Loops in the Function
+    int64_t LoopCount = 0;
 };
 
 //Analysis pass

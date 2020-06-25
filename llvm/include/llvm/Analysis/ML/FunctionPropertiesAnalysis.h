@@ -1,3 +1,16 @@
+//===- FunctionPropertiesAnalysis.h - Function Properties Analysis ----------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file defines the FunctionPropertiesInfo and FunctionPropertiesAnalysis 
+// classes used to extract function properties. 
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef LLVM_FUNCTIONPROPERTIESANALYSIS_H_
 #define LLVM_FUNCTIONPROPERTIESANALYSIS_H_
 
@@ -6,11 +19,8 @@
 namespace llvm {
 class Function;
 
-class FunctionPropertiesAnalysis
-    : public AnalysisInfoMixin<FunctionPropertiesAnalysis> {
-public:
-  static AnalysisKey Key;
-  struct Result {
+class FunctionPropertiesInfo{
+  public:
     /// Number of basic blocks
     int64_t BasicBlockCount = 0;
 
@@ -29,9 +39,21 @@ public:
     /// Number of direct calls made from this function to other functions
     /// defined in this module.
     int64_t DirectCallsToDefinedFunctions = 0;
-  };
-  Result run(const Function &F, FunctionAnalysisManager &FAM);
+
+    void analyze(const Function &F);
+};
+
+//Analysis pass
+class FunctionPropertiesAnalysis 
+    : public AnalysisInfoMixin<FunctionPropertiesAnalysis> {
+
+  public:
+    static AnalysisKey Key;
+
+    using Result = FunctionPropertiesInfo;
+
+    Result run(Function &F, FunctionAnalysisManager &FAM);
 };
 
 } // namespace llvm
-#endif // LLVM_FUNCTIONPROPERTIESANALYSIS_H_
+#endif // LLVM_FUNCTIONPROPERTIESANALYSIS_H_ 

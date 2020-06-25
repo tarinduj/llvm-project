@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the FunctionPropertiesInfo and FunctionPropertiesAnalysis 
-// classes used to extract function properties. 
+// This file defines the FunctionPropertiesInfo and FunctionPropertiesAnalysis
+// classes used to extract function properties.
 //
 //===----------------------------------------------------------------------===//
 
@@ -46,7 +46,8 @@ void FunctionPropertiesInfo::analyze(const Function &F) {
 
 AnalysisKey FunctionPropertiesAnalysis::Key;
 
-FunctionPropertiesInfo FunctionPropertiesAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
+FunctionPropertiesInfo
+FunctionPropertiesAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
   FunctionPropertiesInfo FPI;
   FPI.analyze(F);
   return FPI;

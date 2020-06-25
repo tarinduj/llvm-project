@@ -48,9 +48,27 @@ FunctionPropertiesInfo::getFunctionPropertiesInfo(const Function &F) {
   return FPI;
 }
 
+void FunctionPropertiesInfo::print(raw_ostream &OS) const {
+  OS << "BasicBlockCount: " << BasicBlockCount << "\n"
+     << "BlocksReachedFromConditionalInstruction: "
+     << BlocksReachedFromConditionalInstruction << "\n"
+     << "Uses: " << Uses << "\n"
+     << "DirectCallsToDefinedFunctions: " << DirectCallsToDefinedFunctions
+     << "\n\n";
+}
+
 AnalysisKey FunctionPropertiesAnalysis::Key;
 
 FunctionPropertiesInfo
 FunctionPropertiesAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
   return FunctionPropertiesInfo::getFunctionPropertiesInfo(F);
+}
+
+PreservedAnalyses
+FunctionPropertiesPrinterPass::run(Function &F, FunctionAnalysisManager &AM) {
+  OS << "Printing analysis results of CFA for function "
+     << "'" << F.getName() << "':"
+     << "\n";
+  AM.getResult<FunctionPropertiesAnalysis>(F).print(OS);
+  return PreservedAnalyses::all();
 }

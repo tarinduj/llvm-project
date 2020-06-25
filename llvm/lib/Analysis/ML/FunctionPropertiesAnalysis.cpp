@@ -19,18 +19,21 @@
 
 using namespace llvm;
 
-void FunctionPropertiesInfo::analyze(const Function &F) {
+FunctionPropertiesInfo
+FunctionPropertiesInfo::getFunctionPropertiesInfo(const Function &F) {
 
-  Uses = ((!F.hasLocalLinkage()) ? 1 : 0) + F.getNumUses();
+  FunctionPropertiesInfo FPI;
+
+  FPI.Uses = ((!F.hasLocalLinkage()) ? 1 : 0) + F.getNumUses();
 
   for (const auto &BB : F) {
-    ++BasicBlockCount;
+    ++FPI.BasicBlockCount;
 
     if (const auto *BI = dyn_cast<BranchInst>(BB.getTerminator())) {
       if (BI->isConditional())
-        BlocksReachedFromConditionalInstruction += BI->getNumSuccessors();
+        FPI.BlocksReachedFromConditionalInstruction += BI->getNumSuccessors();
     } else if (const auto *SI = dyn_cast<SwitchInst>(BB.getTerminator())) {
-      BlocksReachedFromConditionalInstruction +=
+      FPI.BlocksReachedFromConditionalInstruction +=
           (SI->getNumCases() + (nullptr != SI->getDefaultDest()));
     }
 
@@ -38,17 +41,16 @@ void FunctionPropertiesInfo::analyze(const Function &F) {
       if (auto *CS = dyn_cast<CallBase>(&I)) {
         const auto *Callee = CS->getCalledFunction();
         if (Callee && !Callee->isIntrinsic() && !Callee->isDeclaration())
-          ++DirectCallsToDefinedFunctions;
+          ++FPI.DirectCallsToDefinedFunctions;
       }
     }
   }
+  return FPI;
 }
 
 AnalysisKey FunctionPropertiesAnalysis::Key;
 
 FunctionPropertiesInfo
 FunctionPropertiesAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
-  FunctionPropertiesInfo FPI;
-  FPI.analyze(F);
-  return FPI;
+  return FunctionPropertiesInfo::getFunctionPropertiesInfo(F);
 }

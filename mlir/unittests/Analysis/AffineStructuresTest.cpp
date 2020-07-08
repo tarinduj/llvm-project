@@ -261,6 +261,32 @@ TEST(FlatAffineConstraintsTest, FindSampleTest) {
                                                {0, -2, 99}, // 2y <= 99.
                                            },
                                            {}));
+
+  // q + r = 0 and r >= 0
+  // Solution: q = r = 0
+  checkSample(true, makeFACFromConstraints(2, {{0, 1, 0}}, {{1, 1, 0}}));
+
+  // unbounded sets
+
+  // 4q + r = 7 and r = 0
+  // Solution: q = 1, r = 3
+  checkSample(true, makeFACFromConstraints(2, {}, {{4, 1, -7}}));
+
+  // q >= 7
+  checkSample(true, makeFACFromConstraints(1, {{1, -7}}, {}));
+
+  // 4x + 2y + z - 10 >= 0 and z = 0
+  checkSample(true,
+              makeFACFromConstraints(3, {{4, 2, 1, -10}}, {{0, 0, 1, 0}}));
+
+  // 4x + 2y + 1 == 0
+  // As x and y can only be integral, this implies that the above constraint
+  // always has an odd value -> it cannot be zero
+  checkSample(false, makeFACFromConstraints(2, {}, {{4, 2, 1}}));
+
+  // x + y + z - 1 >= 0 and x + y + z <= 0
+  checkSample(false,
+              makeFACFromConstraints(3, {{1, 1, 1, -1}, {-1, -1, -1, 0}}, {}));
 }
 
 TEST(FlatAffineConstraintsTest, IsIntegerEmptyTest) {
@@ -268,6 +294,12 @@ TEST(FlatAffineConstraintsTest, IsIntegerEmptyTest) {
   EXPECT_TRUE(
       makeFACFromConstraints(1, {{5, -1}, {-5, 4}}, {}).isIntegerEmpty());
   // 1 <= 5x and 5x <= 9 (solution: x = 1).
+  EXPECT_FALSE(
+      makeFACFromConstraints(1, {{5, -1}, {-5, 9}}, {}).isIntegerEmpty());
+
+  EXPECT_TRUE(
+      makeFACFromConstraints(1, {{5, -1}, {-5, 4}}, {}).isIntegerEmpty());
+  // 1 <= 5x and 5x <= 9 (solution: x = 1)
   EXPECT_FALSE(
       makeFACFromConstraints(1, {{5, -1}, {-5, 9}}, {}).isIntegerEmpty());
 

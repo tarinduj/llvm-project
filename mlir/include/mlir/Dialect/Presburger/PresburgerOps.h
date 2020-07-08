@@ -3,7 +3,7 @@
 
 #include "mlir/Dialect/Presburger/Attributes.h"
 #include "mlir/Dialect/Presburger/Types.h"
-#include "mlir/Interfaces/SideEffects.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 
 namespace mlir {
 namespace presburger {

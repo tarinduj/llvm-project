@@ -179,11 +179,15 @@ def AffineForOp : Affine_Op<"for",
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<"OpBuilder &builder, OperationState &result, "
-              "int64_t lowerBound, int64_t upperBound, int64_t step = 1">,
+              "int64_t lowerBound, int64_t upperBound, int64_t step = 1, "
+              "function_ref<void(OpBuilder &, Location, Value)> bodyBuilder "
+              "    = nullptr">,
     OpBuilder<"OpBuilder &builder, OperationState &result, "
               "ValueRange lbOperands, AffineMap lbMap, "
               "ValueRange ubOperands, AffineMap ubMap, "
-              "int64_t step = 1">
+              "int64_t step = 1, "
+              "function_ref<void(OpBuilder &, Location, Value)> bodyBuilder "
+              "    = nullptr">
   ];
 
   let extraClassDeclaration = [{
@@ -274,7 +278,8 @@ def AffineForOp : Affine_Op<"for",
 }
 
 def AffineIfOp : Affine_Op<"if",
-                           [ImplicitAffineTerminator, RecursiveSideEffects]> {
+                           [ImplicitAffineTerminator, RecursiveSideEffects,
+                            NoRegionArguments]> {
   let summary = "if-then-else operation";
   let description = [{
     Syntax:

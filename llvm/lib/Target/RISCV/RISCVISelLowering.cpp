@@ -33,6 +33,7 @@
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -197,6 +198,14 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setTruncStoreAction(MVT::f64, MVT::f16, Expand);
   }
 
+  if (Subtarget.is64Bit() &&
+      !(Subtarget.hasStdExtD() || Subtarget.hasStdExtF())) {
+    setOperationAction(ISD::FP_TO_UINT, MVT::i32, Custom);
+    setOperationAction(ISD::FP_TO_SINT, MVT::i32, Custom);
+    setOperationAction(ISD::STRICT_FP_TO_UINT, MVT::i32, Custom);
+    setOperationAction(ISD::STRICT_FP_TO_SINT, MVT::i32, Custom);
+  }
+
   setOperationAction(ISD::GlobalAddress, XLenVT, Custom);
   setOperationAction(ISD::BlockAddress, XLenVT, Custom);
   setOperationAction(ISD::ConstantPool, XLenVT, Custom);
@@ -228,6 +237,12 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
   // Effectively disable jump table generation.
   setMinimumJumpTableEntries(INT_MAX);
+
+  // Jumps are expensive, compared to logic
+  setJumpIsExpensive();
+
+  // We can use any register for comparisons
+  setHasMultipleConditionRegisters();
 }
 
 EVT RISCVTargetLowering::getSetCCResultType(const DataLayout &DL, LLVMContext &,
@@ -904,6 +919,32 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
   switch (N->getOpcode()) {
   default:
     llvm_unreachable("Don't know how to custom type legalize this operation!");
+  case ISD::STRICT_FP_TO_SINT:
+  case ISD::STRICT_FP_TO_UINT:
+  case ISD::FP_TO_SINT:
+  case ISD::FP_TO_UINT: {
+    bool IsStrict = N->isStrictFPOpcode();
+    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+           "Unexpected custom legalisation");
+    SDValue Op0 = IsStrict ? N->getOperand(1) : N->getOperand(0);
+    RTLIB::Libcall LC;
+    if (N->getOpcode() == ISD::FP_TO_SINT ||
+        N->getOpcode() == ISD::STRICT_FP_TO_SINT)
+      LC = RTLIB::getFPTOSINT(Op0.getValueType(), N->getValueType(0));
+    else
+      LC = RTLIB::getFPTOUINT(Op0.getValueType(), N->getValueType(0));
+    MakeLibCallOptions CallOptions;
+    EVT OpVT = Op0.getValueType();
+    CallOptions.setTypeListBeforeSoften(OpVT, N->getValueType(0), true);
+    SDValue Chain = IsStrict ? N->getOperand(0) : SDValue();
+    SDValue Result;
+    std::tie(Result, Chain) =
+        makeLibCall(DAG, LC, N->getValueType(0), Op0, CallOptions, DL, Chain);
+    Results.push_back(Result);
+    if (IsStrict)
+      Results.push_back(Chain);
+    break;
+  }
   case ISD::READCYCLECOUNTER: {
     assert(!Subtarget.is64Bit() &&
            "READCYCLECOUNTER only has custom type legalization on riscv32");
@@ -1200,7 +1241,7 @@ static MachineBasicBlock *emitSplitF64Pseudo(MachineInstr &MI,
   Register HiReg = MI.getOperand(1).getReg();
   Register SrcReg = MI.getOperand(2).getReg();
   const TargetRegisterClass *SrcRC = &RISCV::FPR64RegClass;
-  int FI = MF.getInfo<RISCVMachineFunctionInfo>()->getMoveF64FrameIndex();
+  int FI = MF.getInfo<RISCVMachineFunctionInfo>()->getMoveF64FrameIndex(MF);
 
   TII.storeRegToStackSlot(*BB, MI, SrcReg, MI.getOperand(2).isKill(), FI, SrcRC,
                           RI);
@@ -1232,7 +1273,7 @@ static MachineBasicBlock *emitBuildPairF64Pseudo(MachineInstr &MI,
   Register LoReg = MI.getOperand(1).getReg();
   Register HiReg = MI.getOperand(2).getReg();
   const TargetRegisterClass *DstRC = &RISCV::FPR64RegClass;
-  int FI = MF.getInfo<RISCVMachineFunctionInfo>()->getMoveF64FrameIndex();
+  int FI = MF.getInfo<RISCVMachineFunctionInfo>()->getMoveF64FrameIndex(MF);
 
   MachineMemOperand *MMO =
       MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(MF, FI),
@@ -1458,10 +1499,11 @@ static bool CC_RISCVAssign2XLen(unsigned XLen, CCState &State, CCValAssign VA1,
                                      VA1.getLocVT(), CCValAssign::Full));
   } else {
     // Both halves must be passed on the stack, with proper alignment.
-    unsigned StackAlign = std::max(XLenInBytes, ArgFlags1.getOrigAlign());
+    Align StackAlign =
+        std::max(Align(XLenInBytes), ArgFlags1.getNonZeroOrigAlign());
     State.addLoc(
         CCValAssign::getMem(VA1.getValNo(), VA1.getValVT(),
-                            State.AllocateStack(XLenInBytes, Align(StackAlign)),
+                            State.AllocateStack(XLenInBytes, StackAlign),
                             VA1.getLocVT(), CCValAssign::Full));
     State.addLoc(CCValAssign::getMem(
         ValNo2, ValVT2, State.AllocateStack(XLenInBytes, Align(XLenInBytes)),
@@ -1545,7 +1587,7 @@ static bool CC_RISCV(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
   // original type is larger than 2*XLEN, so the register alignment rule does
   // not apply.
   unsigned TwoXLenInBytes = (2 * XLen) / 8;
-  if (!IsFixed && ArgFlags.getOrigAlign() == TwoXLenInBytes &&
+  if (!IsFixed && ArgFlags.getNonZeroOrigAlign() == TwoXLenInBytes &&
       DL.getTypeAllocSize(OrigTy) == TwoXLenInBytes) {
     unsigned RegIdx = State.getFirstUnallocated(ArgGPRs);
     // Skip 'odd' register if necessary.
@@ -2935,6 +2977,26 @@ bool RISCVTargetLowering::shouldExtendTypeInLibCall(EVT Type) const {
     return false;
 
   return true;
+}
+
+bool RISCVTargetLowering::decomposeMulByConstant(LLVMContext &Context, EVT VT,
+                                                 SDValue C) const {
+  // Check integral scalar types.
+  if (VT.isScalarInteger()) {
+    // Do not perform the transformation on riscv32 with the M extension.
+    if (!Subtarget.is64Bit() && Subtarget.hasStdExtM())
+      return false;
+    if (auto *ConstNode = dyn_cast<ConstantSDNode>(C.getNode())) {
+      if (ConstNode->getAPIntValue().getBitWidth() > 8 * sizeof(int64_t))
+        return false;
+      int64_t Imm = ConstNode->getSExtValue();
+      if (isPowerOf2_64(Imm + 1) || isPowerOf2_64(Imm - 1) ||
+          isPowerOf2_64(1 - Imm) || isPowerOf2_64(-1 - Imm))
+        return true;
+    }
+  }
+
+  return false;
 }
 
 #define GET_REGISTER_MATCHER

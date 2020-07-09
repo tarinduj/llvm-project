@@ -397,6 +397,9 @@ static inline bool isIndirectBranchOpcode(int Opc) {
   return false;
 }
 
+/// Return opcode to be used for indirect calls.
+unsigned getBLRCallOpcode(const MachineFunction &MF);
+
 // struct TSFlags {
 #define TSFLAG_ELEMENT_SIZE_TYPE(X)      (X)       // 3-bits
 #define TSFLAG_DESTRUCTIVE_INST_TYPE(X) ((X) << 3) // 4-bit
@@ -439,7 +442,7 @@ enum FalseLaneType {
 
 int getSVEPseudoMap(uint16_t Opcode);
 int getSVERevInstr(uint16_t Opcode);
-int getSVEOrigInstr(uint16_t Opcode);
+int getSVENonRevInstr(uint16_t Opcode);
 }
 
 } // end namespace llvm

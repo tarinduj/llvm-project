@@ -63,6 +63,8 @@ def Shape_AddOp : Shape_Op<"add", [SameOperandsAndResultType]> {
 
   let arguments = (ins Shape_SizeType:$lhs, Shape_SizeType:$rhs);
   let results = (outs Shape_SizeType:$result);
+
+  let assemblyFormat = "$lhs `,` $rhs attr-dict";
 }
 
 def Shape_BroadcastOp : Shape_Op<"broadcast", []> {
@@ -128,6 +130,10 @@ def Shape_ConstSizeOp : Shape_Op<"const_size", [
   let arguments = (ins IndexAttr:$value);
   let results = (outs Shape_SizeType:$result);
 
+  let builders = [
+    OpBuilder<"OpBuilder &builder, OperationState &result, int64_t value">
+  ];
+
   let assemblyFormat = "$value attr-dict";
   let hasFolder = 1;
 }
@@ -153,7 +159,7 @@ def Shape_FromExtentsOp : Shape_Op<"from_extents", [NoSideEffect]> {
   let hasFolder = 1;
 }
 
-def Shape_FromExtentTensorOp : Shape_Op<"from_extent_tensor", []> {
+def Shape_FromExtentTensorOp : Shape_Op<"from_extent_tensor", [NoSideEffect]> {
   let summary = "Creates a shape from a tensor of extents";
   let description = [{
     Creates a shape from a 1D integral tensor of extents. The rank of the
@@ -163,25 +169,39 @@ def Shape_FromExtentTensorOp : Shape_Op<"from_extent_tensor", []> {
 
   let arguments = (ins IndexTensor:$input);
   let results = (outs Shape_ShapeType:$result);
+
+  let assemblyFormat = "attr-dict $input `:` type($input)";
 }
 
-def Shape_ToExtentTensorOp : Shape_Op<"to_extent_tensor", []> {
+def Shape_RankOp : Shape_Op<"rank", [NoSideEffect]> {
+  let summary = "Gets the rank of a shape";
+  let description = [{
+    Returns the rank of the shape, i.e. the number of extents.
+  }];
+
+  let arguments = (ins Shape_ShapeType:$shape);
+  let results = (outs Shape_SizeType:$rank);
+
+  let assemblyFormat = "attr-dict $shape";
+
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+}
+
+def Shape_ToExtentTensorOp : Shape_Op<"to_extent_tensor", [NoSideEffect]> {
   let summary = "Creates a dimension tensor from a shape";
-  // TODO: Think more about the error situation. Perhaps factor out the
-  // error detection into a separate op so downstream consumers can control
-  // their error behavior. Then this op would assume that the input has
-  // been properly checked to not be an error (and could thus be a
-  // NoSideEffect op).
   let description = [{
     Converts a shape to a 1D integral tensor of extents. The number of elements
     in the tensor equals the rank of the shape, and the elements equal the
     extents of the shape.
 
-    If the shape represents an error, then this op currently aborts the program.
+    If the shape represents an error, this op's behavior is undefined.
   }];
 
   let arguments = (ins Shape_ShapeType:$input);
   let results = (outs IndexTensor:$result);
+
+  let assemblyFormat = "attr-dict $input `:` type($result)";
 
   let hasFolder = 1;
 }
@@ -229,6 +249,7 @@ def Shape_IndexToSizeOp : Shape_Op<"index_to_size", [NoSideEffect]> {
   let assemblyFormat = "$arg attr-dict";
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Shape_JoinOp : Shape_Op<"join", []> {
@@ -372,9 +393,10 @@ def Shape_SizeToIndexOp : Shape_Op<"size_to_index", [NoSideEffect]> {
   let assemblyFormat = "$arg attr-dict";
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
-def Shape_YieldOp : Shape_Op<"yield", 
+def Shape_YieldOp : Shape_Op<"yield",
     [HasParent<"ReduceOp">,
      NoSideEffect,
      ReturnLike,
@@ -457,7 +479,7 @@ def Shape_ConcatOp : Shape_Op<"concat", []> {
 // Shape constraint related ops.
 //===----------------------------------------------------------------------===//
 
-//TODO(tpopp): Move the code below and witnesses to a different file.
+// TODO: Move the code below and witnesses to a different file.
 def Shape_AnyOp : Shape_Op<"any", [Commutative, NoSideEffect]> {
   let summary = "Return any combination of the input shapes";
   let description = [{
@@ -531,6 +553,14 @@ def Shape_AssumingOp : Shape_Op<"assuming",
 
   let printer = [{ return ::print(p, *this); }];
   let parser = [{ return ::parse$cppClass(parser, result); }];
+
+  let extraClassDeclaration = [{
+    // Inline the region into the region containing the AssumingOp and delete
+    // the AssumingOp.
+    //
+    // This does no checks on the inputs to the AssumingOp.
+    static void inlineRegionIntoParent(AssumingOp &op, PatternRewriter &rewriter);
+  }];
 
   let hasCanonicalizer = 1;
 }

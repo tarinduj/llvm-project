@@ -234,6 +234,9 @@ template <class ELFT> class ELFState {
   void finalizeStrings();
   void writeELFHeader(raw_ostream &OS, uint64_t SHOff);
   void writeSectionContent(Elf_Shdr &SHeader,
+                           const ELFYAML::NoBitsSection &Section,
+                           ContiguousBlobAccumulator &CBA);
+  void writeSectionContent(Elf_Shdr &SHeader,
                            const ELFYAML::RawContentSection &Section,
                            ContiguousBlobAccumulator &CBA);
   void writeSectionContent(Elf_Shdr &SHeader,
@@ -399,9 +402,11 @@ void ELFState<ELFT>::writeELFHeader(raw_ostream &OS, uint64_t SHOff) {
   Header.e_shentsize =
       Doc.Header.SHEntSize ? (uint16_t)*Doc.Header.SHEntSize : sizeof(Elf_Shdr);
 
+  const bool NoShdrs = Doc.SectionHeaders && Doc.SectionHeaders->NoHeaders;
+
   if (Doc.Header.SHOff)
     Header.e_shoff = *Doc.Header.SHOff;
-  else if (Doc.SectionHeaders && Doc.SectionHeaders->Sections.empty())
+  else if (NoShdrs)
     Header.e_shoff = 0;
   else
     Header.e_shoff = SHOff;
@@ -410,18 +415,20 @@ void ELFState<ELFT>::writeELFHeader(raw_ostream &OS, uint64_t SHOff) {
     Header.e_shnum = *Doc.Header.SHNum;
   else if (!Doc.SectionHeaders)
     Header.e_shnum = Doc.getSections().size();
-  else if (Doc.SectionHeaders->Sections.empty())
+  else if (NoShdrs)
     Header.e_shnum = 0;
   else
-    Header.e_shnum = Doc.SectionHeaders->Sections.size() + /*Null section*/ 1;
+    Header.e_shnum =
+        (Doc.SectionHeaders->Sections ? Doc.SectionHeaders->Sections->size()
+                                      : 0) +
+        /*Null section*/ 1;
 
   if (Doc.Header.SHStrNdx)
     Header.e_shstrndx = *Doc.Header.SHStrNdx;
-  else if ((!Doc.SectionHeaders || !Doc.SectionHeaders->Sections.empty()) &&
-           !ExcludedSectionHeaders.count(".shstrtab"))
-    Header.e_shstrndx = SN2I.get(".shstrtab");
-  else
+  else if (NoShdrs || ExcludedSectionHeaders.count(".shstrtab"))
     Header.e_shstrndx = 0;
+  else
+    Header.e_shstrndx = SN2I.get(".shstrtab");
 
   OS.write((const char *)&Header, sizeof(Header));
 }
@@ -478,11 +485,14 @@ unsigned ELFState<ELFT>::toSectionIndex(StringRef S, StringRef LocSec,
     return 0;
   }
 
-  if (!Doc.SectionHeaders || !Doc.SectionHeaders->Excluded)
+  if (!Doc.SectionHeaders ||
+      (!Doc.SectionHeaders->NoHeaders && !Doc.SectionHeaders->Excluded))
     return Index;
 
-  assert(!Doc.SectionHeaders->Sections.empty());
-  if (Index >= Doc.SectionHeaders->Sections.size()) {
+  assert(!Doc.SectionHeaders->NoHeaders || !Doc.SectionHeaders->Sections);
+  size_t FirstExcluded =
+      Doc.SectionHeaders->Sections ? Doc.SectionHeaders->Sections->size() : 0;
+  if (Index >= FirstExcluded) {
     if (LocSym.empty())
       reportError("unable to link '" + LocSec + "' to excluded section '" + S +
                   "'");
@@ -661,9 +671,7 @@ void ELFState<ELFT>::initSectionHeaders(std::vector<Elf_Shdr> &SHeaders,
     } else if (auto S = dyn_cast<ELFYAML::MipsABIFlags>(Sec)) {
       writeSectionContent(SHeader, *S, CBA);
     } else if (auto S = dyn_cast<ELFYAML::NoBitsSection>(Sec)) {
-      // SHT_NOBITS sections do not have any content to write.
-      SHeader.sh_entsize = 0;
-      SHeader.sh_size = S->Size;
+      writeSectionContent(SHeader, *S, CBA);
     } else if (auto S = dyn_cast<ELFYAML::DynamicSection>(Sec)) {
       writeSectionContent(SHeader, *S, CBA);
     } else if (auto S = dyn_cast<ELFYAML::SymverSection>(Sec)) {
@@ -929,6 +937,22 @@ Expected<uint64_t> emitDWARF(typename ELFT::Shdr &SHeader, StringRef Name,
     Err = DWARFYAML::emitDebugRanges(*OS, DWARF);
   else if (Name == ".debug_line")
     Err = DWARFYAML::emitDebugLine(*OS, DWARF);
+  else if (Name == ".debug_addr")
+    Err = DWARFYAML::emitDebugAddr(*OS, DWARF);
+  else if (Name == ".debug_abbrev")
+    Err = DWARFYAML::emitDebugAbbrev(*OS, DWARF);
+  else if (Name == ".debug_info")
+    Err = DWARFYAML::emitDebugInfo(*OS, DWARF);
+  else if (Name == ".debug_pubnames")
+    Err = DWARFYAML::emitPubSection(*OS, *DWARF.PubNames, DWARF.IsLittleEndian);
+  else if (Name == ".debug_pubtypes")
+    Err = DWARFYAML::emitPubSection(*OS, *DWARF.PubTypes, DWARF.IsLittleEndian);
+  else if (Name == ".debug_gnu_pubnames")
+    Err = DWARFYAML::emitPubSection(*OS, *DWARF.GNUPubNames,
+                                    DWARF.IsLittleEndian, /*IsGNUStyle=*/true);
+  else if (Name == ".debug_gnu_pubtypes")
+    Err = DWARFYAML::emitPubSection(*OS, *DWARF.GNUPubTypes,
+                                    DWARF.IsLittleEndian, /*IsGNUStyle=*/true);
   else
     llvm_unreachable("unexpected emitDWARF() call");
 
@@ -1074,6 +1098,35 @@ void ELFState<ELFT>::setProgramHeaderLayout(std::vector<Elf_Phdr> &PHeaders,
         PHeader.p_align = std::max((uint64_t)PHeader.p_align, F.AddrAlign);
     }
   }
+}
+
+static bool shouldAllocateFileSpace(ArrayRef<ELFYAML::ProgramHeader> Phdrs,
+                                    const ELFYAML::NoBitsSection &S) {
+  for (const ELFYAML::ProgramHeader &PH : Phdrs) {
+    auto It = llvm::find_if(
+        PH.Chunks, [&](ELFYAML::Chunk *C) { return C->Name == S.Name; });
+    if (std::any_of(It, PH.Chunks.end(), [](ELFYAML::Chunk *C) {
+          return (isa<ELFYAML::Fill>(C) ||
+                  cast<ELFYAML::Section>(C)->Type != ELF::SHT_NOBITS);
+        }))
+      return true;
+  }
+  return false;
+}
+
+template <class ELFT>
+void ELFState<ELFT>::writeSectionContent(Elf_Shdr &SHeader,
+                                         const ELFYAML::NoBitsSection &S,
+                                         ContiguousBlobAccumulator &CBA) {
+  // SHT_NOBITS sections do not have any content to write.
+  SHeader.sh_entsize = 0;
+  SHeader.sh_size = S.Size;
+
+  // When a nobits section is followed by a non-nobits section or fill
+  // in the same segment, we allocate the file space for it. This behavior
+  // matches linkers.
+  if (shouldAllocateFileSpace(Doc.ProgramHeaders, S))
+    CBA.writeZeros(S.Size);
 }
 
 template <class ELFT>
@@ -1651,7 +1704,7 @@ void ELFState<ELFT>::writeFill(ELFYAML::Fill &Fill,
 
 template <class ELFT>
 DenseMap<StringRef, size_t> ELFState<ELFT>::buildSectionHeaderReorderMap() {
-  if (!Doc.SectionHeaders || Doc.SectionHeaders->Sections.empty())
+  if (!Doc.SectionHeaders || Doc.SectionHeaders->NoHeaders)
     return DenseMap<StringRef, size_t>();
 
   DenseMap<StringRef, size_t> Ret;
@@ -1665,8 +1718,9 @@ DenseMap<StringRef, size_t> ELFState<ELFT>::buildSectionHeaderReorderMap() {
     Seen.insert(Hdr.Name);
   };
 
-  for (const ELFYAML::SectionHeader &Hdr : Doc.SectionHeaders->Sections)
-    AddSection(Hdr);
+  if (Doc.SectionHeaders->Sections)
+    for (const ELFYAML::SectionHeader &Hdr : *Doc.SectionHeaders->Sections)
+      AddSection(Hdr);
 
   if (Doc.SectionHeaders->Excluded)
     for (const ELFYAML::SectionHeader &Hdr : *Doc.SectionHeaders->Excluded)
@@ -1697,13 +1751,21 @@ template <class ELFT> void ELFState<ELFT>::buildSectionIndex() {
     return;
 
   // Build excluded section headers map.
-  if (Doc.SectionHeaders && Doc.SectionHeaders->Excluded)
-    for (const ELFYAML::SectionHeader &Hdr : *Doc.SectionHeaders->Excluded)
-      if (!ExcludedSectionHeaders.insert(Hdr.Name).second)
-        llvm_unreachable("buildSectionIndex() failed");
+  std::vector<ELFYAML::Section *> Sections = Doc.getSections();
+  if (Doc.SectionHeaders) {
+    if (Doc.SectionHeaders->Excluded)
+      for (const ELFYAML::SectionHeader &Hdr : *Doc.SectionHeaders->Excluded)
+        if (!ExcludedSectionHeaders.insert(Hdr.Name).second)
+          llvm_unreachable("buildSectionIndex() failed");
+
+    if (Doc.SectionHeaders->NoHeaders)
+      for (const ELFYAML::Section *S : Sections)
+        if (!ExcludedSectionHeaders.insert(S->Name).second)
+          llvm_unreachable("buildSectionIndex() failed");
+  }
 
   size_t SecNdx = -1;
-  for (const ELFYAML::Section *S : Doc.getSections()) {
+  for (const ELFYAML::Section *S : Sections) {
     ++SecNdx;
 
     size_t Index = ReorderMap.empty() ? SecNdx : ReorderMap.lookup(S->Name);

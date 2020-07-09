@@ -97,6 +97,22 @@ func @fdiv_vector(%arg0: vector<3xf64>, %arg1: vector<3xf64>) {
 }
 
 //===----------------------------------------------------------------------===//
+// spv.FMul
+//===----------------------------------------------------------------------===//
+
+func @fmul_scalar(%arg0: f32, %arg1: f32) {
+	// CHECK: %{{.*}} = llvm.fmul %{{.*}}, %{{.*}} : !llvm.float
+	%0 = spv.FMul %arg0, %arg1 : f32
+	return
+}
+
+func @fmul_vector(%arg0: vector<2xf32>, %arg1: vector<2xf32>) {
+	// CHECK: %{{.*}} = llvm.fmul %{{.*}}, %{{.*}} : !llvm<"<2 x float>">
+	%0 = spv.FMul %arg0, %arg1 : vector<2xf32>
+	return
+}
+
+//===----------------------------------------------------------------------===//
 // spv.FRem
 //===----------------------------------------------------------------------===//
 
@@ -141,6 +157,22 @@ func @udiv_scalar(%arg0: i32, %arg1: i32) {
 func @udiv_vector(%arg0: vector<3xi64>, %arg1: vector<3xi64>) {
 	// CHECK: %{{.*}} = llvm.udiv %{{.*}}, %{{.*}} : !llvm<"<3 x i64>">
 	%0 = spv.UDiv %arg0, %arg1 : vector<3xi64>
+	return
+}
+
+//===----------------------------------------------------------------------===//
+// spv.UMod
+//===----------------------------------------------------------------------===//
+
+func @umod_scalar(%arg0: i32, %arg1: i32) {
+	// CHECK: %{{.*}} = llvm.urem %{{.*}}, %{{.*}} : !llvm.i32
+	%0 = spv.UMod %arg0, %arg1 : i32
+	return
+}
+
+func @umod_vector(%arg0: vector<3xi64>, %arg1: vector<3xi64>) {
+	// CHECK: %{{.*}} = llvm.urem %{{.*}}, %{{.*}} : !llvm<"<3 x i64>">
+	%0 = spv.UMod %arg0, %arg1 : vector<3xi64>
 	return
 }
 

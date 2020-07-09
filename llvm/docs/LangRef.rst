@@ -1130,7 +1130,7 @@ Currently, only the following parameter attributes are defined:
 
 .. _attr_align:
 
-``align <n>``
+``align <n>`` or ``align(<n>)``
     This indicates that the pointer value may be assumed by the optimizer to
     have the specified alignment.  If the pointer value does not have the
     specified alignment, behavior is undefined.
@@ -1251,6 +1251,12 @@ Currently, only the following parameter attributes are defined:
     constant. Undef or constant expressions are not valid. This is
     only valid on intrinsic declarations and cannot be applied to a
     call site or arbitrary function.
+
+``noundef``
+    This attribute applies to parameters and return values. If the value
+    representation contains any undefined or poison bits, the behavior is
+    undefined. Note that this does not refer to padding introduced by the
+    type's storage representation.
 
 .. _gc:
 
@@ -2240,7 +2246,7 @@ that will have been done by one of the ``@llvm.call.preallocated.*`` intrinsics.
       ; initialize %b
       call void @bar(i32 42, %foo* preallocated(%foo) %b) ["preallocated"(token %t)]
 
-.. _ob_gc_live
+.. _ob_gc_live:
 
 GC Live Operand Bundles
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2366,6 +2372,7 @@ as follows:
       starting with ``?`` are not mangled in any way.
     * ``w``: Windows COFF mangling: Similar to ``x``, except that normal C
       symbols do not receive a ``_`` prefix.
+    * ``a``: XCOFF mangling: Private symbols get a ``L..`` prefix.
 ``n<size1>:<size2>:<size3>...``
     This specifies a set of native integer widths for the target CPU in
     bits. For example, it might contain ``n32`` for 32-bit PowerPC,
@@ -3656,6 +3663,11 @@ behavior. Notably this includes (but is not limited to):
 -  The condition operand of a :ref:`br <i_br>` instruction.
 -  The callee operand of a :ref:`call <i_call>` or :ref:`invoke <i_invoke>`
    instruction.
+-  The parameter operand of a :ref:`call <i_call>` or :ref:`invoke <i_invoke>`
+   instruction, when the function or invoking call site has a ``noundef``
+   attribute in the corresponding position.
+-  The operand of a :ref:`ret <i_ret>` instruction if the function or invoking
+   call site has a `noundef` attribute in the return value position.
 
 Here are some examples:
 
@@ -4146,7 +4158,13 @@ AMDGPU:
 - ``[0-9]v``: The 32-bit VGPR register, number 0-9.
 - ``[0-9]s``: The 32-bit SGPR register, number 0-9.
 - ``[0-9]a``: The 32-bit AGPR register, number 0-9.
+- ``I``: An integer inline constant in the range from -16 to 64.
+- ``J``: A 16-bit signed integer constant.
 - ``A``: An integer or a floating-point inline constant.
+- ``B``: A 32-bit signed integer constant.
+- ``C``: A 32-bit unsigned integer constant or an integer inline constant in the range from -16 to 64.
+- ``DA``: A 64-bit constant that can be split into two "A" constants.
+- ``DB``: A 64-bit constant that can be split into two "B" constants.
 
 All ARM modes:
 
@@ -4619,7 +4637,7 @@ to the ``add`` instruction using the ``!dbg`` identifier:
     %indvar.next = add i64 %indvar, 1, !dbg !21
 
 Metadata can also be attached to a function or a global variable. Here metadata
-``!22`` is attached to the ``f1`` and ``f2 functions, and the globals ``g1``
+``!22`` is attached to the ``f1`` and ``f2`` functions, and the globals ``g1``
 and ``g2`` using the ``!dbg`` identifier:
 
 .. code-block:: llvm
@@ -6806,7 +6824,7 @@ of ``hotness`` (which can take the values ``Unknown``, ``Cold``, ``None``,
 branch frequency relative to the entry frequency, scaled down by 2^8)
 may be specified. The defaults are ``Unknown`` and ``0``, respectively.
 
-.. _stacksafety_summary:
+.. _params_summary:
 
 Params
 ^^^^^^
@@ -12096,6 +12114,65 @@ It is undefined behavior if this is called with a token from an
 preallocated call corresponding to the '``llvm.call.preallocated.setup``'
 has already been called.
 
+.. _int_call_preallocated_teardown:
+
+'``llvm.call.preallocated.teardown``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare i8* @llvm.call.preallocated.teardown(token %setup_token)
+
+Overview:
+"""""""""
+
+The '``llvm.call.preallocated.teardown``' intrinsic cleans up the stack
+created by a '``llvm.call.preallocated.setup``'.
+
+Semantics:
+""""""""""
+
+The token argument must be a '``llvm.call.preallocated.setup``'.
+
+The '``llvm.call.preallocated.teardown``' intrinsic cleans up the stack
+allocated by the corresponding '``llvm.call.preallocated.setup``'. Exactly
+one of this or the preallocated call must be called to prevent stack leaks.
+It is undefined behavior to call both a '``llvm.call.preallocated.teardown``'
+and the preallocated call for a given '``llvm.call.preallocated.setup``'.
+
+For example, if the stack is allocated for a preallocated call by a
+'``llvm.call.preallocated.setup``', then an initializer function called on an
+allocated argument throws an exception, there should be a
+'``llvm.call.preallocated.teardown``' in the exception handler to prevent
+stack leaks.
+
+Following the nesting rules in '``llvm.call.preallocated.setup``', nested
+calls to '``llvm.call.preallocated.setup``' and
+'``llvm.call.preallocated.teardown``' are allowed but must be properly
+nested.
+
+Example:
+""""""""
+
+.. code-block:: llvm
+
+        %cs = call token @llvm.call.preallocated.setup(i32 1)
+        %x = call i8* @llvm.call.preallocated.arg(token %cs, i32 0) preallocated(i32)
+        %y = bitcast i8* %x to i32*
+        invoke void @constructor(i32* %y) to label %conta unwind label %contb
+    conta:
+        call void @foo1(i32* preallocated(i32) %y) ["preallocated"(token %cs)]
+        ret void
+    contb:
+        %s = catchswitch within none [label %catch] unwind to caller
+    catch:
+        %p = catchpad within %s []
+        call void @llvm.call.preallocated.teardown(token %cs)
+        ret void
+
 Standard C Library Intrinsics
 -----------------------------
 
@@ -15131,7 +15208,17 @@ matches the element-type of the vector input.
 If the intrinsic call has the 'reassoc' or 'fast' flags set, then the
 reduction will not preserve the associativity of an equivalent scalarized
 counterpart. Otherwise the reduction will be *ordered*, thus implying that
-the operation respects the associativity of a scalarized reduction.
+the operation respects the associativity of a scalarized reduction. That is, the
+reduction begins with the start value and performs an fadd operation with consecutively
+increasing vector element indices. See the following pseudocode:
+
+::
+
+    float ordered_fadd(start_value, input_vector)
+      result = start_value
+      for i = 0 to length(input_vector)
+        result = result + input_vector[i]
+      return result
 
 
 Arguments:
@@ -15192,7 +15279,17 @@ matches the element-type of the vector input.
 If the intrinsic call has the 'reassoc' or 'fast' flags set, then the
 reduction will not preserve the associativity of an equivalent scalarized
 counterpart. Otherwise the reduction will be *ordered*, thus implying that
-the operation respects the associativity of a scalarized reduction.
+the operation respects the associativity of a scalarized reduction. That is, the
+reduction begins with the start value and performs an fmul operation with consecutively
+increasing vector element indices. See the following pseudocode:
+
+::
+
+    float ordered_fmul(start_value, input_vector)
+      result = start_value
+      for i = 0 to length(input_vector)
+        result = result * input_vector[i]
+      return result
 
 
 Arguments:
@@ -15466,56 +15563,74 @@ must have <Inner> * <OuterColumns> elements and the returned vector must have
 <OuterRows> * <OuterColumns> elements.
 
 
-'``llvm.matrix.columnwise.load.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.matrix.column.major.load.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare vectorty @llvm.matrix.columnwise.load.*(ptrty %Ptr, i32 %Stride, i32 <Rows>, i32 <Cols>)
+      declare vectorty @llvm.matrix.column.major.load.*(
+          ptrty %Ptr, i64 %Stride, i1 <IsVolatile>, i32 <Rows>, i32 <Cols>)
 
 Overview:
 """""""""
 
-The '``llvm.matrix.columnwise.load.*``' intrinsic loads a matrix with <Rows>
+The '``llvm.matrix.column.major.load.*``' intrinsic loads a matrix with <Rows>
 rows and <Cols> columns, using a stride of %Stride between columns. For two
 consecutive columns A and B, %Stride refers to the distance (the number of
 elements) between the start of column A and the start of column B. The result
 matrix is returned embedded in the result vector. This allows for convenient
-loading of sub matrixes.
+loading of sub matrixes.  If <IsVolatile> is true, the intrinsic is considered
+a :ref:`volatile memory access <volatile>`.
+
+If the %Ptr argument is known to be aligned to some boundary, this can be
+specified as an attribute on the argument.
 
 Arguments:
 """"""""""
 
-The <Rows> and <Cols> arguments must be constant integers. The returned vector
-must have <Rows> * <Cols> elements. %Stride must be >= <Rows>.
+The <IsVolatile>, <Rows> and <Cols> arguments must be constant integers. The
+returned vector must have <Rows> * <Cols> elements. %Stride must be >= <Rows>.
 
-'``llvm.matrix.columnwise.store.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The :ref:`align <attr_align>` parameter attribute can be provided
+for the %Ptr arguments.
+
+
+'``llvm.matrix.column.major.store.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare void @llvm.matrix.columnwise.store.*(vectorty %In, ptrty %Ptr, i32 %Stride, i32 <Rows>, i32 <Cols>)
+      declare void @llvm.matrix.column.major.store.*(
+          vectorty %In, ptrty %Ptr, i64 %Stride, i1 <IsVolatile>, i32 <Rows>, i32 <Cols>)
 
 Overview:
 """""""""
 
-The '``llvm.matrix.columnwise.store.*``' intrinsic stores the matrix with
+The '``llvm.matrix.column.major.store.*``' intrinsic stores the matrix with
 <Rows> rows and <Cols> columns embedded in %In, using a stride of %Stride
 between columns. For two consecutive columns A and B, %Stride refers to the
 distance (the number of elements) between the start of column A and the start
-of column B.
+of column B. If <IsVolatile> is true, the intrinsic is considered a
+:ref:`volatile memory access <volatile>`.
+
+If the %Ptr argument is known to be aligned to some boundary, this can be
+specified as an attribute on the argument.
 
 Arguments:
 """"""""""
 
-The <Rows> and <Cols> arguments must be constant integers. The vector argument
-%In must have <Rows> * <Cols> elements. %Stride must be >= <Rows>.
+The <IsVolatile>, <Rows>, <Cols> arguments must be constant integers. The
+vector argument %In must have <Rows> * <Cols> elements. %Stride must be >= <Rows>.
+
+The :ref:`align <attr_align>` parameter attribute can be provided
+for the %Ptr arguments.
+
 
 Half Precision Floating-Point Intrinsics
 ----------------------------------------
@@ -19019,6 +19134,40 @@ Arguments:
 
 The ``llvm.expect`` intrinsic takes two arguments. The first argument is
 a value. The second argument is an expected value.
+
+Semantics:
+""""""""""
+
+This intrinsic is lowered to the ``val``.
+
+'``llvm.expect.with.probability``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This intrinsic is similar to ``llvm.expect``. This is an overloaded intrinsic.
+You can use ``llvm.expect.with.probability`` on any integer bit width.
+
+::
+
+      declare i1 @llvm.expect.with.probability.i1(i1 <val>, i1 <expected_val>, double <prob>)
+      declare i32 @llvm.expect.with.probability.i32(i32 <val>, i32 <expected_val>, double <prob>)
+      declare i64 @llvm.expect.with.probability.i64(i64 <val>, i64 <expected_val>, double <prob>)
+
+Overview:
+"""""""""
+
+The ``llvm.expect.with.probability`` intrinsic provides information about
+expected value of ``val`` with probability(or confidence) ``prob``, which can
+be used by optimizers.
+
+Arguments:
+""""""""""
+
+The ``llvm.expect.with.probability`` intrinsic takes three arguments. The first
+argument is a value. The second argument is an expected value. The third
+argument is a probability.
 
 Semantics:
 """"""""""

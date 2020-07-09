@@ -16,6 +16,7 @@
 
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 
 namespace llvm {
@@ -64,14 +65,14 @@ void ThunkInserter<Derived>::createThunkFunction(MachineModuleInfo &MMI,
 
   Builder.CreateRetVoid();
 
-  // MachineFunctions/MachineBasicBlocks aren't created automatically for the
-  // IR-level constructs we already made. Create them and insert them into the
-  // module.
+  // MachineFunctions aren't created automatically for the IR-level constructs
+  // we already made. Create them and insert them into the module.
   MachineFunction &MF = MMI.getOrCreateMachineFunction(*F);
-  MachineBasicBlock *EntryMBB = MF.CreateMachineBasicBlock(Entry);
+  // A MachineBasicBlock must not be created for the Entry block; code
+  // generation from an empty naked function in C source code also does not
+  // generate one.  At least GlobalISel asserts if this invariant isn't
+  // respected.
 
-  // Insert EntryMBB into MF. It's not in the module until we do this.
-  MF.insert(MF.end(), EntryMBB);
   // Set MF properties. We never use vregs...
   MF.getProperties().set(MachineFunctionProperties::Property::NoVRegs);
 }

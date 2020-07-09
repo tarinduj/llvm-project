@@ -1348,6 +1348,8 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   if (IsConstexpr)
     ConstexprCondition = Cond.getKnownValue();
 
+  bool IsBracedThen = Tok.is(tok::l_brace);
+
   // C99 6.8.4p3 - In C99, the body of the if statement is a scope, even if
   // there is no compound stmt.  C90 does not have this clause.  We only do this
   // if the body isn't a compound statement to avoid push/pop in common cases.
@@ -1366,7 +1368,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   //    would have to notify ParseStatement not to create a new scope. It's
   //    simpler to let it create a new scope.
   //
-  ParseScope InnerScope(this, Scope::DeclScope, C99orCXX, Tok.is(tok::l_brace));
+  ParseScope InnerScope(this, Scope::DeclScope, C99orCXX, IsBracedThen);
 
   MisleadingIndentationChecker MIChecker(*this, MSK_if, IfLoc);
 
@@ -1427,7 +1429,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     // Pop the 'else' scope if needed.
     InnerScope.Exit();
   } else if (Tok.is(tok::code_completion)) {
-    Actions.CodeCompleteAfterIf(getCurScope());
+    Actions.CodeCompleteAfterIf(getCurScope(), IsBracedThen);
     cutOffParsing();
     return StmtError();
   } else if (InnerStatementTrailingElseLoc.isValid()) {
@@ -2195,9 +2197,11 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
 
   Attrs.takeAllFrom(TempAttrs);
 
-  assert(Attrs.Range.getBegin().isInvalid() &&
-         "start of attribute range already set");
-  Attrs.Range.setBegin(StartLoc);
+  // Start of attribute range may already be set for some invalid input.
+  // See PR46336.
+  if (Attrs.Range.getBegin().isInvalid())
+    Attrs.Range.setBegin(StartLoc);
+
   return S;
 }
 

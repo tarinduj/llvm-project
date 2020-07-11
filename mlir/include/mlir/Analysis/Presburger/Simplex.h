@@ -130,7 +130,7 @@ class Simplex {
 public:
   enum class Direction { Up, Down };
 
-  enum class IneqType { REDUNDANT, SEPARATE, CUT, ADJ_EQ, ADJ_INEQ };
+  enum class IneqType { REDUNDANT, SEPARATE, CUT, ADJEQ, ADJINEQ };
 
   Simplex() = delete;
   explicit Simplex(unsigned nVar);
@@ -188,8 +188,8 @@ public:
   /// SEPARATE    The inequality is satisfied by no points
   ///
   /// Special cases of separate when the tableau is in integer mode:
-  /// ADJ_EQ      The value of the expression is always -1
-  /// ADJ_INEQ    The inequality is c(-u - 1) >= 0 where u is an existing
+  /// ADJEQ      The value of the expression is always -1
+  /// ADJINEQ    The inequality is c(-u - 1) >= 0 where u is an existing
   ///             inequality
   ///
   /// \returns an IneqType, the type of the specified inequality.
@@ -373,8 +373,8 @@ private:
   /// Called by ineqType. Checks for special cases of separate inequalities for
   /// integral tableaus. Must only be called for separate inequalities.
   ///
-  /// \returns the separation type, IneqType::SEPARATE, IneqType::ADJ_EQ, or
-  /// IneqType::ADJ_INEQ.
+  /// \returns the separation type, IneqType::SEPARATE, IneqType::ADJEQ, or
+  /// IneqType::ADJINEQ.
   IneqType separationType(unsigned row);
 
   /// Checks that \p unknown is neither a redundant row or a dead column

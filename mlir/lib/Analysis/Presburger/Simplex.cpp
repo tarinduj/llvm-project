@@ -666,6 +666,7 @@ Simplex Simplex::makeProduct(const Simplex &a, const Simplex &b) {
                       : ~(a.numConstraints() + ~index);
   };
 
+  result.colUnknown.assign(2, nullIndex);
   for (unsigned i = 2; i < a.liveColBegin; ++i)
     result.colUnknown.push_back(a.colUnknown[i]);
   for (unsigned i = 2; i < b.liveColBegin; ++i) {

@@ -60,3 +60,9 @@ func @no_set_definition() {
   // expected-error @+1 {{expected ')'}}
   %set1 = presburger.set #presburger<"(x,y)[] : (x + y = 0 = x + y)">
 }
+
+// -----
+func @no_set_definition() {
+  // expected-error @+1 {{expected a valid 64 bit integer}}
+  %set = presburger.set #presburger<"(d0)[] : (d0 >= 9223372036854775808)">
+}

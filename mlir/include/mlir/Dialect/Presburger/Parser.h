@@ -284,7 +284,7 @@ public:
   LogicalResult parseVariable(std::unique_ptr<VariableExpr> &vExpr);
 
 private:
-  InFlightDiagnostic emitError(const Twine &message = {});
+  InFlightDiagnostic emitErrorForToken(Token token, const Twine &message = {});
 
   Lexer lexer;
 };

@@ -5,6 +5,7 @@
 
 #include "mlir/Dialect/Presburger/Parser.h"
 #include "mlir/IR/Diagnostics.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace mlir;
@@ -216,6 +217,8 @@ InFlightDiagnostic Lexer::emitError(const char *loc, const Twine &message) {
 }
 
 InFlightDiagnostic Lexer::emitError(const Twine &message) {
+  assert(!reachedEOF() &&
+         "curPtr is out of range, you have to specify a location");
   return emitError(curPtr, message);
 }
 
@@ -233,7 +236,8 @@ LogicalResult Parser::parseSet(std::unique_ptr<SetExpr> &setExpr) {
     return failure();
 
   if (!lexer.peek().isa(Token::Kind::Colon))
-    return emitError("expected ':' but got: " + lexer.peek().string());
+    return emitErrorForToken(lexer.peek(),
+                             "expected ':' but got: " + lexer.peek().string());
 
   lexer.next();
   if (failed(lexer.nextAssertKind(Token::Kind::LeftParen)))
@@ -246,7 +250,8 @@ LogicalResult Parser::parseSet(std::unique_ptr<SetExpr> &setExpr) {
     // checks that we are at the end of the string
     if (lexer.reachedEOF())
       return success();
-    return emitError("expected to be at the end of the set");
+    return emitErrorForToken(lexer.peek(),
+                             "expected to be at the end of the set");
   }
 
   std::unique_ptr<Expr> constraints;
@@ -262,7 +267,8 @@ LogicalResult Parser::parseSet(std::unique_ptr<SetExpr> &setExpr) {
   // checks that we are at the end of the string
   if (lexer.reachedEOF())
     return success();
-  return emitError("expected to be at the end of the set");
+  return emitErrorForToken(lexer.peek(),
+                           "expected to be at the end of the set");
 }
 
 LogicalResult Parser::parseCommaSeparatedListUntil(SmallVector<StringRef, 8> &l,
@@ -278,14 +284,15 @@ LogicalResult Parser::parseCommaSeparatedListUntil(SmallVector<StringRef, 8> &l,
     }
 
     if (!lexer.peek().isa(Token::Kind::Comma))
-      return emitError("expected ',' or " + Token::name(rightToken));
+      return emitErrorForToken(lexer.peek(),
+                               "expected ',' or " + Token::name(rightToken));
 
     lexer.next();
     token = lexer.peek();
   }
 
   if (!allowEmpty)
-    return emitError("expected non empty list");
+    return emitErrorForToken(token, "expected non empty list");
 
   return lexer.nextAssertKind(rightToken);
 }
@@ -373,13 +380,13 @@ Parser::parseConstraint(std::unique_ptr<ConstraintExpr> &constraint) {
   else if (cmpToken.isa(Token::Kind::LessEqual))
     kind = ConstraintExpr::Kind::LE;
   else if (cmpToken.isa(Token::Kind::GreaterThan)) {
-    return emitError("strict inequalities are not supported");
+    return emitErrorForToken(cmpToken, "strict inequalities are not supported");
   } else if (cmpToken.isa(Token::Kind::LessThan)) {
-    return emitError("strict inequalities are not supported");
+    return emitErrorForToken(cmpToken, "strict inequalities are not supported");
   } else if (cmpToken.isa(Token::Kind::NotEqual)) {
-    return emitError("!= constraints are not supported");
+    return emitErrorForToken(cmpToken, "!= constraints are not supported");
   } else {
-    return emitError("expected comparison operator");
+    return emitErrorForToken(cmpToken, "expected comparison operator");
   }
 
   std::unique_ptr<Expr> rightExpr;
@@ -439,7 +446,7 @@ LogicalResult Parser::parseTerm(std::unique_ptr<TermExpr> &term,
       return failure();
 
   if (!integer.get() && !identifier.get())
-    return lexer.emitError("expected non empty term");
+    return emitErrorForToken(lexer.peek(), "expected non empty term");
 
   term = std::make_unique<TermExpr>(std::move(integer), std::move(identifier));
   return success();
@@ -461,7 +468,9 @@ LogicalResult Parser::parseInteger(std::unique_ptr<IntegerExpr> &iExpr,
   Token integerToken;
   if (failed(lexer.nextAssertKind(Token::Kind::Integer, integerToken)))
     return failure();
-  int64_t value = std::stoi(integerToken.string().str());
+  int64_t value;
+  if (!llvm::to_integer(integerToken.string(), value))
+    return emitErrorForToken(integerToken, "expected a valid 64 bit integer");
   if (negativ)
     value = -value;
 
@@ -469,8 +478,9 @@ LogicalResult Parser::parseInteger(std::unique_ptr<IntegerExpr> &iExpr,
   return success();
 }
 
-InFlightDiagnostic Parser::emitError(const Twine &message) {
-  return lexer.emitError(message);
+InFlightDiagnostic Parser::emitErrorForToken(Token token,
+                                             const Twine &message) {
+  return lexer.emitError(token.string().begin(), message);
 }
 
 //===----------------------------------------------------------------------===//

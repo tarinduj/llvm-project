@@ -14,6 +14,7 @@ LinearTransform::LinearTransform(MatrixType oMatrix)
 static void subtractColumns(LinearTransform::MatrixType &m, unsigned row,
                             unsigned sourceCol, unsigned targetCol,
                             LinearTransform::MatrixType &otherMatrix) {
+  assert(m(row, sourceCol) != 0 && "cannot divide by zero");
   auto ratio = m(row, targetCol) / m(row, sourceCol);
   m.addToColumn(sourceCol, targetCol, -ratio);
   otherMatrix.addToColumn(sourceCol, targetCol, -ratio);
@@ -76,8 +77,11 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType m) {
       }
     }
 
-    for (unsigned targetCol = 0; targetCol < col; targetCol++)
+    for (unsigned targetCol = 0; targetCol < col; targetCol++) {
+      if (m(row, targetCol) == 0)
+        continue;
       subtractColumns(m, row, targetCol, col, resultMatrix);
+    }
 
     ++col;
   }

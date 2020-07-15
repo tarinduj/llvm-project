@@ -151,6 +151,38 @@ static void print(OpAsmPrinter &printer, SubtractOp op) {
   printer.printType(op.getType());
 }
 
+// coalesce
+
+static ParseResult parseCoalesceOp(OpAsmParser &parser,
+                                   OperationState &result) {
+  OpAsmParser::OperandType op;
+
+  if (parser.parseOperand(op))
+    return failure();
+
+  Type outType;
+  if (parser.parseColon() || parser.parseType(outType))
+    return failure();
+
+  parser.addTypeToList(outType, result.types);
+
+  if (parser.resolveOperands(op, outType, result.operands))
+    return failure();
+
+  return success();
+}
+
+static void print(OpAsmPrinter &printer, CoalesceOp op) {
+  printer << "presburger.coalesce ";
+  printer.printOperand(op.set());
+  printer << " : ";
+  printer.printType(op.getType());
+}
+
+static LogicalResult verify(CoalesceOp op) {
+  return verifyLocality(op.set(), op);
+}
+
 // complement
 
 static ParseResult parseComplementOp(OpAsmParser &parser,

@@ -48,3 +48,9 @@ void EqualOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
   results.insert<SameArgEqualOptPattern>(context);
 }
+
+void CoalesceOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                             MLIRContext *context) {
+  return;
+}
+

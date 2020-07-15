@@ -1,5 +1,6 @@
 #include "PassDetail.h"
 #include "mlir/Analysis/AffineStructures.h"
+#include "mlir/Analysis/Presburger/Coalesce.h"
 #include "mlir/Analysis/Presburger/Set.h"
 #include "mlir/Dialect/Presburger/Attributes.h"
 #include "mlir/Dialect/Presburger/Passes.h"
@@ -39,6 +40,19 @@ static SetOp subtractSets(PatternRewriter &rewriter, Operation *op,
                           PresburgerSetAttr attr1, PresburgerSetAttr attr2) {
   PresburgerSet ps(attr1.getValue());
   ps.subtract(attr2.getValue());
+
+  PresburgerSetType type = PresburgerSetType::get(
+      rewriter.getContext(), ps.getNumDims(), ps.getNumSyms());
+
+  PresburgerSetAttr newAttr = PresburgerSetAttr::get(type, ps);
+  return rewriter.create<SetOp>(op->getLoc(), type, newAttr);
+}
+
+static SetOp coalesceSet(PatternRewriter &rewriter, Operation *op,
+                         PresburgerSetAttr attr) {
+  // TODO: change Namespace of coalesce
+  PresburgerSet in = attr.getValue();
+  PresburgerSet ps = coalesce(in);
 
   PresburgerSetType type = PresburgerSetType::get(
       rewriter.getContext(), ps.getNumDims(), ps.getNumSyms());
@@ -100,4 +114,3 @@ struct PresburgerEvaluatePass
 std::unique_ptr<OperationPass<FuncOp>> mlir::createPresburgerEvaluatePass() {
   return std::make_unique<PresburgerEvaluatePass>();
 }
-

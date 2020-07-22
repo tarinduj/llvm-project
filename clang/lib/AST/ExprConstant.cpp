@@ -9929,8 +9929,17 @@ namespace {
     bool ZeroInitialization(const Expr *E) {
       const ConstantArrayType *CAT =
           Info.Ctx.getAsConstantArrayType(E->getType());
-      if (!CAT)
+      if (!CAT) {
+        if (E->getType()->isIncompleteArrayType()) {
+          // We can be asked to zero-initialize a flexible array member; this
+          // is represented as an ImplicitValueInitExpr of incomplete array
+          // type. In this case, the array has zero elements.
+          Result = APValue(APValue::UninitArray(), 0, 0);
+          return true;
+        }
+        // FIXME: We could handle VLAs here.
         return Error(E);
+      }
 
       Result = APValue(APValue::UninitArray(), 0,
                        CAT->getSize().getZExtValue());
@@ -11231,6 +11240,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
   }
 
   case Builtin::BI__builtin_expect:
+  case Builtin::BI__builtin_expect_with_probability:
     return Visit(E->getArg(0));
 
   case Builtin::BI__builtin_ffs:
@@ -14882,16 +14892,22 @@ bool Expr::isIntegerConstantExpr(const ASTContext &Ctx,
   return true;
 }
 
-bool Expr::isIntegerConstantExpr(llvm::APSInt &Value, const ASTContext &Ctx,
-                                 SourceLocation *Loc, bool isEvaluated) const {
+Optional<llvm::APSInt> Expr::getIntegerConstantExpr(const ASTContext &Ctx,
+                                                    SourceLocation *Loc,
+                                                    bool isEvaluated) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
-  if (Ctx.getLangOpts().CPlusPlus11)
-    return EvaluateCPlusPlus11IntegralConstantExpr(Ctx, this, &Value, Loc);
+  APSInt Value;
+
+  if (Ctx.getLangOpts().CPlusPlus11) {
+    if (EvaluateCPlusPlus11IntegralConstantExpr(Ctx, this, &Value, Loc))
+      return Value;
+    return None;
+  }
 
   if (!isIntegerConstantExpr(Ctx, Loc))
-    return false;
+    return None;
 
   // The only possible side-effects here are due to UB discovered in the
   // evaluation (for instance, INT_MAX + 1). In such a case, we are still
@@ -14905,8 +14921,7 @@ bool Expr::isIntegerConstantExpr(llvm::APSInt &Value, const ASTContext &Ctx,
   if (!::EvaluateAsInt(this, ExprResult, Ctx, SE_AllowSideEffects, Info))
     llvm_unreachable("ICE cannot be evaluated!");
 
-  Value = ExprResult.Val.getInt();
-  return true;
+  return ExprResult.Val.getInt();
 }
 
 bool Expr::isCXX98IntegralConstantExpr(const ASTContext &Ctx) const {

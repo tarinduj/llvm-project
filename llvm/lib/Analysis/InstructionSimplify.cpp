@@ -3703,6 +3703,13 @@ static Value *SimplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
           break;
         }
       }
+
+      // LHS == Inf
+      if (Pred == FCmpInst::FCMP_OEQ && isKnownNeverInfinity(LHS, Q.TLI))
+        return getFalse(RetTy);
+      // LHS != Inf
+      if (Pred == FCmpInst::FCMP_UNE && isKnownNeverInfinity(LHS, Q.TLI))
+        return getTrue(RetTy);
     }
     if (C->isNegative() && !C->isNegZero()) {
       assert(!C->isNaN() && "Unexpected NaN constant!");
@@ -4116,6 +4123,11 @@ static Value *SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
 
   // select ?, X, X -> X
   if (TrueVal == FalseVal)
+    return TrueVal;
+
+  if (isa<UndefValue>(TrueVal))   // select ?, undef, X -> X
+    return FalseVal;
+  if (isa<UndefValue>(FalseVal))   // select ?, X, undef -> X
     return TrueVal;
 
   // Deal with partial undef vector constants: select ?, VecC, VecC' --> VecC''

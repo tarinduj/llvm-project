@@ -14,12 +14,18 @@
 #ifndef LLVM_FUNCTIONPROPERTIESANALYSIS_H_
 #define LLVM_FUNCTIONPROPERTIESANALYSIS_H_
 
-#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
 class Function;
+class LoopInfo;
 
+/*
+/// If the user specifies the -func-properties-analysis argument on an LLVM tool command line
+/// then the value of this boolean will be true, otherwise false.
+/// This is the storage for the -func-properties-analysis option.
+extern bool FunctionPropertiesAnalysisIsEnabled;
+*/
 class FunctionPropertiesInfo {
 public:
   static FunctionPropertiesInfo getFunctionPropertiesInfo(const Function &F,
@@ -82,5 +88,41 @@ public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
+/*
+/// This class implements -func-properties-analysis functionality for new pass manager.
+class FunctionPropertiesHandler {
+  /// Value of this type is capable of uniquely identifying pass invocations.
+  /// It is a pair of string Pass-Identifier (which for now is common
+  /// to all the instance of a given pass) + sequential invocation counter.
+  using PassInvocationID = std::pair<StringRef, unsigned>;
+
+  /// Custom output stream to print timing information into.
+  /// By default (== nullptr) we emit time report into the stream created by
+  /// CreateInfoOutputFile().
+  raw_ostream *OutStream = nullptr;
+
+  bool Enabled;
+
+public:
+  FunctionPropertiesHandler(bool Enabled = FunctionPropertiesAnalysisIsEnabled);
+
+  // We intend this to be unique per-compilation, thus no copies.
+  FunctionPropertiesHandler(const FunctionPropertiesHandler &) = delete;
+  void operator = (const FunctionPropertiesHandler &) = delete;
+
+  void registerCallbacks(PassInstrumentationCallbacks &PIC);
+
+  /// Set a custom output stream for subsequent reporting.
+  void setOutStream(raw_ostream &OutStream);
+
+private:
+  /// Dumps information for running/triggered timers, useful for debugging
+  LLVM_DUMP_METHOD void dump() const;
+
+  // Implementation of pass instrumentation callbacks.
+  void runAfterPass(StringRef PassID);
+}; */
+
 } // namespace llvm
+
 #endif // LLVM_FUNCTIONPROPERTIESANALYSIS_H_

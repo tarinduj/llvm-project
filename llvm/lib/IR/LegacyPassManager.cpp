@@ -743,7 +743,7 @@ void PMTopLevelManager::schedulePass(Pass *P) {
 
   if (PI && !PI->isAnalysis() && shouldPrintAfterPass(PI->getPassArgument())) {
     Pass *PP = P->createPrinterPass(
-        dbgs(), ("*** IR Dump After " + P->getPassName() + " ***").str());
+        dbgs(), ("*** IR Dump After  bbjhnk" + P->getPassName() + " ***").str());
     PP->assignPassManager(activeStack, getTopLevelPassManagerType());
   }
 }

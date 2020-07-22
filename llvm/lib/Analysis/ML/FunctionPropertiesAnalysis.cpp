@@ -16,8 +16,15 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
+
+/*
+static cl::opt<bool, true> EnableFunctionPropertiesAnalysis(
+    "func-properties-analysis", cl::location(FunctionPropertiesAnalysisIsEnabled), cl::Hidden,
+    cl::desc("Analyze every function properties after each pas.")); */
 
 FunctionPropertiesInfo
 FunctionPropertiesInfo::getFunctionPropertiesInfo(const Function &F,

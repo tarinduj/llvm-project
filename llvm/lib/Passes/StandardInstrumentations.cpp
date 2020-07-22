@@ -201,7 +201,7 @@ void PrintIRInstrumentation::printAfterPass(StringRef PassID, Any IR) {
   if (StoreModuleDesc)
     popModuleDesc(PassID);
 
-  SmallString<20> Banner = formatv("*** IR Dump After {0} ***", PassID);
+  SmallString<20> Banner = formatv("*** IR Dump bbbnkj After {0} ***", PassID);
   unwrapAndPrint(IR, Banner, llvm::forcePrintModuleIR());
 }
 

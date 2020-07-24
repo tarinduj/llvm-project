@@ -26,7 +26,7 @@ bool sameConstraint(ArrayRef<int64_t> c1, ArrayRef<int64_t> c2);
 /// rotates invalid around valid, until it becomes redundant. It does this by
 /// adding the smallest multiple of valid to invalid, such that the result is
 /// redundant.
-Optional<SmallVector<int64_t, 8>> wrapping(const FlatAffineConstraints &bs,
+Optional<SmallVector<int64_t, 8>> wrapping(const PresburgerBasicSet &bs,
                                            SmallVectorImpl<int64_t> &valid,
                                            SmallVectorImpl<int64_t> &invalid);
 
@@ -39,7 +39,7 @@ combineConstraint(ArrayRef<int64_t> c1, ArrayRef<int64_t> c2, Fraction &ratio);
 /// of constraints, that were typed as cutting bs. Computes wether the part of
 /// bs, that satisfies ineq with equality, is redundant for all constraints of
 /// cut
-bool containedFacet(ArrayRef<int64_t> ineq, const FlatAffineConstraints &bs,
+bool containedFacet(ArrayRef<int64_t> ineq, const PresburgerBasicSet &bs,
                     const SmallVector<ArrayRef<int64_t>, 8> &cut);
 
 } // namespace mlir

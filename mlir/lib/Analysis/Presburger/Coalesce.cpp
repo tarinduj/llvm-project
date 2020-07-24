@@ -60,11 +60,11 @@ void addEqualitiesAsInequalities(const ArrayRef<ArrayRef<int64_t>> eq,
                                  Info &info);
 
 /// adds all Equalities to bs
-void addEqualities(FlatAffineConstraints &bs,
+void addEqualities(PresburgerBasicSet &bs,
                    const SmallVector<ArrayRef<int64_t>, 8> &equalities);
 
 /// adds all Inequalities to bs
-void addInequalities(FlatAffineConstraints &bs,
+void addInequalities(PresburgerBasicSet &bs,
                      const SmallVector<ArrayRef<int64_t>, 8> &inequalities);
 
 /// only gets called by classify
@@ -107,17 +107,17 @@ bool classify(Simplex &simp,
 ///   |_|___|_|       |______|
 ///
 /// TODO: find better example
-bool protrusionCase(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
+bool protrusionCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                     Info &infoA, const Info &infoB, unsigned i, unsigned j);
 
 /// compute, whether a constraint of cut sticks out of bs by more than 2
 bool stickingOut(const SmallVector<ArrayRef<int64_t>, 8> &cut,
-                 const FlatAffineConstraints &bs);
+                 const PresburgerBasicSet &bs);
 
-/// adds a FlatAffineConstraints and removes the sets at i and j.
+/// adds a PresburgerBasicSet and removes the sets at i and j.
 void addCoalescedBasicSet(
-    SmallVectorImpl<FlatAffineConstraints> &basicSetVector, unsigned i,
-    unsigned j, const FlatAffineConstraints &bs);
+    SmallVectorImpl<PresburgerBasicSet> &basicSetVector, unsigned i,
+    unsigned j, const PresburgerBasicSet &bs);
 
 /// compute the cut case and return whether it has worked.
 ///
@@ -132,7 +132,7 @@ void addCoalescedBasicSet(
 ///     \___\|/            \_____/
 ///
 ///
-bool cutCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector, unsigned i,
+bool cutCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector, unsigned i,
              unsigned j, const Info &infoA, const Info &infoB);
 
 /// compute adjIneq pure Case and return whether it has worked.
@@ -147,7 +147,7 @@ bool cutCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector, unsigned i,
 /// |    //       |          |              |
 /// |___//________|          |______________|
 ///
-bool adjIneqPureCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector,
+bool adjIneqPureCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector,
                      unsigned i, unsigned j, const Info &infoA,
                      const Info &infoB);
 
@@ -165,7 +165,7 @@ bool adjIneqPureCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector,
 ///  |     \   ==> |     \
 ///  |_____|_      |______\
 ///
-bool adjIneqCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector,
+bool adjIneqCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector,
                  unsigned i, unsigned j, const Info &infoA, const Info &infoB);
 
 /// compute the pure adjEqCase and return whether it has worked.
@@ -179,7 +179,7 @@ bool adjIneqCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector,
 ///   / /   ==>  / /
 ///  / /        /_/
 ///
-bool adjEqCasePure(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
+bool adjEqCasePure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                    unsigned i, unsigned j, const Info &infoA,
                    const Info &infoB);
 
@@ -194,7 +194,7 @@ bool adjEqCasePure(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
 ///  |      ||   ==>  |       |
 ///  |______||        |_______|
 ///
-bool adjEqCaseNoCut(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
+bool adjEqCaseNoCut(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                     unsigned i, unsigned j, SmallVector<int64_t, 8> t,
                     Info &infoB);
 
@@ -210,7 +210,7 @@ bool adjEqCaseNoCut(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
 ///    |        /         |       /
 ///    |_______/          |______/
 ///
-bool adjEqCaseNonPure(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
+bool adjEqCaseNonPure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                       unsigned i, unsigned j, const Info &infoA,
                       const Info &infoB);
 
@@ -228,25 +228,25 @@ SmallVector<int64_t, 8> complement(ArrayRef<int64_t> t) {
 }
 
 /// returns all Equalities of a BasicSet as a SmallVector of ArrayRefs
-void getBasicSetEqualities(const FlatAffineConstraints &bs,
+void getBasicSetEqualities(const PresburgerBasicSet &bs,
                            SmallVector<ArrayRef<int64_t>, 8> &eqs) {
   for (unsigned k = 0; k < bs.getNumEqualities(); k++) {
-    eqs.push_back(bs.getEquality(k));
+    eqs.push_back(bs.getEquality(k).getCoeffs());
   }
 }
 
 /// returns all Inequalities of a BasicSet as a SmallVector of ArrayRefs
-void getBasicSetInequalities(const FlatAffineConstraints &bs,
+void getBasicSetInequalities(const PresburgerBasicSet &bs,
                              SmallVector<ArrayRef<int64_t>, 8> &ineqs) {
   for (unsigned k = 0; k < bs.getNumInequalities(); k++) {
-    ineqs.push_back(bs.getInequality(k));
+    ineqs.push_back(bs.getInequality(k).getCoeffs());
   }
 }
 
 PresburgerSet mlir::coalesce(PresburgerSet &set) {
   PresburgerSet newSet(set.getNumDims(), set.getNumSyms());
-  SmallVector<FlatAffineConstraints, 4> basicSetVector =
-      set.getFlatAffineConstraints();
+  SmallVector<PresburgerBasicSet, 4> basicSetVector =
+      set.getBasicSets();
   // TODO: find better looping strategy
   // redefine coalescing function on two BasicSets, return a BasicSet and do the
   // looping strategy in a different function?
@@ -254,13 +254,13 @@ PresburgerSet mlir::coalesce(PresburgerSet &set) {
     for (unsigned j = 0; j < basicSetVector.size(); j++) {
       if (j == i)
         continue;
-      FlatAffineConstraints bs1 = basicSetVector[i];
+      PresburgerBasicSet bs1 = basicSetVector[i];
       Simplex simplex1(bs1);
       SmallVector<ArrayRef<int64_t>, 8> equalities1, inequalities1;
       getBasicSetEqualities(bs1, equalities1);
       getBasicSetInequalities(bs1, inequalities1);
 
-      FlatAffineConstraints bs2 = basicSetVector[j];
+      PresburgerBasicSet bs2 = basicSetVector[j];
       Simplex simplex2(bs2);
       SmallVector<ArrayRef<int64_t>, 8> equalities2, inequalities2;
       getBasicSetEqualities(bs2, equalities2);
@@ -369,31 +369,31 @@ PresburgerSet mlir::coalesce(PresburgerSet &set) {
       }
     }
   }
-  for (const FlatAffineConstraints &curr : basicSetVector) {
-    newSet.addFlatAffineConstraints(curr);
+  for (const PresburgerBasicSet &curr : basicSetVector) {
+    newSet.addBasicSet(curr);
   }
   return newSet;
 }
 
-void addInequalities(FlatAffineConstraints &bs,
+void addInequalities(PresburgerBasicSet &bs,
                      const SmallVector<ArrayRef<int64_t>, 8> &inequalities) {
   for (unsigned k = 0; k < inequalities.size(); k++) {
     bs.addInequality(inequalities[k]);
   }
 }
 
-void addEqualities(FlatAffineConstraints &bs,
+void addEqualities(PresburgerBasicSet &bs,
                    const SmallVector<ArrayRef<int64_t>, 8> &equalities) {
   for (unsigned k = 0; k < equalities.size(); k++) {
     bs.addEquality(equalities[k]);
   }
 }
 
-bool adjIneqPureCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector,
+bool adjIneqPureCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector,
                      unsigned i, unsigned j, const Info &infoA,
                      const Info &infoB) {
-  FlatAffineConstraints newSet(basicSetVector[i].getNumIds(),
-                               basicSetVector[i].getNumSymbolIds());
+  PresburgerBasicSet newSet(basicSetVector[i].getNumTotalDims(),
+                               basicSetVector[i].getNumParams());
   addInequalities(newSet, infoA.redundant);
   addInequalities(newSet, infoB.redundant);
   addCoalescedBasicSet(basicSetVector, i, j, newSet);
@@ -404,8 +404,8 @@ bool adjIneqPureCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector,
 /// the vector.
 /// TODO: probably change when changing looping strategy
 void addCoalescedBasicSet(
-    SmallVectorImpl<FlatAffineConstraints> &basicSetVector, unsigned i,
-    unsigned j, const FlatAffineConstraints &bs) {
+    SmallVectorImpl<PresburgerBasicSet> &basicSetVector, unsigned i,
+    unsigned j, const PresburgerBasicSet &bs) {
   if (i < j) {
     basicSetVector.erase(basicSetVector.begin() + j);
     basicSetVector.erase(basicSetVector.begin() + i);
@@ -416,10 +416,10 @@ void addCoalescedBasicSet(
   basicSetVector.push_back(bs);
 }
 
-bool protrusionCase(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
+bool protrusionCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                     Info &infoA, const Info &infoB, unsigned i, unsigned j) {
-  FlatAffineConstraints &a = basicSetVector[i];
-  FlatAffineConstraints &b = basicSetVector[j];
+  PresburgerBasicSet &a = basicSetVector[i];
+  PresburgerBasicSet &b = basicSetVector[j];
   SmallVector<ArrayRef<int64_t>, 8> constraintsB, equalitiesB;
   getBasicSetEqualities(b, equalitiesB);
   getBasicSetInequalities(b, constraintsB);
@@ -430,8 +430,8 @@ bool protrusionCase(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
   SmallVector<SmallVector<int64_t, 8>, 8> wrapped;
   for (unsigned l = 0; l < infoA.cut.size(); l++) {
     auto t = llvm::to_vector<8>(infoA.cut[l]);
-    FlatAffineConstraints bPrime =
-        FlatAffineConstraints(b.getNumDimIds(), b.getNumSymbolIds());
+    PresburgerBasicSet bPrime =
+        PresburgerBasicSet(b.getNumDims(), b.getNumParams());
     addInequalities(bPrime, constraintsB);
     shift(t, 1);
     Simplex simp(bPrime);
@@ -466,7 +466,7 @@ bool protrusionCase(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
     }
   }
 
-  FlatAffineConstraints newSet(b.getNumDimIds(), b.getNumSymbolIds());
+  PresburgerBasicSet newSet(b.getNumDims(), b.getNumParams());
   // If all the wrappings were succesfull, the two polytopes can be replaced by
   // a polytope with all of the redundant constraints and the wrapped
   // constraints.
@@ -487,7 +487,7 @@ bool protrusionCase(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
 }
 
 bool stickingOut(const SmallVector<ArrayRef<int64_t>, 8> &cut,
-                 const FlatAffineConstraints &bs) {
+                 const PresburgerBasicSet &bs) {
   Simplex simp(bs);
   // for every cut constraint t, compute the optimum in the direction of cut. If
   // the optimum is < -2, the polytopee doesn't stick too much out of the other
@@ -529,24 +529,24 @@ bool mlir::sameConstraint(ArrayRef<int64_t> c1, ArrayRef<int64_t> c2) {
   return true;
 }
 
-bool adjEqCaseNoCut(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
+bool adjEqCaseNoCut(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                     unsigned i, unsigned j, SmallVector<int64_t, 8> t,
                     Info &infoB) {
-  FlatAffineConstraints &A = basicSetVector[j];
-  FlatAffineConstraints &B = basicSetVector[i];
+  PresburgerBasicSet &A = basicSetVector[j];
+  PresburgerBasicSet &B = basicSetVector[i];
   // relax t by 1 and add all other constraints of A to newSet.
   // TODO: is looping only over the inequalities sufficient here?
   // Reasoning: if A had an equality, we would be in a different case.
   SmallVector<SmallVector<int64_t, 8>, 8> newSetInequalities;
   for (unsigned k = 0; k < A.getNumInequalities(); k++) {
-    auto curr = llvm::to_vector<8>(A.getInequality(k));
+    auto curr = llvm::to_vector<8>(A.getInequality(k).getCoeffs());
     if (!sameConstraint(t, curr)) {
-      newSetInequalities.push_back(llvm::to_vector<8>(A.getInequality(k)));
+      newSetInequalities.push_back(llvm::to_vector<8>(A.getInequality(k).getCoeffs()));
     }
   }
   shift(t, 1);
   newSetInequalities.push_back(t);
-  FlatAffineConstraints newSet(A.getNumDimIds(), A.getNumSymbolIds());
+  PresburgerBasicSet newSet(A.getNumDims(), A.getNumParams());
   for (const SmallVector<int64_t, 8> &curr : newSetInequalities) {
     newSet.addInequality(curr);
   }
@@ -558,10 +558,10 @@ bool adjEqCaseNoCut(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
   simp.addEquality(t);
   SmallVector<ArrayRef<int64_t>, 8> constraintsB, equalitiesB;
   for (unsigned k = 0; k < B.getNumEqualities(); k++) {
-    equalitiesB.push_back(B.getEquality(k));
+    equalitiesB.push_back(B.getEquality(k).getCoeffs());
   }
   for (unsigned k = 0; k < B.getNumInequalities(); k++) {
-    constraintsB.push_back(B.getInequality(k));
+    constraintsB.push_back(B.getInequality(k).getCoeffs());
   }
   addEqualitiesAsInequalities(equalitiesB, constraintsB, infoB);
   for (ArrayRef<int64_t> curr : constraintsB) {
@@ -573,11 +573,11 @@ bool adjEqCaseNoCut(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
   return true;
 }
 
-bool adjEqCaseNonPure(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
+bool adjEqCaseNonPure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                       unsigned i, unsigned j, const Info &infoA,
                       const Info &infoB) {
-  FlatAffineConstraints &a = basicSetVector[i];
-  FlatAffineConstraints &b = basicSetVector[j];
+  PresburgerBasicSet &a = basicSetVector[i];
+  PresburgerBasicSet &b = basicSetVector[j];
   SmallVector<SmallVector<int64_t, 8>, 8> wrapped;
   SmallVector<int64_t, 8> minusT;
   // the constraint of a adjacent to an equality, it the complement of the
@@ -622,7 +622,7 @@ bool adjEqCaseNonPure(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
     }
   }
 
-  FlatAffineConstraints newSet(b.getNumIds(), b.getNumSymbolIds());
+  PresburgerBasicSet newSet(b.getNumTotalDims(), b.getNumParams());
   // The new polytope consists of all the wrapped constraints and all the
   // redundant constraints
   for (const SmallVector<int64_t, 8> &curr : wrapped) {
@@ -637,11 +637,11 @@ bool adjEqCaseNonPure(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
   return true;
 }
 
-bool adjEqCasePure(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
+bool adjEqCasePure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                    unsigned i, unsigned j, const Info &infoA,
                    const Info &infoB) {
-  FlatAffineConstraints &a = basicSetVector[i];
-  FlatAffineConstraints &b = basicSetVector[j];
+  PresburgerBasicSet &a = basicSetVector[i];
+  PresburgerBasicSet &b = basicSetVector[j];
   SmallVector<SmallVector<int64_t, 8>, 8> wrapped;
   SmallVector<int64_t, 8> minusT;
   auto t = llvm::to_vector<8>(infoA.t.getValue());
@@ -676,7 +676,7 @@ bool adjEqCasePure(SmallVectorImpl<FlatAffineConstraints> &basicSetVector,
     }
   }
 
-  FlatAffineConstraints newSet(b.getNumIds(), b.getNumSymbolIds());
+  PresburgerBasicSet newSet(b.getNumTotalDims(), b.getNumParams());
   // The new polytope consists of all the wrapped constraints and all the
   // redundant constraints
   for (const SmallVector<int64_t, 8> &curr : wrapped) {
@@ -704,20 +704,20 @@ SmallVector<int64_t, 8> mlir::combineConstraint(ArrayRef<int64_t> c1,
 }
 
 Optional<SmallVector<int64_t, 8>>
-mlir::wrapping(const FlatAffineConstraints &bs, SmallVectorImpl<int64_t> &valid,
+mlir::wrapping(const PresburgerBasicSet &bs, SmallVectorImpl<int64_t> &valid,
                SmallVectorImpl<int64_t> &invalid) {
   assert(valid.size() == invalid.size() && "dimensions must be equal");
-  unsigned n = bs.getNumDimIds();
+  unsigned n = bs.getNumDims();
   Simplex simplex(n + 1);
 
   // for every constraint t(x) + c of bs, make it become t(x) + c*lambda
   for (unsigned k = 0; k < bs.getNumEqualities(); k++) {
-    auto curr = llvm::to_vector<8>(bs.getEquality(k));
+    auto curr = llvm::to_vector<8>(bs.getEquality(k).getCoeffs());
     curr.push_back(0);
     simplex.addEquality(curr);
   }
   for (unsigned k = 0; k < bs.getNumInequalities(); k++) {
-    auto curr = llvm::to_vector<8>(bs.getInequality(k));
+    auto curr = llvm::to_vector<8>(bs.getInequality(k).getCoeffs());
     curr.push_back(0);
     simplex.addInequality(curr);
   }
@@ -816,11 +816,11 @@ bool classifyIneq(Simplex &simp,
   return true;
 }
 
-bool adjIneqCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector,
+bool adjIneqCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector,
                  unsigned i, unsigned j, const Info &infoA, const Info &infoB) {
   ArrayRef<int64_t> t = infoA.adjIneq.getValue();
-  FlatAffineConstraints bs(basicSetVector[i].getNumDimIds(),
-                           basicSetVector[i].getNumSymbolIds());
+  PresburgerBasicSet bs(basicSetVector[i].getNumDims(),
+                           basicSetVector[i].getNumParams());
   addInequalities(bs, infoA.redundant);
   addInequalities(bs, infoA.cut);
   addInequalities(bs, infoB.redundant);
@@ -842,15 +842,15 @@ bool adjIneqCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector,
       return false;
     }
   }
-  FlatAffineConstraints newSet(basicSetVector[i].getNumDimIds(),
-                               basicSetVector[i].getNumSymbolIds());
+  PresburgerBasicSet newSet(basicSetVector[i].getNumDims(),
+                               basicSetVector[i].getNumParams());
   addInequalities(newSet, infoA.redundant);
   addInequalities(newSet, infoB.redundant);
   addCoalescedBasicSet(basicSetVector, i, j, newSet);
   return true;
 }
 
-bool cutCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector, unsigned i,
+bool cutCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector, unsigned i,
              unsigned j, const Info &infoA, const Info &infoB) {
   // if all facets are contained, the redundant constraints of both a and b
   // define the new polytope
@@ -859,8 +859,8 @@ bool cutCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector, unsigned i,
       return false;
     }
   }
-  FlatAffineConstraints newSet(basicSetVector[i].getNumIds(),
-                               basicSetVector[i].getNumSymbolIds());
+  PresburgerBasicSet newSet(basicSetVector[i].getNumTotalDims(),
+                               basicSetVector[i].getNumParams());
   addInequalities(newSet, infoA.redundant);
   addInequalities(newSet, infoB.redundant);
   addCoalescedBasicSet(basicSetVector, i, j, newSet);
@@ -868,7 +868,7 @@ bool cutCase(SmallVector<FlatAffineConstraints, 4> &basicSetVector, unsigned i,
 }
 
 bool mlir::containedFacet(ArrayRef<int64_t> ineq,
-                          const FlatAffineConstraints &bs,
+                          const PresburgerBasicSet &bs,
                           const SmallVector<ArrayRef<int64_t>, 8> &cut) {
   Simplex simp(bs);
   simp.addEquality(ineq);

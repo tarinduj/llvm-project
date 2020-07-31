@@ -169,12 +169,6 @@ inline Simplex::IneqType Simplex::separationType(unsigned row) {
   if (tableau(row, 0) != 1)
     return IneqType::Separate;
 
-  if (tableau(row, 1) == -1) {
-    auto min = computeRowOptimum(Direction::Down, row);
-    if (min && *min == Fraction(-1, 1))
-      return IneqType::AdjEq;
-  }
-
   bool found = false;
   for (unsigned col = liveColBegin; col < nCol; col++) {
     if (tableau(row, col) != 0) {
@@ -186,6 +180,12 @@ inline Simplex::IneqType Simplex::separationType(unsigned row) {
         return IneqType::Separate;
       }
     }
+  }
+
+  if (tableau(row, 1) == -1) {
+    auto min = computeRowOptimum(Direction::Down, row);
+    if (min && *min == Fraction(-1, 1))
+      return IneqType::AdjEq;
   }
 
   if (found)

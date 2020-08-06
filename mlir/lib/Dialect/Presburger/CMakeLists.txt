@@ -5,6 +5,7 @@ add_mlir_dialect_library(MLIRPresburgerDialect
   Types.cpp
   Parser.cpp
   Transforms/Evaluation.cpp
+  Transforms/Canonicalization.cpp
   
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/include
@@ -13,6 +14,7 @@ add_mlir_dialect_library(MLIRPresburgerDialect
   MLIRPresburgerOpsIncGen
   MLIRPresburgerPassIncGen
   MLIRPresburgerEvaluationPatterns
+  MLIRPresburgerCanonicalizationPatterns
 )
 
 target_link_libraries(MLIRPresburgerDialect PUBLIC MLIRIR)

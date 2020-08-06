@@ -1,7 +1,7 @@
 #ifndef Presburger_OPS
 #define Presburger_OPS
 
-include "PresburgerDialect.td"
+include "mlir/Dialect/Presburger/PresburgerDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 
@@ -103,7 +103,7 @@ def Presburger_UnionOp : Presburger_BinSetOp<"union", [NoSideEffect,
         ```
     }];
 
-    //let hasCanonicalizer = 1;
+    let hasCanonicalizer = 1;
 }
 
 
@@ -128,7 +128,7 @@ def Presburger_IntersectOp : Presburger_BinSetOp<"intersect", [NoSideEffect,
         ```
     }];
 
-    //let hasCanonicalizer = 1;
+    let hasCanonicalizer = 1;
 }
 
 
@@ -153,7 +153,7 @@ def Presburger_SubtractOp : Presburger_BinSetOp<"subtract"> {
         ```
     }];
 
-    //let hasCanonicalizer = 1;
+    let hasCanonicalizer = 1;
 }
 
 
@@ -180,7 +180,7 @@ def Presburger_ComplementOp : Presburger_Op<"complement", [NoSideEffect,
 
     let results = (outs PresburgerSetType:$res);
 
-    //let hasCanonicalizer = 1;
+    let hasCanonicalizer = 1;
 }
 
 def Presburger_EqualOp : Presburger_Op<"equal", [NoSideEffect, 
@@ -207,7 +207,7 @@ def Presburger_EqualOp : Presburger_Op<"equal", [NoSideEffect,
     let results = (outs BoolLike:$res);
     let verifier = [{ return ::verifyBinSetOp(*this); }];
 
-    //let hasCanonicalizer = 1;
+    let hasCanonicalizer = 1;
 }
 
 def Presburger_ContainsOp : Presburger_Op<"contains", [NoSideEffect]> {

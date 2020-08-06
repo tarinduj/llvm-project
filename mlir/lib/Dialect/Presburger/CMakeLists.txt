@@ -4,14 +4,15 @@ add_mlir_dialect_library(MLIRPresburgerDialect
   Attributes.cpp
   Types.cpp
   Parser.cpp
-  Transforms/Transforms.cpp
+  Transforms/Evaluation.cpp
   
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/include
 
   DEPENDS
   MLIRPresburgerOpsIncGen
-  MLIRPresburgerTransforms
+  MLIRPresburgerPassIncGen
+  MLIRPresburgerEvaluationPatterns
 )
 
 target_link_libraries(MLIRPresburgerDialect PUBLIC MLIRIR)

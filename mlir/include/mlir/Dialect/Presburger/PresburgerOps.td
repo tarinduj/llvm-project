@@ -102,7 +102,7 @@ def Presburger_UnionOp : Presburger_BinSetOp<"union"> {
         ```
     }];
 
-    let hasCanonicalizer = 1;
+    //let hasCanonicalizer = 1;
 }
 
 
@@ -125,7 +125,7 @@ def Presburger_IntersectOp : Presburger_BinSetOp<"intersect"> {
         ```
     }];
 
-    let hasCanonicalizer = 1;
+    //let hasCanonicalizer = 1;
 }
 
 
@@ -150,7 +150,7 @@ def Presburger_SubtractOp : Presburger_BinSetOp<"subtract"> {
         ```
     }];
 
-    let hasCanonicalizer = 1;
+    //let hasCanonicalizer = 1;
 }
 
 
@@ -177,7 +177,7 @@ def Presburger_ComplementOp : Presburger_Op<"complement", [NoSideEffect,
 
     let results = (outs PresburgerSetType:$res);
 
-    let hasCanonicalizer = 1;
+    //let hasCanonicalizer = 1;
 }
 
 def Presburger_EqualOp : Presburger_Op<"equal", [NoSideEffect, 
@@ -204,7 +204,7 @@ def Presburger_EqualOp : Presburger_Op<"equal", [NoSideEffect,
     let results = (outs BoolLike:$res);
     let verifier = [{ return ::verifyBinSetOp(*this); }];
 
-    let hasCanonicalizer = 1;
+    //let hasCanonicalizer = 1;
 }
 
 def Presburger_ContainsOp : Presburger_Op<"contains", [NoSideEffect]> {

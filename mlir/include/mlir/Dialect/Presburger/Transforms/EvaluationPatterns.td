@@ -1,5 +1,5 @@
-#ifndef PRESBURGER_TRANSFORMS
-#define PRESBURGER_TRANSFORMS
+#ifndef MLIR_DIALECT_PRESBURGER_TRANSFORMS_EVALUATION_PATTERNS
+#define MLIR_DIALECT_PRESBURGER_TRANSFORMS_EVALUATION_PATTERNS
 
 include "PresburgerOps.td"
 
@@ -36,4 +36,4 @@ def EqualSets : NativeCodeCall<
 def FoldEqualPattern : Pat<
   (Presburger_EqualOp:$op (Presburger_SetOp $set1), (Presburger_SetOp $set2)),
   (EqualSets $op, $set1, $set2)>;
-#endif // PRESBURGER_TRANSFORMS
+#endif // MLIR_DIALECT_PRESBURGER_TRANSFORMS_EVALUATION_PATTERNS

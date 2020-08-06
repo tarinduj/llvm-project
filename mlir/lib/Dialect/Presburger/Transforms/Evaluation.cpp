@@ -1,6 +1,8 @@
+#include "PassDetail.h"
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/Presburger/Set.h"
 #include "mlir/Dialect/Presburger/Attributes.h"
+#include "mlir/Dialect/Presburger/Passes.h"
 #include "mlir/Dialect/Presburger/PresburgerOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
@@ -69,32 +71,33 @@ static ConstantOp areEqualSets(PatternRewriter &rewriter, Operation *op,
 
 namespace {
 
-#include "mlir/Dialect/Presburger/Transforms/Transforms.cpp.inc"
+#include "mlir/Dialect/Presburger/Transforms/EvaluationPatterns.cpp.inc"
 
 } // end anonymous namespace
 
-// TODO should we really register the transforms as canonicalization passes?
-void IntersectOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                              MLIRContext *context) {
-  results.insert<FoldIntersectPattern>(context);
+void mlir::populatePresburgerEvaluatePatterns(
+    OwningRewritePatternList &patterns, MLIRContext *ctx) {
+  // clang-format off
+  patterns.insert<
+    FoldIntersectPattern,
+    FoldUnionPattern,
+    FoldSubtractPattern,
+    FoldComplementPattern,
+    FoldEqualPattern
+    >(ctx);
+  // clang-format on
 }
 
-void UnionOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context) {
-  results.insert<FoldUnionPattern>(context);
+struct PresburgerEvaluatePass
+    : public PresburgerEvaluateBase<PresburgerEvaluatePass> {
+  void runOnFunction() override {
+    OwningRewritePatternList patterns;
+    populatePresburgerEvaluatePatterns(patterns, &getContext());
+    applyPatternsAndFoldGreedily(getFunction(), patterns);
+  }
+};
+
+std::unique_ptr<OperationPass<FuncOp>> mlir::createPresburgerEvaluatePass() {
+  return std::make_unique<PresburgerEvaluatePass>();
 }
 
-void SubtractOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                             MLIRContext *context) {
-  results.insert<FoldSubtractPattern>(context);
-}
-
-void ComplementOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<FoldComplementPattern>(context);
-}
-
-void EqualOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context) {
-  results.insert<FoldEqualPattern>(context);
-}

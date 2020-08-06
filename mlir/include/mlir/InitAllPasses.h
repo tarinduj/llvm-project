@@ -38,6 +38,7 @@
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/LLVMIR/Transforms/LegalizeForExport.h"
 #include "mlir/Dialect/Linalg/Passes.h"
+#include "mlir/Dialect/Presburger/Passes.h"
 #include "mlir/Dialect/Quant/Passes.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SPIRV/Passes.h"
@@ -87,6 +88,10 @@ inline void registerAllPasses() {
   // Loop
 #define GEN_PASS_REGISTRATION
 #include "mlir/Dialect/SCF/Passes.h.inc"
+
+  // Presburger
+#define GEN_PASS_REGISTRATION
+#include "mlir/Dialect/Presburger/Passes.h.inc"
 
   // Quant
 #define GEN_PASS_REGISTRATION

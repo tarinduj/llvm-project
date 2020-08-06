@@ -83,7 +83,8 @@ def Presburger_ExprOp : Presburger_Op<"expr", [NoSideEffect]> {
 }
 
 
-def Presburger_UnionOp : Presburger_BinSetOp<"union"> {
+def Presburger_UnionOp : Presburger_BinSetOp<"union", [NoSideEffect, 
+              SameOperandsAndResultType, ProducesPresburgerSet, Commutative]> {
     let summary = "union of two presburger sets";
 
     let description = [{
@@ -106,7 +107,9 @@ def Presburger_UnionOp : Presburger_BinSetOp<"union"> {
 }
 
 
-def Presburger_IntersectOp : Presburger_BinSetOp<"intersect"> {
+def Presburger_IntersectOp : Presburger_BinSetOp<"intersect", [NoSideEffect, 
+              SameOperandsAndResultType, ProducesPresburgerSet, Commutative]> {
+
     let summary = "intersection of two presburger sets";
 
     let description = [{
@@ -181,7 +184,7 @@ def Presburger_ComplementOp : Presburger_Op<"complement", [NoSideEffect,
 }
 
 def Presburger_EqualOp : Presburger_Op<"equal", [NoSideEffect, 
-                                                      SameTypeOperands]> {
+                                                 SameTypeOperands, Commutative]> {
     let summary = "checks set equality";
 
     let description = [{

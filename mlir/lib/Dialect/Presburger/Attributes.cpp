@@ -12,9 +12,9 @@ struct PresburgerSetAttributeStorage : public AttributeStorage {
       : AttributeStorage(t), value(value) {}
 
   bool operator==(const KeyTy &key) const {
-    // TODO is this a good idea? it might be too expensive for the amount of
-    // memory we can save with it
-    return PresburgerSet::equal(key.second, value);
+    // As the equality checks are too expensive, we simply return false
+    // TODO could add a fast heuristic
+    return false;
   }
 
   static llvm::hash_code hashKey(const KeyTy &key) {
@@ -37,9 +37,9 @@ struct PresburgerExprAttributeStorage : public AttributeStorage {
       : AttributeStorage(t), value(value) {}
 
   bool operator==(const KeyTy &key) const {
+    // As the equality checks are too expensive, we simply return false
+    // TODO could add a fast heuristic
     return false;
-    // TODO
-    // PresburgerSet::equal(key.second, value);
   }
 
   static llvm::hash_code hashKey(const KeyTy &key) {

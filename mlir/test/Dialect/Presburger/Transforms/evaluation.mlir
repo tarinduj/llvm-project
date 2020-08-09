@@ -5,7 +5,7 @@ func @simple_union() -> !presburger.set<1,0> {
   %set1 = presburger.set #presburger<"set(x) : (x >= 0)">
   %set2 = presburger.set #presburger<"set(x) : (x - 1 >= 0)">
 
-  // CHECK-NEXT: %[[S:.*]] = presburger.set #presburger<"set(d0) : (d0 >= 0)">
+  // CHECK-NEXT: %[[S:.*]] = presburger.set #presburger<"set(d0) : (d0 >= 0 or d0 - 1 >= 0)">
   // CHECK-NEXT: return %[[S]]
   %uset = presburger.union %set1, %set2 : !presburger.set<1,0>
   return %uset : !presburger.set<1,0>
@@ -31,7 +31,7 @@ func @simple_intersect() -> !presburger.set<1,0> {
   %set1 = presburger.set #presburger<"set(x) : (x >= 0)">
   %set2 = presburger.set #presburger<"set(x) : (x - 1 >= 0)">
 
-  // CHECK-NEXT: %[[S:.*]] = presburger.set #presburger<"set(d0) : (d0 - 1 >= 0)">
+  // CHECK-NEXT: %[[S:.*]] = presburger.set #presburger<"set(d0) : (d0 >= 0 and d0 - 1 >= 0)">
   // CHECK-NEXT: return %[[S]]
   %uset = presburger.intersect %set1, %set2 : !presburger.set<1,0>
   return %uset : !presburger.set<1,0>
@@ -58,7 +58,7 @@ func @combined() -> !presburger.set<1,0> {
   %set2 = presburger.set #presburger<"set(x) : (x - 1 >= 0)">
   %set3 = presburger.set #presburger<"set(y) : (-y + 42 >= 0)">
 
-  // CHECK-NEXT: %[[S:.*]] = presburger.set #presburger<"set(d0) : ()">
+  // CHECK-NEXT: %[[S:.*]] = presburger.set #presburger<"set(d0) : (d0 >= 0 and d0 - 1 >= 0 or -d0 + 42 >= 0)">
   // CHECK-NEXT: return %[[S]]
   %iset = presburger.intersect %set1, %set2 : !presburger.set<1,0>
   %uset = presburger.union %iset, %set3 : !presburger.set<1,0>

@@ -31,14 +31,18 @@ class FunctionPropertiesAnalysisPassInstrument {
       //dbgs() << formatv("*** Module Pass: {0} ***\n", PassID);
 
       for (const auto &F : M->functions()) {
-        
+        if (F.isDeclaration()){
+          continue;
+        }
+ 
         std::string moduleName = Twine(M->getName()).str();
         
         std::string delimiter = "CTMark/";
         moduleName.erase(0, moduleName.find(delimiter) + delimiter.length());
         replace(moduleName.begin(), moduleName.end(), '/', '_');
         std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/CTMark/" + moduleName + ".txt";
-        
+        dbgs() << outFilePath << "\n";
+
         std::ofstream outFile;
         outFile.open(outFilePath, std::ios_base::app);
 

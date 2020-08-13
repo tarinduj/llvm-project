@@ -31,18 +31,24 @@ class FunctionPropertiesAnalysisPassInstrument {
       //dbgs() << formatv("*** Module Pass: {0} ***\n", PassID);
 
       for (const auto &F : M->functions()) {
-        
+        if (F.isDeclaration()){
+          continue;
+        }
+ 
         std::string moduleName = Twine(M->getName()).str();
         
         std::string delimiter = "CTMark/";
         moduleName.erase(0, moduleName.find(delimiter) + delimiter.length());
         replace(moduleName.begin(), moduleName.end(), '/', '_');
-        std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/CTMark/" + moduleName + ".txt";
-        
+        //std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/CTMark/" + moduleName + ".txt";
+        std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/output.txt";
+        //dbgs() << outFilePath << "\n";
+
         std::ofstream outFile;
         outFile.open(outFilePath, std::ios_base::app);
 
-        std::string banner = formatv("*** Module Pass # {0} # {1} #\n", PassID, F.getName().str());
+        //std::string banner = formatv("*** Module Pass # {0} # {1} #\n", PassID, F.getName().str());
+        std::string banner = formatv("*** Module Pass # {0} # {1}.{2} #\n", PassID, moduleName, F.getName().str());
         raw_string_ostream* outString = new raw_string_ostream(banner);
 
         FunctionPropertiesInfo FPI = buildFPI(const_cast<Function *>(&F));
@@ -68,7 +74,8 @@ class FunctionPropertiesAnalysisPassInstrument {
       moduleName.erase(0, moduleName.find(delimiter) + delimiter.length());
       replace(moduleName.begin(), moduleName.end(), '/', '_');
       //dbgs() << "moduleNameAft F:" << moduleName << "\n";
-      std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/CTMark/" + moduleName + ".txt";
+      //std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/CTMark/" + moduleName + ".txt";
+      std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/output.txt";
 
       std::ofstream outFile;
       outFile.open(outFilePath, std::ios_base::app);
@@ -76,7 +83,8 @@ class FunctionPropertiesAnalysisPassInstrument {
       //dbgs() << "outFilePath F:" << outFilePath << "\n";
       ////////////////
       
-      std::string banner = formatv("*** Function Pass # {0} # {1} #\n", PassID, F->getName().str());
+      //std::string banner = formatv("*** Function Pass # {0} # {1} #\n", PassID, F->getName().str());
+      std::string banner = formatv("*** Function Pass # {0} # {1}.{2} #\n", PassID, moduleName, F->getName().str());
       raw_string_ostream* outString = new raw_string_ostream(banner);
 
       FunctionPropertiesInfo FPI = buildFPI(const_cast<Function *>(F));
@@ -102,12 +110,14 @@ class FunctionPropertiesAnalysisPassInstrument {
         std::string delimiter = "CTMark/";
         moduleName.erase(0, moduleName.find(delimiter) + delimiter.length());
         replace(moduleName.begin(), moduleName.end(), '/', '_');
-        std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/CTMark/" + moduleName + ".txt";
+        //std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/CTMark/" + moduleName + ".txt";
+        std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/output.txt";
 
         std::ofstream outFile;
         outFile.open(outFilePath, std::ios_base::app);
         
-        std::string banner = formatv("*** LazyCallGraph Pass # {0} # {1} #\n", PassID, F.getName().str());
+        //std::string banner = formatv("*** LazyCallGraph Pass # {0} # {1} #\n", PassID, F.getName().str());
+        std::string banner = formatv("*** LazyCallGraph Pass # {0} # {1}.{2} #\n", PassID, moduleName, F.getName().str());
         raw_string_ostream* outString = new raw_string_ostream(banner);
 
         FunctionPropertiesInfo FPI = buildFPI(const_cast<Function *>(&F));
@@ -132,12 +142,14 @@ class FunctionPropertiesAnalysisPassInstrument {
       std::string delimiter = "CTMark/";
       moduleName.erase(0, moduleName.find(delimiter) + delimiter.length());
       replace(moduleName.begin(), moduleName.end(), '/', '_');
-      std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/CTMark/" + moduleName + ".txt";
+      //std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/CTMark/" + moduleName + ".txt";
+      std::string outFilePath = "/Users/tarindujayatilaka/Documents/LLVM/results/output.txt";
 
       std::ofstream outFile;
       outFile.open(outFilePath, std::ios_base::app);
       
-      std::string banner = formatv("*** Loop Pass # {0} # {1} #\n", PassID, F->getName().str());
+      //std::string banner = formatv("*** Loop Pass # {0} # {1} #\n", PassID, F->getName().str());
+      std::string banner = formatv("*** Loop Pass # {0} # {1}.{2} #\n", PassID, moduleName, F->getName().str());
       raw_string_ostream* outString = new raw_string_ostream(banner);
 
       FunctionPropertiesInfo FPI = buildFPI(const_cast<Function *>(F));

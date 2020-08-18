@@ -245,7 +245,7 @@ func @equal_simple_pos() -> i1 {
   %set1 = presburger.set #presburger<"set(x) : (x >= 0)">
   %set2 = presburger.set #presburger<"set(x) : (x >= 0)">
 
-  %r = presburger.equal %set1, %set2 : !presburger.set<1,0>, !presburger.set<1,0>
+  %r = presburger.equal %set1, %set2 : !presburger.set<1,0>
   return %r : i1
 }
 
@@ -258,7 +258,7 @@ func @equal_simple_neg() -> i1 {
   %set1 = presburger.set #presburger<"set(x) : (x >= 0)">
   %set2 = presburger.set #presburger<"set(x) : (x <= 0)">
 
-  %r = presburger.equal %set1, %set2 : !presburger.set<1,0>, !presburger.set<1,0>
+  %r = presburger.equal %set1, %set2 : !presburger.set<1,0>
   return %r : i1
 }
 
@@ -271,7 +271,7 @@ func @equal_multidim_pos() -> i1 {
   %set1 = presburger.set #presburger<"set(x,y) : (x >= 0 and x + y = 0 or x = 4 and y = 2)">
   %set2 = presburger.set #presburger<"set(x,y) : (y <= 0 and x + y = 0 or x = 4 and y = 2)">
 
-  %r = presburger.equal %set1, %set2 : !presburger.set<2,0>, !presburger.set<2,0>
+  %r = presburger.equal %set1, %set2 : !presburger.set<2,0>
   return %r : i1
 }
 
@@ -284,6 +284,6 @@ func @equal_multidim_neg() -> i1 {
   %set1 = presburger.set #presburger<"set(x,y) : (x >= 0 and x + y = 0 or x = 4 and y = 2)">
   %set2 = presburger.set #presburger<"set(x,y) : (y <= 1 and x + y = 0 or x = 4 and y = 2)">
 
-  %r = presburger.equal %set1, %set2 : !presburger.set<2,0>, !presburger.set<2,0>
+  %r = presburger.equal %set1, %set2 : !presburger.set<2,0>
   return %r : i1
 }

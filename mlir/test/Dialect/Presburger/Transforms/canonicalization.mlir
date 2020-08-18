@@ -97,7 +97,7 @@ func @equal() -> i1 {
 
   // CHECK-NEXT: %[[R:.*]] = constant true
   // CHECK-NEXT: return %[[R]]
-  %res = presburger.equal %set1, %set1 : !presburger.set<1,1>, !presburger.set<1,1>
+  %res = presburger.equal %set1, %set1 : !presburger.set<1,1>
 
   return %res : i1
 }
@@ -111,7 +111,7 @@ func @equal_no_opt1() -> i1 {
   // CHECK-NEXT: %[[S2:.*]] = presburger.set #presburger<"{{.*}}">
   // CHECK-NEXT: %[[R:.*]] = presburger.equal %[[S1]], %[[S2]]
   // CHECK-NEXT: return %[[R]]
-  %res = presburger.equal %set1, %set2 : !presburger.set<1,1>, !presburger.set<1,1>
+  %res = presburger.equal %set1, %set2 : !presburger.set<1,1>
 
   return %res : i1
 }
@@ -126,7 +126,7 @@ func @equal_no_opt2() -> i1 {
   // CHECK-NEXT: %[[S2:.*]] = presburger.set #presburger<"{{.*}}">
   // CHECK-NEXT: %[[R:.*]] = presburger.equal %[[S1]], %[[S2]]
   // CHECK-NEXT: return %[[R]]
-  %res = presburger.equal %set1, %set2 : !presburger.set<1,0>, !presburger.set<1,0>
+  %res = presburger.equal %set1, %set2 : !presburger.set<1,0>
 
   return %res : i1
 }

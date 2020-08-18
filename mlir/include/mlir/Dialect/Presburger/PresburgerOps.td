@@ -189,7 +189,7 @@ def Presburger_EqualOp : Presburger_Op<"equal", [NoSideEffect,
 
     let description = [{
         The `presburger.equal` operator performs a semantic equality check. 
-        If both Presburger sets contain the examt same points they are considered
+        If both Presburger sets contain the exact same points they are considered
         equal. The result type is i1.
 
         **Examples:**
@@ -198,7 +198,7 @@ def Presburger_EqualOp : Presburger_Op<"equal", [NoSideEffect,
         ```mlir
         %0 = presburger.set #presburger<"(d0)[] : (d0 >= 0 and -d0 + 4 >= 0)">
         %1 = presburger.set #presburger<"(d0)[] : (d0 - 1 >= 0 and -d0 + 3 >= 0)">
-        %2 = presburger.equal %0, %1 : !presburger.set<1,0>, !presburger.set<1,0>
+        %2 = presburger.equal %0, %1 : !presburger.set<1,0>
         ```
     }];
 

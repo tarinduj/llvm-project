@@ -109,7 +109,7 @@ func @equal_non_local_sets(%set1 : !presburger.set<1,0>) {
   %set2 = presburger.set #presburger<"set(x)[] : (x - 1 >= 0 and -x + 3 >= 0)">
 
   // expected-error @+1 {{expect local set definitions}}
-  %uset = presburger.equal %set1, %set2 : !presburger.set<1,0>, !presburger.set<1,0>
+  %uset = presburger.equal %set1, %set2 : !presburger.set<1,0>
 }
 
 // -----

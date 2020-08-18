@@ -194,22 +194,17 @@ static ParseResult parseEqualOp(OpAsmParser &parser, OperationState &result) {
   Type outType = parser.getBuilder().getI1Type();
   parser.addTypeToList(outType, result.types);
 
-  SmallVector<Type, 2> types;
+  Type type;
 
-  if (parser.parseColonTypeList(types))
+  if (parser.parseColonType(type))
     return failure();
 
-  if (parser.resolveOperands(obsOperands, types, parser.getCurrentLocation(),
-                             result.operands))
+  if (parser.resolveOperands(obsOperands, type, result.operands))
     return failure();
 
   return success();
 }
 
-// Equal
-
-// TODO discuss if we want to print this in that fashion. Especialy discuss the
-// type stuff
 static void print(OpAsmPrinter &printer, EqualOp op) {
   printer << "presburger.equal ";
   printer.printOperand(op.set1());
@@ -217,8 +212,6 @@ static void print(OpAsmPrinter &printer, EqualOp op) {
   printer.printOperand(op.set2());
   printer << " : ";
   printer.printType(op.set1().getType());
-  printer << ", ";
-  printer.printType(op.set2().getType());
 }
 
 // Contains

@@ -21,6 +21,7 @@ public:
   void unionSet(const PresburgerSet &set);
   void intersectSet(const PresburgerSet &set);
   static bool equal(const PresburgerSet &s, const PresburgerSet &t);
+  static bool triviallyEqual(const PresburgerSet &s, const PresburgerSet &t);
   void print(raw_ostream &os) const;
   void printVariableList(raw_ostream &os) const;
   void printConstraints(raw_ostream &os) const;

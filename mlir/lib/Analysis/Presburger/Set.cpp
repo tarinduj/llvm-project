@@ -150,6 +150,7 @@ void subtractRecursively(FlatAffineConstraints &b, Simplex &simplex,
     return;
   }
 
+  simplex.detectRedundant();
   SmallVector<bool, 8> isMarkedRedundant;
   for (unsigned j = 0; j < 2 * sI.getNumEqualities() + sI.getNumInequalities();
        j++)

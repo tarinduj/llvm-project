@@ -126,23 +126,40 @@ void expectCoalesce(size_t expectedNumBasicSets, PresburgerSet set) {
   EXPECT_TRUE(expectedNumBasicSets == newSet.getFlatAffineConstraints().size());
 }
 
-/*TEST(CoalesceTest, failing) {
-  PresburgerSet curr =
-      setFromString("(d0, d1)[] : (-d0 + -2147483650 >= 0  or d0 + -2499 >= 0  "
-                    "or d0  >= 0 and -d0 + 2498 >= 0 and d1  >= 0 )");
+TEST(CoalesceTest, failing) {
+  PresburgerSet curr = setFromString(
+      "(d0, d1, d2, d3, d4, d5, d6)[] : (d5  + -3 = 0 and d4  = 0 and d2  + -2 "
+      "= 0 and d0  + -1 = 0 and -d1  + 7999 >= 0 and d3  >= 0 and d1 + -d3  + "
+      "-1 >= 0 and -d1 + 8d6  + 7 >= 0 and d1 + -8d6  >= 0  or d5  + -2 = 0 "
+      "and d4  = 0 and d2  + -2 = 0 and d0  + -1 = 0 and -d1  + 7999 >= 0 and "
+      "d3  >= 0 and d1 + -d3  + -1 >= 0 and -d3 + 8d6  + 7 >= 0 and d3 + -8d6  "
+      ">= 0  or d5  = 0 and d4  = 0 and d2  + -2 = 0 and d0  + -1 = 0 and -d1  "
+      "+ 7999 >= 0 and d3  >= 0 and d1 + -d3  + -1 >= 0 and -d1 + 8d6  + 7 >= "
+      "0 and d1 + -8d6  >= 0  or d5  + -2 = 0 and d4  = 0 and d3  = 0 and d2  "
+      "+ -3 = 0 and d0  + -1 = 0 and d1  >= 0 and -d1  + 7999 >= 0 and -d1 + "
+      "8d6  + 7 >= 0 and d1 + -8d6  >= 0  or d5  + -1 = 0 and d4  = 0 and d3  "
+      "= 0 and d2  = 0 and d0  + -1 = 0 and d1  >= 0 and -d1  + 7999 >= 0 and "
+      "-d1 + 8d6  + 7 >= 0 and d1 + -8d6  >= 0  or d5  = 0 and d4  = 0 and d3  "
+      "= 0 and d2  + -3 = 0 and d0  + -1 = 0 and d1  >= 0 and -d1  + 7999 >= 0 "
+      "and -d1 + 8d6  + 7 >= 0 and d1 + -8d6  >= 0 )");
   PresburgerSet newSet = coalesce(curr);
   EXPECT_TRUE(PresburgerSet::equal(newSet, curr));
 }
 
-TEST(CoalesceTest, performance) {
+/*TEST(CoalesceTest, performance) {
   std::ifstream newfile("new_tests.txt");
   std::string curr;
+  std::ofstream f("hallo.txt");
+  f << "hallo";
+  f.close();
   int i = 0;
+  EXPECT_TRUE(newfile.good());
   while (std::getline(newfile, curr)) {
     i++;
-    std::cout << i << std::endl;
     PresburgerSet currentSet = setFromString(curr);
     PresburgerSet newSet = coalesce(currentSet);
+    EXPECT_TRUE(i < 67);
+    EXPECT_TRUE(i < 68);
     if (!PresburgerSet::equal(newSet, currentSet)) {
       newSet.dump();
       currentSet.dump();

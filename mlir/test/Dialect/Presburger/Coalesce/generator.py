@@ -4,7 +4,7 @@ i = 0
 for line in testFile:
     print(i)
     # used to only get a subset of the tests.
-    # if (i < 10000 or i > 12000):
+    # if (i > 70):
     #     i += 1
     #     continue
     string = "coalesceBenchmark" + str(i) + ".test"

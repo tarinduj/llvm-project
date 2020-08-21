@@ -233,36 +233,6 @@ void subtractRecursively(FlatAffineConstraints &b, Simplex &simplex,
   simplex.rollback(initialSnap);
 }
 
-bool PresburgerSet::triviallyEqual(const PresburgerSet &s, const PresburgerSet &t) {
-  // TODO we cannot assert here, as equal is used by other functionality that
-  // otherwise breaks here
-  // assert(s.getNumSyms() + t.getNumSyms() == 0 &&
-  //       "operations on sets with symbols are not yet supported");
-  if (s.getNumSyms() + t.getNumSyms() != 0)
-    return false;
-  if (s.getNumDims() != t.getNumDims())
-    return false;
-  if (s.getNumBasicSets() != t.getNumBasicSets())
-    return false;
-  for (unsigned i = 0, e = s.getNumBasicSets(); i < e; ++i) {
-    const FlatAffineConstraints &sI = s.getFlatAffineConstraints()[i];
-    const FlatAffineConstraints &tI = t.getFlatAffineConstraints()[i];
-    if (sI.getNumInequalities() != tI.getNumInequalities())
-      return false;
-    if (sI.getNumEqualities() != tI.getNumEqualities())
-      return false;
-    for (unsigned j = 0, je = sI.getNumInequalities(); j < je; ++j) {
-      if (sI.getInequality(j) != tI.getInequality(j))
-        return false;
-    }
-    for (unsigned j = 0, je = sI.getNumEqualities(); j < je; ++j) {
-      if (sI.getEquality(j) != tI.getEquality(j))
-        return false;
-    }
-  }
-  return true;
-}
-
 // Returns the set difference c - set.
 PresburgerSet PresburgerSet::subtract(FlatAffineConstraints cs,
                                       const PresburgerSet &set) {
@@ -320,9 +290,6 @@ bool PresburgerSet::equal(const PresburgerSet &s, const PresburgerSet &t) {
     return false;
   if (s.getNumDims() != t.getNumDims())
     return false;
-
-  if (triviallyEqual(s, t))
-    return true;
 
   PresburgerSet sCopy = s, tCopy = t;
   sCopy.subtract(t);

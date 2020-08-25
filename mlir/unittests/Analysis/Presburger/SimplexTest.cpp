@@ -406,7 +406,7 @@ TEST(SimplexTest, getSamplePointIfIntegral) {
 
 TEST(SimplexTest, markEmptyRollbackRegressionTest) {
   Simplex simplex(1);
-  simplex.addInequality({1, 0}); // x >= 0.
+  simplex.addInequality({1, 0});   // x >= 0.
   simplex.addInequality({-1, -1}); // x <= -1.
   ASSERT_TRUE(simplex.isEmpty());
   unsigned snapshot = simplex.getSnapshot();

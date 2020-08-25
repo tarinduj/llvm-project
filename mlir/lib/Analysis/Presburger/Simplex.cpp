@@ -125,6 +125,8 @@ void Simplex::normalizeRow(unsigned row) {
       break;
     gcd = llvm::greatestCommonDivisor(gcd, std::abs(tableau(row, col)));
   }
+  if (gcd == 0 || gcd == 1)
+    return;
   for (unsigned col = 0; col < nCol; ++col)
     tableau(row, col) /= gcd;
 }

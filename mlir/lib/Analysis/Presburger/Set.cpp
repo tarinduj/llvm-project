@@ -177,20 +177,30 @@ void subtractRecursively(FlatAffineConstraints &b, Simplex &simplex,
   unsigned originalNumIneqs = b.getNumInequalities();
   unsigned originalNumEqs = b.getNumEqualities();
 
+  for (unsigned j = 0; j < sI.getNumInequalities(); j++) {
+    if (isMarkedRedundant[j])
+      continue;
+    const auto &ineq = sI.getInequality(j);
+
+    recurseWithInequality(complementIneq(ineq));
+    addInequality(ineq);
+  }
+
+  offset = sI.getNumInequalities();
   for (unsigned j = 0, e = sI.getNumEqualities(); j < e; ++j) {
     // The first inequality is positive and the second is negative, of which
     // we need the complements (strict negative and strict positive).
     const auto &eq = sI.getEquality(j);
-    if (!isMarkedRedundant[2 * j]) {
+    if (!isMarkedRedundant[offset + 2 * j]) {
       recurseWithInequality(inequalityFromEquality(eq, true, true));
-      if (isMarkedRedundant[2 * j + 1]) {
+      if (isMarkedRedundant[offset + 2 * j + 1]) {
         addInequality(inequalityFromEquality(eq, false, false));
         continue;
       }
     }
-    if (!isMarkedRedundant[2 * j + 1]) {
+    if (!isMarkedRedundant[offset + 2 * j + 1]) {
       recurseWithInequality(inequalityFromEquality(eq, false, true));
-      if (isMarkedRedundant[2 * j]) {
+      if (isMarkedRedundant[offset + 2 * j]) {
         addInequality(inequalityFromEquality(eq, true, false));
         continue;
       }
@@ -198,16 +208,6 @@ void subtractRecursively(FlatAffineConstraints &b, Simplex &simplex,
 
     b.addEquality(eq);
     simplex.addEquality(eq);
-  }
-
-  offset = 2 * sI.getNumEqualities();
-  for (unsigned j = 0; j < sI.getNumInequalities(); j++) {
-    if (isMarkedRedundant[offset + j])
-      continue;
-    const auto &ineq = sI.getInequality(j);
-
-    recurseWithInequality(complementIneq(ineq));
-    addInequality(ineq);
   }
 
   for (unsigned i = b.getNumInequalities(); i > originalNumIneqs; --i)

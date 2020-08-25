@@ -404,6 +404,18 @@ TEST(SimplexTest, getSamplePointIfIntegral) {
                    .hasValue());
 }
 
+TEST(SimplexTest, markEmptyRollbackRegressionTest) {
+  Simplex simplex(1);
+  simplex.addInequality({1, 0}); // x >= 0.
+  simplex.addInequality({-1, -1}); // x <= -1.
+  ASSERT_TRUE(simplex.isEmpty());
+  unsigned snapshot = simplex.getSnapshot();
+  simplex.addInequality({-1, -2}); // x <= -1.
+  ASSERT_TRUE(simplex.isEmpty());
+  simplex.rollback(snapshot);
+  EXPECT_TRUE(simplex.isEmpty());
+}
+
 } // namespace presburger
 } // namespace analysis
 } // namespace mlir

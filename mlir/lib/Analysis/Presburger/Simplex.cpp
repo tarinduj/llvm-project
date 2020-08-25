@@ -345,6 +345,11 @@ void Simplex::swapRows(unsigned i, unsigned j) {
 
 /// Mark this tableau empty and push an entry to the undo stack.
 void Simplex::markEmpty() {
+  // If the set is already empty, then we shouldn't add another UnmarkEmpty log
+  // entry, since in that case the Simplex will be erroneously marked as
+  // non-empty when rolling back past this point.
+  if (empty)
+    return;
   undoLog.emplace_back(UndoLogEntry::UnmarkEmpty, Optional<int>());
   empty = true;
 }

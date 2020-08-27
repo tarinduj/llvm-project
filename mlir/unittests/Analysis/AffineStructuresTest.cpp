@@ -357,4 +357,9 @@ TEST(FlatAffineConstraintsTest, IsIntegerEmptyTest) {
                   .isIntegerEmpty());
 }
 
+TEST(FlatAffineConstraintsTest, findSampleUnbounded) {
+  checkSample(true,
+              makeFACFromConstraints(3, {{0, 0, 1, -1}}, {{1, 0, 0, 0}, {0, 1, 0, 0}}));
+}
+
 } // namespace mlir

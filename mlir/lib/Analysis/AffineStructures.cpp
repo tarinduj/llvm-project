@@ -1117,8 +1117,13 @@ FlatAffineConstraints::findSampleUnbounded(FlatAffineConstraints &cone) const {
     return {};
 
   // transformedSet.substitute(*maybeBoundedSample);
-  for (unsigned i = 0, e = maybeBoundedSample->size(); i < e; ++i)
-    transformedSet.setAndEliminate(i, maybeBoundedSample.getValue()[i]);
+
+  // We need to substitute the first maybeBoundedSample.size() variables
+  // with the values in the sample. Since setAndEliminate() removes the
+  // variable, the next variable to be substituted is always the first one,
+  // i.e., the one at index 0.
+  for (int64_t coord : *maybeBoundedSample)
+    transformedSet.setAndEliminate(0, coord);
 
   auto maybeUnboundedSample = transformedSet.findSampleFullCone();
   if (!maybeUnboundedSample)

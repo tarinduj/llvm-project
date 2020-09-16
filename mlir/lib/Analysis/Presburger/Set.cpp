@@ -55,6 +55,17 @@ void PresburgerSet::addFlatAffineConstraints(FlatAffineConstraints cs) {
 void PresburgerSet::unionSet(const PresburgerSet &set) {
   assertDimensionsCompatible(set, *this);
 
+  if (isUniverse())
+    return;
+
+  if (set.markedEmpty)
+    return;
+
+  if (markedEmpty || set.isUniverse()) {
+    *this = set;
+    return;
+  }
+
   for (const FlatAffineConstraints &cs : set.flatAffineConstraints)
     addFlatAffineConstraints(std::move(cs));
 }
@@ -234,7 +245,8 @@ PresburgerSet PresburgerSet::subtract(FlatAffineConstraints cs,
   if (set.isMarkedEmpty())
     return PresburgerSet(cs);
 
-  PresburgerSet result(cs.getNumDimIds(), cs.getNumSymbolIds());
+  PresburgerSet result =
+      PresburgerSet::makeEmptySet(cs.getNumDimIds(), cs.getNumSymbolIds());
   Simplex simplex(cs);
   subtractRecursively(cs, simplex, set, 0, result);
   return result;

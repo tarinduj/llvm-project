@@ -39,6 +39,7 @@ add_llvm_component_library(LLVMAnalysis
   CodeMetrics.cpp
   ConstantFolding.cpp
   DDG.cpp
+  ConstraintSystem.cpp
   Delinearization.cpp
   DemandedBits.cpp
   DependenceAnalysis.cpp
@@ -49,15 +50,16 @@ add_llvm_component_library(LLVMAnalysis
   DomTreeUpdater.cpp
   DominanceFrontier.cpp
   EHPersonalities.cpp
+  FunctionPropertiesAnalysis.cpp
   GlobalsModRef.cpp
   GuardUtils.cpp
   HeatUtils.cpp
+  IRSimilarityIdentifier.cpp
   IVDescriptors.cpp
   IVUsers.cpp
   IndirectCallPromotionAnalysis.cpp
   InlineCost.cpp
   InlineAdvisor.cpp
-  InlineFeaturesAnalysis.cpp
   InlineSizeEstimatorAnalysis.cpp
   InstCount.cpp
   InstructionPrecedenceTracking.cpp
@@ -102,6 +104,7 @@ add_llvm_component_library(LLVMAnalysis
   RegionPass.cpp
   RegionPrinter.cpp
   ReleaseModeModelRunner.cpp
+  ReplayInlineAdvisor.cpp
   ScalarEvolution.cpp
   ScalarEvolutionAliasAnalysis.cpp
   ScalarEvolutionDivision.cpp

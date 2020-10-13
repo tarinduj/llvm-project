@@ -10,6 +10,7 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/ConstantRange.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -716,10 +717,89 @@ TEST(ValueTracking, propagatesPoison) {
   for (auto &I : BB) {
     if (isa<ReturnInst>(&I))
       break;
-    EXPECT_EQ(propagatesPoison(&I), Data[Index].first)
+    EXPECT_EQ(propagatesPoison(cast<Operator>(&I)), Data[Index].first)
         << "Incorrect answer at instruction " << Index << " = " << I;
     Index++;
   }
+}
+
+TEST_F(ValueTrackingTest, programUndefinedIfPoison) {
+  parseAssembly("declare i32 @any_num()"
+                "define void @test(i32 %mask) {\n"
+                "  %A = call i32 @any_num()\n"
+                "  %B = or i32 %A, %mask\n"
+                "  udiv i32 1, %B"
+                "  ret void\n"
+                "}\n");
+  // If %A was poison, udiv raises UB regardless of %mask's value
+  EXPECT_EQ(programUndefinedIfPoison(A), true);
+}
+
+TEST_F(ValueTrackingTest, programUndefinedIfUndefOrPoison) {
+  parseAssembly("declare i32 @any_num()"
+                "define void @test(i32 %mask) {\n"
+                "  %A = call i32 @any_num()\n"
+                "  %B = or i32 %A, %mask\n"
+                "  udiv i32 1, %B"
+                "  ret void\n"
+                "}\n");
+  // If %A was undef and %mask was 1, udiv does not raise UB
+  EXPECT_EQ(programUndefinedIfUndefOrPoison(A), false);
+}
+
+TEST_F(ValueTrackingTest, isGuaranteedNotToBePoison_exploitBranchCond) {
+  parseAssembly("declare i1 @any_bool()"
+                "define void @test(i1 %y) {\n"
+                "  %A = call i1 @any_bool()\n"
+                "  %cond = and i1 %A, %y\n"
+                "  br i1 %cond, label %BB1, label %BB2\n"
+                "BB1:\n"
+                "  ret void\n"
+                "BB2:\n"
+                "  ret void\n"
+                "}\n");
+  DominatorTree DT(*F);
+  for (auto &BB : *F) {
+    if (&BB == &F->getEntryBlock())
+      continue;
+
+    EXPECT_EQ(isGuaranteedNotToBePoison(A, BB.getTerminator(), &DT), true)
+        << "isGuaranteedNotToBePoison does not hold at " << *BB.getTerminator();
+  }
+}
+
+TEST_F(ValueTrackingTest, isGuaranteedNotToBePoison_phi) {
+  parseAssembly("declare i32 @any_i32(i32)"
+                "define void @test() {\n"
+                "ENTRY:\n"
+                "  br label %LOOP\n"
+                "LOOP:\n"
+                "  %A = phi i32 [0, %ENTRY], [%A.next, %NEXT]\n"
+                "  %A.next = call i32 @any_i32(i32 %A)\n"
+                "  %cond = icmp eq i32 %A.next, 0\n"
+                "  br i1 %cond, label %NEXT, label %EXIT\n"
+                "NEXT:\n"
+                "  br label %LOOP\n"
+                "EXIT:\n"
+                "  ret void\n"
+                "}\n");
+  DominatorTree DT(*F);
+  for (auto &BB : *F) {
+    if (BB.getName() == "LOOP") {
+      EXPECT_EQ(isGuaranteedNotToBePoison(A, A, &DT), true)
+          << "isGuaranteedNotToBePoison does not hold";
+    }
+  }
+}
+
+TEST_F(ValueTrackingTest, isGuaranteedNotToBeUndefOrPoison) {
+  parseAssembly("declare void @f(i32 noundef)"
+                "define void @test(i32 %x) {\n"
+                "  %A = bitcast i32 %x to i32\n"
+                "  call void @f(i32 noundef %x)\n"
+                "  ret void\n"
+                "}\n");
+  EXPECT_EQ(isGuaranteedNotToBeUndefOrPoison(A), true);
 }
 
 TEST(ValueTracking, canCreatePoisonOrUndef) {
@@ -1011,6 +1091,78 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsPtrToIntZext) {
       A, M->getDataLayout(), /* Depth */ 0, &AC, F->front().getTerminator());
   EXPECT_EQ(Known.Zero.getZExtValue(), 31u);
   EXPECT_EQ(Known.One.getZExtValue(), 0u);
+}
+
+TEST_F(ComputeKnownBitsTest, ComputeKnownBitsFreeze) {
+  parseAssembly("define void @test() {\n"
+                "  %m = call i32 @any_num()\n"
+                "  %A = freeze i32 %m\n"
+                "  %n = and i32 %m, 31\n"
+                "  %c = icmp eq i32 %n, 0\n"
+                "  call void @llvm.assume(i1 %c)\n"
+                "  ret void\n"
+                "}\n"
+                "declare void @llvm.assume(i1)\n"
+                "declare i32 @any_num()\n");
+  AssumptionCache AC(*F);
+  KnownBits Known = computeKnownBits(A, M->getDataLayout(), /* Depth */ 0, &AC,
+                                     F->front().getTerminator());
+  EXPECT_EQ(Known.Zero.getZExtValue(), 31u);
+  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+}
+
+TEST_F(ComputeKnownBitsTest, ComputeKnownBitsAddWithRange) {
+  parseAssembly("define void @test(i64* %p) {\n"
+                "  %A = load i64, i64* %p, !range !{i64 64, i64 65536}\n"
+                "  %APlus512 = add i64 %A, 512\n"
+                "  %c = icmp ugt i64 %APlus512, 523\n"
+                "  call void @llvm.assume(i1 %c)\n"
+                "  ret void\n"
+                "}\n"
+                "declare void @llvm.assume(i1)\n");
+  AssumptionCache AC(*F);
+  KnownBits Known = computeKnownBits(A, M->getDataLayout(), /* Depth */ 0, &AC,
+                                     F->front().getTerminator());
+  EXPECT_EQ(Known.Zero.getZExtValue(), ~(65536llu - 1));
+  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+  Instruction &APlus512 = findInstructionByName(F, "APlus512");
+  Known = computeKnownBits(&APlus512, M->getDataLayout(), /* Depth */ 0, &AC,
+                           F->front().getTerminator());
+  // We know of one less zero because 512 may have produced a 1 that
+  // got carried all the way to the first trailing zero.
+  EXPECT_EQ(Known.Zero.getZExtValue(), (~(65536llu - 1)) << 1);
+  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+  // The known range is not precise given computeKnownBits works
+  // with the masks of zeros and ones, not the ranges.
+  EXPECT_EQ(Known.getMinValue(), 0u);
+  EXPECT_EQ(Known.getMaxValue(), 131071);
+}
+
+// 512 + [32, 64) doesn't produce overlapping bits.
+// Make sure we get all the individual bits properly.
+TEST_F(ComputeKnownBitsTest, ComputeKnownBitsAddWithRangeNoOverlap) {
+  parseAssembly("define void @test(i64* %p) {\n"
+                "  %A = load i64, i64* %p, !range !{i64 32, i64 64}\n"
+                "  %APlus512 = add i64 %A, 512\n"
+                "  %c = icmp ugt i64 %APlus512, 523\n"
+                "  call void @llvm.assume(i1 %c)\n"
+                "  ret void\n"
+                "}\n"
+                "declare void @llvm.assume(i1)\n");
+  AssumptionCache AC(*F);
+  KnownBits Known = computeKnownBits(A, M->getDataLayout(), /* Depth */ 0, &AC,
+                                     F->front().getTerminator());
+  EXPECT_EQ(Known.Zero.getZExtValue(), ~(64llu - 1));
+  EXPECT_EQ(Known.One.getZExtValue(), 32u);
+  Instruction &APlus512 = findInstructionByName(F, "APlus512");
+  Known = computeKnownBits(&APlus512, M->getDataLayout(), /* Depth */ 0, &AC,
+                           F->front().getTerminator());
+  EXPECT_EQ(Known.Zero.getZExtValue(), ~512llu & ~(64llu - 1));
+  EXPECT_EQ(Known.One.getZExtValue(), 512u | 32u);
+  // The known range is not precise given computeKnownBits works
+  // with the masks of zeros and ones, not the ranges.
+  EXPECT_EQ(Known.getMinValue(), 544);
+  EXPECT_EQ(Known.getMaxValue(), 575);
 }
 
 class IsBytewiseValueTest : public ValueTrackingTest,
@@ -1430,3 +1582,150 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
     EXPECT_TRUE(CR2.isFullSet());
   }
 }
+
+struct FindAllocaForValueTestParams {
+  const char *IR;
+  bool AnyOffsetResult;
+  bool ZeroOffsetResult;
+};
+
+class FindAllocaForValueTest
+    : public ValueTrackingTest,
+      public ::testing::WithParamInterface<FindAllocaForValueTestParams> {
+protected:
+};
+
+const FindAllocaForValueTestParams FindAllocaForValueTests[] = {
+    {R"(
+      define void @test() {
+        %a = alloca i64
+        %r = bitcast i64* %a to i32*
+        ret void
+      })",
+     true, true},
+
+    {R"(
+      define void @test() {
+        %a = alloca i32
+        %r = getelementptr i32, i32* %a, i32 1
+        ret void
+      })",
+     true, false},
+
+    {R"(
+      define void @test() {
+        %a = alloca i32
+        %r = getelementptr i32, i32* %a, i32 0
+        ret void
+      })",
+     true, true},
+
+    {R"(
+      define void @test(i1 %cond) {
+      entry:
+        %a = alloca i32
+        br label %bb1
+
+      bb1:
+        %r = phi i32* [ %a, %entry ], [ %r, %bb1 ]
+        br i1 %cond, label %bb1, label %exit
+
+      exit:
+        ret void
+      })",
+     true, true},
+
+    {R"(
+      define void @test(i1 %cond) {
+        %a = alloca i32
+        %r = select i1 %cond, i32* %a, i32* %a
+        ret void
+      })",
+     true, true},
+
+    {R"(
+      define void @test(i1 %cond) {
+        %a = alloca i32
+        %b = alloca i32
+        %r = select i1 %cond, i32* %a, i32* %b
+        ret void
+      })",
+     false, false},
+
+    {R"(
+      define void @test(i1 %cond) {
+      entry:
+        %a = alloca i64
+        %a32 = bitcast i64* %a to i32*
+        br label %bb1
+
+      bb1:
+        %x = phi i32* [ %a32, %entry ], [ %x, %bb1 ]
+        %r = getelementptr i32, i32* %x, i32 1
+        br i1 %cond, label %bb1, label %exit
+
+      exit:
+        ret void
+      })",
+     true, false},
+
+    {R"(
+      define void @test(i1 %cond) {
+      entry:
+        %a = alloca i64
+        %a32 = bitcast i64* %a to i32*
+        br label %bb1
+
+      bb1:
+        %x = phi i32* [ %a32, %entry ], [ %r, %bb1 ]
+        %r = getelementptr i32, i32* %x, i32 1
+        br i1 %cond, label %bb1, label %exit
+
+      exit:
+        ret void
+      })",
+     true, false},
+
+    {R"(
+      define void @test(i1 %cond, i64* %a) {
+      entry:
+        %r = bitcast i64* %a to i32*
+        ret void
+      })",
+     false, false},
+
+    {R"(
+      define void @test(i1 %cond) {
+      entry:
+        %a = alloca i32
+        %b = alloca i32
+        br label %bb1
+
+      bb1:
+        %r = phi i32* [ %a, %entry ], [ %b, %bb1 ]
+        br i1 %cond, label %bb1, label %exit
+
+      exit:
+        ret void
+      })",
+     false, false},
+};
+
+TEST_P(FindAllocaForValueTest, findAllocaForValue) {
+  auto M = parseModule(GetParam().IR);
+  Function *F = M->getFunction("test");
+  Instruction *I = &findInstructionByName(F, "r");
+  const AllocaInst *AI = findAllocaForValue(I);
+  EXPECT_EQ(!!AI, GetParam().AnyOffsetResult);
+}
+
+TEST_P(FindAllocaForValueTest, findAllocaForValueZeroOffset) {
+  auto M = parseModule(GetParam().IR);
+  Function *F = M->getFunction("test");
+  Instruction *I = &findInstructionByName(F, "r");
+  const AllocaInst *AI = findAllocaForValue(I, true);
+  EXPECT_EQ(!!AI, GetParam().ZeroOffsetResult);
+}
+
+INSTANTIATE_TEST_CASE_P(FindAllocaForValueTest, FindAllocaForValueTest,
+                        ::testing::ValuesIn(FindAllocaForValueTests), );

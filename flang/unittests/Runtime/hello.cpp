@@ -81,6 +81,78 @@ static void multiline() {
   }
 }
 
+static void listInputTest() {
+  static const char input[]{",1*,(5.,6..)"};
+  auto cookie{IONAME(BeginInternalListInput)(input, sizeof input - 1)};
+  float z[6];
+  for (int j{0}; j < 6; ++j) {
+    z[j] = -(j + 1);
+  }
+  for (int j{0}; j < 6; j += 2) {
+    if (!IONAME(InputComplex32)(cookie, &z[j])) {
+      Fail() << "InputComplex32 failed\n";
+    }
+  }
+  auto status{IONAME(EndIoStatement)(cookie)};
+  if (status) {
+    Fail() << "Failed complex list-directed input, status "
+           << static_cast<int>(status) << '\n';
+  } else {
+    char output[33];
+    output[32] = '\0';
+    cookie = IONAME(BeginInternalListOutput)(output, 32);
+    for (int j{0}; j < 6; j += 2) {
+      if (!IONAME(OutputComplex32)(cookie, z[j], z[j + 1])) {
+        Fail() << "OutputComplex32 failed\n";
+      }
+    }
+    status = IONAME(EndIoStatement)(cookie);
+    static const char expect[33]{" (-1.,-2.) (-3.,-4.) (5.,6.)    "};
+    if (status) {
+      Fail() << "Failed complex list-directed output, status "
+             << static_cast<int>(status) << '\n';
+    } else if (std::strncmp(output, expect, 33) != 0) {
+      Fail() << "Failed complex list-directed output, expected '" << expect
+             << "', but got '" << output << "'\n";
+    }
+  }
+}
+
+static void descrOutputTest() {
+  char buffer[9];
+  // Formatted
+  const char *format{"(2A4)"};
+  auto cookie{IONAME(BeginInternalFormattedOutput)(
+      buffer, sizeof buffer, format, std::strlen(format))};
+  StaticDescriptor<1> staticDescriptor;
+  Descriptor &desc{staticDescriptor.descriptor()};
+  SubscriptValue extent[]{2};
+  char data[2][4];
+  std::memcpy(data[0], "ABCD", 4);
+  std::memcpy(data[1], "EFGH", 4);
+  desc.Establish(TypeCode{CFI_type_char}, sizeof data[0], &data, 1, extent);
+  desc.Dump();
+  desc.Check();
+  IONAME(OutputDescriptor)(cookie, desc);
+  if (auto status{IONAME(EndIoStatement)(cookie)}) {
+    Fail() << "descrOutputTest: '" << format << "' failed, status "
+           << static_cast<int>(status) << '\n';
+  } else {
+    test("descrOutputTest(formatted)", "ABCDEFGH ",
+        std::string{buffer, sizeof buffer});
+  }
+  // List-directed
+  cookie = IONAME(BeginInternalListOutput)(buffer, sizeof buffer);
+  IONAME(OutputDescriptor)(cookie, desc);
+  if (auto status{IONAME(EndIoStatement)(cookie)}) {
+    Fail() << "descrOutputTest: list-directed failed, status "
+           << static_cast<int>(status) << '\n';
+  } else {
+    test("descrOutputTest(list)", " ABCDEFGH",
+        std::string{buffer, sizeof buffer});
+  }
+}
+
 static void realTest(const char *format, double x, const char *expect) {
   char buffer[800];
   auto cookie{IONAME(BeginInternalFormattedOutput)(
@@ -138,6 +210,7 @@ int main() {
       {"(E32.17E0,';')", "          0.00000000000000000E+0;"},
       {"(G32.17E0,';')", "          0.0000000000000000    ;"},
       {"(1P,E32.17,';')", "         0.00000000000000000E+00;"},
+      {"(1PE32.17,';')", "         0.00000000000000000E+00;"}, // no comma
       {"(1P,F32.17,';')", "             0.00000000000000000;"},
       {"(1P,G32.17,';')", "          0.0000000000000000    ;"},
       {"(2P,E32.17,';')", "         00.0000000000000000E+00;"},
@@ -158,7 +231,8 @@ int main() {
       {"(E32.17E4,';')", "       0.10000000000000000E+0001;"},
       {"(G32.17E4,';')", "        1.0000000000000000      ;"},
       {"(1P,E32.17,';')", "         1.00000000000000000E+00;"},
-      {"(1P,F32.17,';')", "             0.10000000000000000;"},
+      {"(1PE32.17,';')", "         1.00000000000000000E+00;"}, // no comma
+      {"(1P,F32.17,';')", "            10.00000000000000000;"},
       {"(1P,G32.17,';')", "          1.0000000000000000    ;"},
       {"(ES32.17,';')", "         1.00000000000000000E+00;"},
       {"(2P,E32.17,';')", "         10.0000000000000000E-01;"},
@@ -442,7 +516,11 @@ int main() {
   realInTest("(-1P,F18.0)", "               125", 0x4093880000000000); // 1250
   realInTest("(1P,F18.0)", "               125", 0x4029000000000000); // 12.5
   realInTest("(BZ,F18.0)", "              125 ", 0x4093880000000000); // 1250
+  realInTest("(BZ,F18.0)", "       125 . e +1 ", 0x42a6bcc41e900000); // 1.25e13
   realInTest("(DC,F18.0)", "              12,5", 0x4029000000000000);
+
+  listInputTest();
+  descrOutputTest();
 
   return EndTests();
 }

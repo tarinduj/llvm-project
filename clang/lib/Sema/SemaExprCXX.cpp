@@ -663,7 +663,16 @@ Sema::ActOnCXXTypeid(SourceLocation OpLoc, SourceLocation LParenLoc,
   }
 
   // The operand is an expression.
-  return BuildCXXTypeId(TypeInfoType, OpLoc, (Expr*)TyOrExpr, RParenLoc);
+  ExprResult Result =
+      BuildCXXTypeId(TypeInfoType, OpLoc, (Expr *)TyOrExpr, RParenLoc);
+
+  if (!getLangOpts().RTTIData && !Result.isInvalid())
+    if (auto *CTE = dyn_cast<CXXTypeidExpr>(Result.get()))
+      if (CTE->isPotentiallyEvaluated() && !CTE->isMostDerived(Context))
+        Diag(OpLoc, diag::warn_no_typeid_with_rtti_disabled)
+            << (getDiagnostics().getDiagnosticOptions().getFormat() ==
+                DiagnosticOptions::MSVC);
+  return Result;
 }
 
 /// Grabs __declspec(uuid()) off a type, or returns 0 if we cannot resolve to
@@ -1404,16 +1413,6 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
   QualType Ty = TInfo->getType();
   SourceLocation TyBeginLoc = TInfo->getTypeLoc().getBeginLoc();
 
-  if (Ty->isDependentType() || CallExpr::hasAnyTypeDependentArguments(Exprs)) {
-    // FIXME: CXXUnresolvedConstructExpr does not model list-initialization
-    // directly. We work around this by dropping the locations of the braces.
-    SourceRange Locs = ListInitialization
-                           ? SourceRange()
-                           : SourceRange(LParenOrBraceLoc, RParenOrBraceLoc);
-    return CXXUnresolvedConstructExpr::Create(Context, TInfo, Locs.getBegin(),
-                                              Exprs, Locs.getEnd());
-  }
-
   assert((!ListInitialization ||
           (Exprs.size() == 1 && isa<InitListExpr>(Exprs[0]))) &&
          "List initialization must have initializer list as expression.");
@@ -1440,6 +1439,17 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
     if (Ty.isNull())
       return ExprError();
     Entity = InitializedEntity::InitializeTemporary(TInfo, Ty);
+  }
+
+  if (Ty->isDependentType() || CallExpr::hasAnyTypeDependentArguments(Exprs)) {
+    // FIXME: CXXUnresolvedConstructExpr does not model list-initialization
+    // directly. We work around this by dropping the locations of the braces.
+    SourceRange Locs = ListInitialization
+                           ? SourceRange()
+                           : SourceRange(LParenOrBraceLoc, RParenOrBraceLoc);
+    return CXXUnresolvedConstructExpr::Create(Context, Ty.getNonReferenceType(),
+                                              TInfo, Locs.getBegin(), Exprs,
+                                              Locs.getEnd());
   }
 
   // C++ [expr.type.conv]p1:
@@ -1503,7 +1513,8 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
                            : SourceRange(LParenOrBraceLoc, RParenOrBraceLoc);
     Result = CXXFunctionalCastExpr::Create(
         Context, ResultType, Expr::getValueKindForType(Ty), TInfo, CK_NoOp,
-        Result.get(), /*Path=*/nullptr, Locs.getBegin(), Locs.getEnd());
+        Result.get(), /*Path=*/nullptr, CurFPFeatureOverrides(),
+        Locs.getBegin(), Locs.getEnd());
   }
 
   return Result;
@@ -1760,12 +1771,10 @@ Sema::ActOnCXXNew(SourceLocation StartLoc, bool UseGlobal,
             // C++1y [expr.new]p6: Every constant-expression in a noptr-new-declarator
             //   shall be a converted constant expression (5.19) of type std::size_t
             //   and shall evaluate to a strictly positive value.
-            unsigned IntWidth = Context.getTargetInfo().getIntWidth();
-            assert(IntWidth && "Builtin type of size 0?");
-            llvm::APSInt Value(IntWidth);
+            llvm::APSInt Value(Context.getIntWidth(Context.getSizeType()));
             Array.NumElts
              = CheckConvertedConstantExpression(NumElts, Context.getSizeType(), Value,
-                                                CCEK_NewExpr)
+                                                CCEK_ArrayBound)
                  .get();
           } else {
             Array.NumElts
@@ -1835,12 +1844,13 @@ void Sema::diagnoseUnavailableAlignedAllocation(const FunctionDecl &FD,
     const llvm::Triple &T = getASTContext().getTargetInfo().getTriple();
     StringRef OSName = AvailabilityAttr::getPlatformNameSourceSpelling(
         getASTContext().getTargetInfo().getPlatformName());
+    VersionTuple OSVersion = alignedAllocMinVersion(T.getOS());
 
     OverloadedOperatorKind Kind = FD.getDeclName().getCXXOverloadedOperator();
     bool IsDelete = Kind == OO_Delete || Kind == OO_Array_Delete;
     Diag(Loc, diag::err_aligned_allocation_unavailable)
         << IsDelete << FD.getType().getAsString() << OSName
-        << alignedAllocMinVersion(T.getOS()).getAsString();
+        << OSVersion.getAsString() << OSVersion.empty();
     Diag(Loc, diag::note_silence_aligned_allocation_unavailable);
   }
 }
@@ -2206,7 +2216,7 @@ Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
         SizeTy, SourceLocation());
     ImplicitCastExpr DesiredAlignment(ImplicitCastExpr::OnStack, AlignValT,
                                       CK_IntegralCast, &AlignmentLiteral,
-                                      VK_RValue);
+                                      VK_RValue, FPOptionsOverride());
 
     // Adjust placement args by prepending conjured size and alignment exprs.
     llvm::SmallVector<Expr *, 8> CallArgs;
@@ -3917,7 +3927,8 @@ static ExprResult BuildCXXCastArgument(Sema &S,
     // Record usage of conversion in an implicit cast.
     Result = ImplicitCastExpr::Create(S.Context, Result.get()->getType(),
                                       CK_UserDefinedConversion, Result.get(),
-                                      nullptr, Result.get()->getValueKind());
+                                      nullptr, Result.get()->getValueKind(),
+                                      S.CurFPFeatureOverrides());
 
     return S.MaybeBindToTemporary(Result.get());
   }
@@ -4098,7 +4109,8 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
     if (const AtomicType *FromAtomic = FromType->getAs<AtomicType>()) {
       FromType = FromAtomic->getValueType().getUnqualifiedType();
       From = ImplicitCastExpr::Create(Context, FromType, CK_AtomicToNonAtomic,
-                                      From, /*BasePath=*/nullptr, VK_RValue);
+                                      From, /*BasePath=*/nullptr, VK_RValue,
+                                      FPOptionsOverride());
     }
     break;
 
@@ -4323,6 +4335,12 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
   case ICK_Vector_Conversion:
     From = ImpCastExprToType(From, ToType, CK_BitCast,
                              VK_RValue, /*BasePath=*/nullptr, CCK).get();
+    break;
+
+  case ICK_SVE_Vector_Conversion:
+    From = ImpCastExprToType(From, ToType, CK_BitCast, VK_RValue,
+                             /*BasePath=*/nullptr, CCK)
+               .get();
     break;
 
   case ICK_Vector_Splat: {
@@ -6836,7 +6854,7 @@ ExprResult Sema::MaybeBindToTemporary(Expr *E) {
     CastKind ck = (ReturnsRetained ? CK_ARCConsumeObject
                                    : CK_ARCReclaimReturnedObject);
     return ImplicitCastExpr::Create(Context, E->getType(), ck, E, nullptr,
-                                    VK_RValue);
+                                    VK_RValue, FPOptionsOverride());
   }
 
   if (E->getType().isDestructedType() == QualType::DK_nontrivial_c_struct)
@@ -7619,7 +7637,8 @@ ExprResult Sema::BuildCXXMemberCallExpr(Expr *E, NamedDecl *FoundDecl,
   ResultType = ResultType.getNonLValueExprType(Context);
 
   CXXMemberCallExpr *CE = CXXMemberCallExpr::Create(
-      Context, ME, /*Args=*/{}, ResultType, VK, Exp.get()->getEndLoc());
+      Context, ME, /*Args=*/{}, ResultType, VK, Exp.get()->getEndLoc(),
+      CurFPFeatureOverrides());
 
   if (CheckFunctionCall(Method, CE,
                         Method->getType()->castAs<FunctionProtoType>()))
@@ -8649,6 +8668,9 @@ Sema::ActOnRequiresExpr(SourceLocation RequiresKWLoc,
                         ArrayRef<ParmVarDecl *> LocalParameters,
                         ArrayRef<concepts::Requirement *> Requirements,
                         SourceLocation ClosingBraceLoc) {
-  return RequiresExpr::Create(Context, RequiresKWLoc, Body, LocalParameters,
-                              Requirements, ClosingBraceLoc);
+  auto *RE = RequiresExpr::Create(Context, RequiresKWLoc, Body, LocalParameters,
+                                  Requirements, ClosingBraceLoc);
+  if (DiagnoseUnexpandedParameterPackInRequiresExpr(RE))
+    return ExprError();
+  return RE;
 }

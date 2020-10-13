@@ -1007,23 +1007,11 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     Res = Actions.ActOnCXXNullPtrLiteral(ConsumeToken());
     break;
 
-  case tok::annot_uneval_primary_expr:
   case tok::annot_primary_expr:
+  case tok::annot_overload_set:
     Res = getExprAnnotation(Tok);
-    if (SavedKind == tok::annot_uneval_primary_expr) {
-      if (Expr *E = Res.get()) {
-        if (!E->isTypeDependent() && !E->containsErrors()) {
-          // TransformToPotentiallyEvaluated expects that it will still be in a
-          // (temporary) unevaluated context and then looks through that context
-          // to build it in the surrounding context. So we need to push an
-          // unevaluated context to balance things out.
-          EnterExpressionEvaluationContext Unevaluated(
-              Actions, Sema::ExpressionEvaluationContext::Unevaluated,
-              Sema::ReuseLambdaContextDecl);
-          Res = Actions.TransformToPotentiallyEvaluated(Res.get());
-        }
-      }
-    }
+    if (!Res.isInvalid() && Tok.getKind() == tok::annot_overload_set)
+      Res = Actions.ActOnNameClassifiedAsOverloadSet(getCurScope(), Res.get());
     ConsumeAnnotationToken();
     if (!Res.isInvalid() && Tok.is(tok::less))
       checkPotentialAngleBracket(Res);
@@ -1481,9 +1469,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_this:
     Res = ParseCXXThis();
     break;
-  case tok::kw___builtin_unique_stable_name:
-    Res = ParseUniqueStableNameExpression();
-    break;
+
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
       TypeResult Type = getTypeAnnotation(Tok);
@@ -2332,43 +2318,6 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
 }
 
 
-ExprResult Parser::ParseUniqueStableNameExpression() {
-  assert(Tok.is(tok::kw___builtin_unique_stable_name) &&
-         "Not __bulitin_unique_stable_name");
-
-  SourceLocation OpLoc = ConsumeToken();
-  BalancedDelimiterTracker T(*this, tok::l_paren);
-
-  // typeid expressions are always parenthesized.
-  if (T.expectAndConsume(diag::err_expected_lparen_after,
-                         "__builtin_unique_stable_name"))
-    return ExprError();
-
-  if (isTypeIdInParens()) {
-    TypeResult Ty = ParseTypeName();
-    T.consumeClose();
-
-    if (Ty.isInvalid())
-      return ExprError();
-
-    return Actions.ActOnUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
-                                             T.getCloseLocation(), Ty.get());
-  }
-
-  EnterExpressionEvaluationContext Unevaluated(
-      Actions, Sema::ExpressionEvaluationContext::Unevaluated);
-  ExprResult Result = ParseExpression();
-
-  if (Result.isInvalid()) {
-    SkipUntil(tok::r_paren, StopAtSemi);
-    return Result;
-  }
-
-  T.consumeClose();
-  return Actions.ActOnUniqueStableNameExpr(OpLoc, T.getOpenLocation(),
-                                           T.getCloseLocation(), Result.get());
-}
-
 /// Parse a sizeof or alignof expression.
 ///
 /// \verbatim
@@ -2851,6 +2800,8 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
   // unless they've already reported an error.
   if (ExprType >= CompoundStmt && Tok.is(tok::l_brace)) {
     Diag(Tok, diag::ext_gnu_statement_expr);
+
+    checkCompoundToken(OpenLoc, tok::l_paren, CompoundToken::StmtExprBegin);
 
     if (!getCurScope()->getFnParent() && !getCurScope()->getBlockParent()) {
       Result = ExprError(Diag(OpenLoc, diag::err_stmtexpr_file_scope));
@@ -3336,8 +3287,9 @@ ExprResult Parser::ParseFoldExpression(ExprResult LHS,
                         : diag::ext_fold_expression);
 
   T.consumeClose();
-  return Actions.ActOnCXXFoldExpr(T.getOpenLocation(), LHS.get(), Kind,
-                                  EllipsisLoc, RHS.get(), T.getCloseLocation());
+  return Actions.ActOnCXXFoldExpr(getCurScope(), T.getOpenLocation(), LHS.get(),
+                                  Kind, EllipsisLoc, RHS.get(),
+                                  T.getCloseLocation());
 }
 
 /// ParseExpressionList - Used for C/C++ (argument-)expression-list.

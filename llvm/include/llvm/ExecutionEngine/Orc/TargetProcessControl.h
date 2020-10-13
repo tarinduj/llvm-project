@@ -13,11 +13,16 @@
 #ifndef LLVM_EXECUTIONENGINE_ORC_TARGETPROCESSCONTROL_H
 #define LLVM_EXECUTIONENGINE_ORC_TARGETPROCESSCONTROL_H
 
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
+#include "llvm/ExecutionEngine/Orc/Core.h"
+#include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/MSVCErrorWorkarounds.h"
 
 #include <future>
+#include <vector>
 
 namespace llvm {
 namespace orc {
@@ -105,6 +110,25 @@ public:
     }
   };
 
+  /// A handle for a library opened via loadDylib.
+  ///
+  /// Note that this handle does not necessarily represent a JITDylib: it may
+  /// be a regular dynamic library or shared object (e.g. one opened via a
+  /// dlopen in the target process).
+  using DylibHandle = JITTargetAddress;
+
+  /// Request lookup within the given DylibHandle.
+  struct LookupRequestElement {
+    LookupRequestElement(DylibHandle Handle, const SymbolLookupSet &Symbols)
+        : Handle(Handle), Symbols(Symbols) {}
+    DylibHandle Handle;
+    const SymbolLookupSet &Symbols;
+  };
+
+  using LookupRequest = ArrayRef<LookupRequestElement>;
+
+  using LookupResult = std::vector<std::vector<JITTargetAddress>>;
+
   virtual ~TargetProcessControl();
 
   /// Return the Triple for the target process.
@@ -119,10 +143,20 @@ public:
   /// Return a MemoryAccess object for the target process.
   MemoryAccess &getMemoryAccess() const { return *MemAccess; }
 
-  /// Load the library at the given path.
+  /// Load the dynamic library at the given path and return a handle to it.
+  /// If LibraryPath is null this function will return the global handle for
+  /// the target process.
+  virtual Expected<DylibHandle> loadDylib(const char *DylibPath) = 0;
+
+  /// Search for symbols in the target process.
+  ///
+  /// The result of the lookup is a 2-dimentional array of target addresses
+  /// that correspond to the lookup order. If a required symbol is not
+  /// found then this method will return an error. If a weakly referenced
+  /// symbol is not found then it be assigned a '0' value in the result.
+  virtual Expected<LookupResult> lookupSymbols(LookupRequest Request) = 0;
 
 protected:
-  TargetProcessControl(Triple TT, unsigned PageSize);
 
   Triple TT;
   unsigned PageSize = 0;
@@ -130,13 +164,23 @@ protected:
   MemoryAccess *MemAccess = nullptr;
 };
 
-/// A TargetProcessControl
+/// A TargetProcessControl implementation targeting the current process.
 class SelfTargetProcessControl : public TargetProcessControl,
                                  private TargetProcessControl::MemoryAccess {
 public:
-  SelfTargetProcessControl(Triple TT, unsigned PageSize);
+  SelfTargetProcessControl(
+      Triple TT, unsigned PageSize,
+      std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr);
 
-  static Expected<std::unique_ptr<SelfTargetProcessControl>> Create();
+  /// Create a SelfTargetProcessControl with the given memory manager.
+  /// If no memory manager is given a jitlink::InProcessMemoryManager will
+  /// be used by default.
+  static Expected<std::unique_ptr<SelfTargetProcessControl>>
+  Create(std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr = nullptr);
+
+  Expected<DylibHandle> loadDylib(const char *DylibPath) override;
+
+  Expected<LookupResult> lookupSymbols(LookupRequest Request) override;
 
 private:
   void writeUInt8s(ArrayRef<UInt8Write> Ws,
@@ -154,8 +198,9 @@ private:
   void writeBuffers(ArrayRef<BufferWrite> Ws,
                     WriteResultFn OnWriteComplete) override;
 
-  std::unique_ptr<jitlink::InProcessMemoryManager> IPMM =
-      std::make_unique<jitlink::InProcessMemoryManager>();
+  std::unique_ptr<jitlink::JITLinkMemoryManager> OwnedMemMgr;
+  char GlobalManglingPrefix = 0;
+  std::vector<std::unique_ptr<sys::DynamicLibrary>> DynamicLibraries;
 };
 
 } // end namespace orc

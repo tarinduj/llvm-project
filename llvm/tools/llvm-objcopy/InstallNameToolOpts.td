@@ -21,6 +21,9 @@ def add_rpath : Option<["-", "--"], "add_rpath", KIND_SEPARATE>,
 def delete_rpath: Option<["-", "--"], "delete_rpath", KIND_SEPARATE>,
                   HelpText<"Delete specified rpath">;
 
+def delete_all_rpaths: Flag<["-", "--"], "delete_all_rpaths">,
+              HelpText<"Delete all rpath directives">;
+
 def rpath: MultiArg<["-", "--"], "rpath", 2>,
            HelpText<"Change rpath path name">;
 
@@ -32,3 +35,7 @@ def change: MultiArg<["-", "--"], "change", 2>,
 
 def version : Flag<["--"], "version">,
               HelpText<"Print the version and exit.">;
+
+def V : Flag<["-"], "V">,
+        Alias<version>,
+        HelpText<"Alias for --version">;

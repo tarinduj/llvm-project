@@ -380,7 +380,10 @@ Optional<unsigned> Preprocessor::getSkippedRangeForExcludedConditionalBlock(
   std::pair<FileID, unsigned> HashFileOffset =
       SourceMgr.getDecomposedLoc(HashLoc);
   const llvm::MemoryBuffer *Buf = SourceMgr.getBuffer(HashFileOffset.first);
-  auto It = ExcludedConditionalDirectiveSkipMappings->find(Buf);
+  if (!Buf)
+    return None;
+  auto It =
+      ExcludedConditionalDirectiveSkipMappings->find(Buf->getBufferStart());
   if (It == ExcludedConditionalDirectiveSkipMappings->end())
     return None;
 
@@ -2397,7 +2400,7 @@ bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
              diag::ext_variadic_macro);
 
       // OpenCL v1.2 s6.9.e: variadic macros are not supported.
-      if (LangOpts.OpenCL) {
+      if (LangOpts.OpenCL && !LangOpts.OpenCLCPlusPlus) {
         Diag(Tok, diag::ext_pp_opencl_variadic_macros);
       }
 

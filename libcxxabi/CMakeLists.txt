@@ -8,7 +8,7 @@ endif()
 # Setup Project
 #===============================================================================
 
-cmake_minimum_required(VERSION 3.4.3)
+cmake_minimum_required(VERSION 3.13.4)
 
 if(POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
@@ -352,6 +352,7 @@ if (NOT LIBCXXABI_ENABLE_THREADS)
                         " is also set to ON.")
   endif()
   add_definitions(-D_LIBCXXABI_HAS_NO_THREADS)
+  add_definitions(-D_LIBCPP_HAS_NO_THREADS)
 endif()
 
 if (LIBCXXABI_HAS_EXTERNAL_THREAD_API)

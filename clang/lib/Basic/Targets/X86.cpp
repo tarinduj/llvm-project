@@ -159,11 +159,7 @@ void X86TargetInfo::setFeatureEnabled(llvm::StringMap<bool> &Features,
   }
 
   Features[Name] = Enabled;
-
-  SmallVector<StringRef, 8> ImpliedFeatures;
-  llvm::X86::getImpliedFeatures(Name, Enabled, ImpliedFeatures);
-  for (const auto &F : ImpliedFeatures)
-    Features[F] = Enabled;
+  llvm::X86::updateImpliedFeatures(Name, Enabled, Features);
 }
 
 /// handleTargetFeatures - Perform initialization based on the user
@@ -280,6 +276,10 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasCLDEMOTE = true;
     } else if (Feature == "+rdpid") {
       HasRDPID = true;
+    } else if (Feature == "+kl") {
+      HasKL = true;
+    } else if (Feature == "+widekl") {
+      HasWIDEKL = true;
     } else if (Feature == "+retpoline-external-thunk") {
       HasRetpolineExternalThunk = true;
     } else if (Feature == "+sahf") {
@@ -298,6 +298,8 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasINVPCID = true;
     } else if (Feature == "+enqcmd") {
       HasENQCMD = true;
+    } else if (Feature == "+hreset") {
+      HasHRESET = true;
     } else if (Feature == "+amx-bf16") {
       HasAMXBF16 = true;
     } else if (Feature == "+amx-int8") {
@@ -463,6 +465,7 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   case CK_IcelakeClient:
   case CK_IcelakeServer:
   case CK_Tigerlake:
+  case CK_SapphireRapids:
     // FIXME: Historically, we defined this legacy name, it would be nice to
     // remove it at some point. We've never exposed fine-grained names for
     // recent primary x86 CPUs, and we should keep it that way.
@@ -505,6 +508,9 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   case CK_K8:
   case CK_K8SSE3:
   case CK_x86_64:
+  case CK_x86_64_v2:
+  case CK_x86_64_v3:
+  case CK_x86_64_v4:
     defineCPUMacros(Builder, "k8");
     break;
   case CK_AMDFAM10:
@@ -558,6 +564,11 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
 
   if (HasVPCLMULQDQ)
     Builder.defineMacro("__VPCLMULQDQ__");
+
+  // Note, in 32-bit mode, GCC does not define the macro if -mno-sahf. In LLVM,
+  // the feature flag only applies to 64-bit mode.
+  if (HasLAHFSAHF || getTriple().getArch() == llvm::Triple::x86)
+    Builder.defineMacro("__LAHF_SAHF__");
 
   if (HasLZCNT)
     Builder.defineMacro("__LZCNT__");
@@ -681,6 +692,10 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__PREFETCHWT1__");
   if (HasCLZERO)
     Builder.defineMacro("__CLZERO__");
+  if (HasKL)
+    Builder.defineMacro("__KL__");
+  if (HasWIDEKL)
+    Builder.defineMacro("__WIDEKL__");
   if (HasRDPID)
     Builder.defineMacro("__RDPID__");
   if (HasCLDEMOTE)
@@ -699,6 +714,8 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__INVPCID__");
   if (HasENQCMD)
     Builder.defineMacro("__ENQCMD__");
+  if (HasHRESET)
+    Builder.defineMacro("__HRESET__");
   if (HasAMXTILE)
     Builder.defineMacro("__AMXTILE__");
   if (HasAMXINT8)
@@ -835,7 +852,10 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("fsgsbase", true)
       .Case("fxsr", true)
       .Case("gfni", true)
+      .Case("hreset", true)
       .Case("invpcid", true)
+      .Case("kl", true)
+      .Case("widekl", true)
       .Case("lwp", true)
       .Case("lzcnt", true)
       .Case("mmx", true)
@@ -921,7 +941,10 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("fsgsbase", HasFSGSBASE)
       .Case("fxsr", HasFXSR)
       .Case("gfni", HasGFNI)
+      .Case("hreset", HasHRESET)
       .Case("invpcid", HasINVPCID)
+      .Case("kl", HasKL)
+      .Case("widekl", HasWIDEKL)
       .Case("lwp", HasLWP)
       .Case("lzcnt", HasLZCNT)
       .Case("mm3dnow", MMX3DNowLevel >= AMD3DNow)
@@ -1273,6 +1296,7 @@ Optional<unsigned> X86TargetInfo::getCPUCacheLineSize() const {
     case CK_Cooperlake:
     case CK_Cannonlake:
     case CK_Tigerlake:
+    case CK_SapphireRapids:
     case CK_IcelakeClient:
     case CK_IcelakeServer:
     case CK_KNL:
@@ -1297,6 +1321,9 @@ Optional<unsigned> X86TargetInfo::getCPUCacheLineSize() const {
     case CK_ZNVER2:
     // Deprecated
     case CK_x86_64:
+    case CK_x86_64_v2:
+    case CK_x86_64_v3:
+    case CK_x86_64_v4:
     case CK_Yonah:
     case CK_Penryn:
     case CK_Core2:
@@ -1438,6 +1465,10 @@ std::string X86TargetInfo::convertConstraint(const char *&Constraint) const {
 void X86TargetInfo::fillValidCPUList(SmallVectorImpl<StringRef> &Values) const {
   bool Only64Bit = getTriple().getArch() != llvm::Triple::x86;
   llvm::X86::fillValidCPUArchList(Values, Only64Bit);
+}
+
+void X86TargetInfo::fillValidTuneCPUList(SmallVectorImpl<StringRef> &Values) const {
+  llvm::X86::fillValidTuneCPUList(Values);
 }
 
 ArrayRef<const char *> X86TargetInfo::getGCCRegNames() const {

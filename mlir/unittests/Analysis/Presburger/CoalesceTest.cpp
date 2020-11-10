@@ -16,9 +16,10 @@ PresburgerSet setFromString(StringRef string) {
     MLIRContext context;
     return mlir::emitError(UnknownLoc::get(&context), message);
   };
-  PresburgerSetParser parser(string, callback);
+  Parser parser(string, callback);
+  PresburgerParser setParser(parser);
   PresburgerSet res;
-  parser.parsePresburgerSet(res);
+  setParser.parsePresburgerSet(res);
   return res;
 }
 

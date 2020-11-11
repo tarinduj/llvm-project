@@ -3,6 +3,7 @@ add_mlir_unittest(MLIRPresburgerTests
   SimplexTest.cpp
   ParamLexSimplexTest.cpp
   CoalesceTest.cpp
+  SetTest.cpp
 )
 
 target_link_libraries(MLIRPresburgerTests

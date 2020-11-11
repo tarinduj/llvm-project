@@ -8,5 +8,4 @@ add_mlir_library(MLIRPresburger
   Matrix.cpp
   LinearTransform.cpp
   Coalesce.cpp
-  ../AffineStructures.cpp
   )

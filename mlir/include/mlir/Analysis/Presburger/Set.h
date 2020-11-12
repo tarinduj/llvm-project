@@ -24,9 +24,11 @@ public:
   void intersectSet(const PresburgerSet &set);
   static bool equal(const PresburgerSet &s, const PresburgerSet &t);
   void print(raw_ostream &os) const;
+  void dump() const;
+  void printISL(raw_ostream &os) const;
+  void dumpISL() const;
   void printVariableList(raw_ostream &os) const;
   void printConstraints(raw_ostream &os) const;
-  void dump() const;
   llvm::hash_code hash_value() const;
   bool isMarkedEmpty() const;
   bool isUniverse() const;

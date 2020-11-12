@@ -9,6 +9,7 @@
 #include "mlir/Analysis/Presburger/ParamLexSimplex.h"
 #include "mlir/Analysis/Presburger/LinearTransform.h"
 #include "mlir/Analysis/Presburger/Printer.h"
+#include "mlir/Analysis/Presburger/ISLPrinter.h"
 #include "mlir/Support/MathExtras.h"
 
 using namespace mlir;
@@ -438,5 +439,14 @@ void PresburgerBasicSet::print(raw_ostream &os) const {
 
 void PresburgerBasicSet::dump() const {
   print(llvm::errs());
+  llvm::errs() << '\n';
+}
+
+void PresburgerBasicSet::printISL(raw_ostream &os) const {
+  printPresburgerBasicSetISL(os, *this);
+}
+
+void PresburgerBasicSet::dumpISL() const {
+  printISL(llvm::errs());
   llvm::errs() << '\n';
 }

@@ -1,6 +1,7 @@
 #include "mlir/Analysis/Presburger/Set.h"
 #include "mlir/Analysis/Presburger/Constraint.h"
 #include "mlir/Analysis/Presburger/Printer.h"
+#include "mlir/Analysis/Presburger/ISLPrinter.h"
 #include "mlir/Analysis/Presburger/Simplex.h"
 #include "mlir/Analysis/Presburger/ParamLexSimplex.h"
 
@@ -370,6 +371,12 @@ PresburgerSet::maybeGetCachedSample() const {
 }
 
 // TODO refactor and rewrite after discussion with the others
+void PresburgerSet::printISL(raw_ostream &os) const {
+  printPresburgerSetISL(os, *this);
+}
+
+void PresburgerSet::dumpISL() const { printISL(llvm::errs()); llvm::errs() << '\n'; }
+
 void PresburgerSet::print(raw_ostream &os) const {
   printPresburgerSet(os, *this);
 }

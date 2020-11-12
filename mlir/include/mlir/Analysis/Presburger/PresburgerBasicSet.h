@@ -80,6 +80,9 @@ public:
   void dump() const;
   void print(raw_ostream &os) const;
 
+  void printISL(raw_ostream &os) const;
+  void dumpISL() const;
+
 private:
   void substitute(ArrayRef<int64_t> values);
 

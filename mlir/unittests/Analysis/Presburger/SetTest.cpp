@@ -33,6 +33,8 @@ static PresburgerSet setFromString(StringRef string) {
 }
 
 void expectEqual(StringRef sDesc, StringRef tDesc) {
+  setFromString(sDesc).dumpISL();
+  setFromString(tDesc).dumpISL();
   EXPECT_TRUE(PresburgerSet::equal(setFromString(sDesc), setFromString(tDesc)));
 }
 
@@ -41,6 +43,8 @@ TEST(PresburgerSetTest, Equality) {
               "(x) : (x >= 0)");
   expectEqual("(x) : (exists y, z : x = y + 3z and x >= y and z >= 0 and y >= 0)",
               "(x) : (exists y, z : x = y + 3z and x >= y and z >= 0 and y >= 0)");
+  expectEqual("(x) : (exists q = [(x)/2] : x = 2q and x + q = 0) or (exists q = [(x)/3] : x = 3q and x + q = 0)",
+              "(x) : (exists q = [(x)/2] : x = 2q and x + q = 0) or (exists q = [(x)/3] : x = 3q and x + q = 0)");
 }
 
 //   { // [x] -> {[y, z] : x = y + 3z and x >= y and z >= 0 and y >= 0}

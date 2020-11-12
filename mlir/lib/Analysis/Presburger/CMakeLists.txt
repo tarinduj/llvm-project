@@ -5,6 +5,7 @@ add_mlir_library(MLIRPresburger
   PresburgerBasicSet.cpp
   Expr.cpp
   Printer.cpp
+  ISLPrinter.cpp
   Matrix.cpp
   LinearTransform.cpp
   Coalesce.cpp

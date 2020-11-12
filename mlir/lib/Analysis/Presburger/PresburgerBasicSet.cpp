@@ -349,7 +349,9 @@ void PresburgerBasicSet::insertDimensions(unsigned pos, unsigned count) {
 }
 
 void PresburgerBasicSet::appendDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom) {
+  assert(coeffs.size() == getNumTotalDims() + 1);
   divs.emplace_back(coeffs, denom, /*variable = */getNumTotalDims());
+
   for (auto &ineq : ineqs)
     ineq.appendDimension();
   for (auto &eq : eqs)
@@ -360,6 +362,8 @@ void PresburgerBasicSet::appendDivisionVariable(ArrayRef<int64_t> coeffs, int64_
 
 // TODO we can make these mutable arrays and move the divs in our only use case.
 void PresburgerBasicSet::appendDivisionVariables(ArrayRef<DivisionConstraint> newDivs) {
+  for (auto &div : newDivs)
+    assert(div.getCoeffs().size() == getNumTotalDims() + newDivs.size() + 1);
   insertDimensions(nParam + nDim + nExist + divs.size(), newDivs.size());
   divs.insert(divs.end(), newDivs.begin(), newDivs.end());
 }

@@ -46,6 +46,7 @@ ParamLexSimplex::ParamLexSimplex(const FlatAffineConstraints &constraints)
 /// sample value non-negative. If this is not possible, the tableau has become
 /// empty and we mark it as such.
 void ParamLexSimplex::addInequality(ArrayRef<int64_t> coeffs) {
+  assert(coeffs.size() == var.size() + 1);
   originalCoeffs.emplace_back(llvm::to_vector<8>(coeffs));
   unsigned conIndex = addRow(coeffs);
   Unknown &u = con[conIndex];
@@ -60,6 +61,7 @@ void ParamLexSimplex::addInequality(ArrayRef<int64_t> coeffs) {
 /// We simply add two opposing inequalities, which force the expression to
 /// be zero.
 void ParamLexSimplex::addEquality(ArrayRef<int64_t> coeffs) {
+  assert(coeffs.size() == var.size() + 1);
   addInequality(coeffs);
   SmallVector<int64_t, 8> negatedCoeffs;
   for (int64_t coeff : coeffs)
@@ -79,6 +81,7 @@ void ParamLexSimplex::addEquality(ArrayRef<int64_t> coeffs) {
 /// We simply add two opposing inequalities, which force the expression to
 /// be zero.
 void ParamLexSimplex::addDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom) {
+  assert(coeffs.size() == var.size() + 1);
   addVariable();
   nParam++;
   nDiv++;

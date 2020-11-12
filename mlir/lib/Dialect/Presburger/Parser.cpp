@@ -4,11 +4,14 @@
  */
 
 #include "mlir/Dialect/Presburger/Parser.h"
+#include "mlir/Analysis/Presburger/Constraint.h"
 #include "mlir/IR/Diagnostics.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace mlir;
+using namespace mlir::analysis::presburger;
 using namespace mlir::presburger;
 
 bool Token::isa(Kind mayKind) { return kind == mayKind; }
@@ -806,14 +809,17 @@ PresburgerParser::parsePresburgerBasicSet(Expr *constraints,
     initVariables(andConstraints->getDivNames(), divNameToIndex);
     cs = PresburgerBasicSet(dimNameToIndex.size(), symNameToIndex.size(), existNameToIndex.size());
 
+    unsigned offset = dimNameToIndex.size() + symNameToIndex.size() + existNameToIndex.size();
+    SmallVector<DivisionConstraint, 8> divs;
     for (auto &divExpr : andConstraints->getDivs()) {
       std::pair<int64_t, SmallVector<int64_t, 8>> affineSum;
       parseSum(divExpr->num.get(), affineSum);
       int64_t denominator = divExpr->den->getValue();
       SmallVector<int64_t, 8> coeffs(affineSum.second);
       coeffs.push_back(affineSum.first);
-      cs.appendDivisionVariable(coeffs, denominator);
+      divs.emplace_back(coeffs, denominator, offset + divs.size());
     }
+    cs.appendDivisionVariables(divs);
 
     for (std::unique_ptr<ConstraintExpr> &constraint :
          andConstraints->getConstraints()) {

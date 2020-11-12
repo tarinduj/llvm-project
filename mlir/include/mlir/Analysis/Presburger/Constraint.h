@@ -105,6 +105,13 @@ public:
 
   void dump() const { print(llvm::errs()); }
 
+  void dumpCoeffs() const {
+    for (auto coeff : coeffs) {
+      llvm::errs() << coeff << ' ';
+    }
+    llvm::errs() << '\n';
+  }
+
 protected:
   Constraint(ArrayRef<int64_t> oCoeffs) : coeffs(oCoeffs.begin(), oCoeffs.end()) {}
   SmallVector<int64_t, 8> coeffs;

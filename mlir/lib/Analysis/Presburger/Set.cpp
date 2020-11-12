@@ -383,6 +383,13 @@ void PresburgerSet::print(raw_ostream &os) const {
 
 void PresburgerSet::dump() const { print(llvm::errs()); llvm::errs() << '\n'; }
 
+void PresburgerSet::dumpCoeffs() const {
+  llvm::errs() << "nBasicSets = " << basicSets.size() << '\n';
+  for (auto &basicSet : basicSets) {
+    basicSet.dumpCoeffs();
+    llvm::errs() << "\n\n";
+  }
+}
 
 llvm::hash_code PresburgerSet::hash_value() const {
   // TODO how should we hash PresburgerBasicSet without having access to

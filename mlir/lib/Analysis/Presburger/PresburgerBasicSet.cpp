@@ -11,6 +11,7 @@
 #include "mlir/Analysis/Presburger/Printer.h"
 #include "mlir/Analysis/Presburger/ISLPrinter.h"
 #include "mlir/Support/MathExtras.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
 using namespace mlir::analysis;
@@ -440,6 +441,23 @@ void PresburgerBasicSet::print(raw_ostream &os) const {
 void PresburgerBasicSet::dump() const {
   print(llvm::errs());
   llvm::errs() << '\n';
+}
+
+void PresburgerBasicSet::dumpCoeffs() const {
+  llvm::errs() << "nDim = " << nDim << ", nSym = " << nParam << ", nExist = " << nExist << ", nDiv = " << divs.size() << "\n";
+  llvm::errs() << "nTotalDims = " << getNumTotalDims() << "\n";
+  llvm::errs() << "nIneqs = " << ineqs.size() << '\n';
+  for (auto &ineq : ineqs) {
+    ineq.dumpCoeffs();
+  }
+  llvm::errs() << "nEqs = " << eqs.size() << '\n';
+  for (auto &eq : eqs) {
+    eq.dumpCoeffs();
+  }
+  llvm::errs() << "nDivs = " << divs.size() << '\n';
+  for (auto &div : divs) {
+    div.dumpCoeffs();
+  }
 }
 
 void PresburgerBasicSet::printISL(raw_ostream &os) const {

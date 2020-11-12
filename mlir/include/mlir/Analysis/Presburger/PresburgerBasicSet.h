@@ -76,6 +76,7 @@ public:
 
   PresburgerBasicSet makeRecessionCone() const;
 
+  void dumpCoeffs() const;
 
   void dump() const;
   void print(raw_ostream &os) const;

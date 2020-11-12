@@ -25,6 +25,7 @@ public:
   static bool equal(const PresburgerSet &s, const PresburgerSet &t);
   void print(raw_ostream &os) const;
   void dump() const;
+  void dumpCoeffs() const;
   void printISL(raw_ostream &os) const;
   void dumpISL() const;
   void printVariableList(raw_ostream &os) const;

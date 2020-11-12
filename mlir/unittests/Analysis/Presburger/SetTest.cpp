@@ -48,11 +48,3 @@ TEST(PresburgerSetTest, Equality) {
   expectEqual("(x) : (exists q = [(x)/2] : x = 2q) or (exists q = [(x)/3] : x = 3q)",
               "(x) : (exists q = [(x)/2] : x = 2q) or (exists q = [(x)/3] : x = 3q)");
 }
-
-//   { // [x] -> {[y, z] : x = y + 3z and x >= y and z >= 0 and y >= 0}
-//     ParamLexSimplex simplex(3, 1);
-//     simplex.addInequality({1, -1, 0, 0});  // x >= y
-//     simplex.addInequality({0, 1, 0, -0});  // y >= 0
-//     simplex.addEquality({1, -1, -3, 0});  // x == y + 3z
-//     simplex.findParamLexmin().dump();
-//   }

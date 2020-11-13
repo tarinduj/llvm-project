@@ -199,7 +199,7 @@ void mlir::analysis::presburger::printPresburgerSetISL(raw_ostream &os,
   printVariableList(os, set.getNumDims(), set.getNumSyms());
   os << " : ";
   if (set.isMarkedEmpty()) {
-    os << "empty";
+    os << "false";
   } else {
     printConstraints(os, set);
   }

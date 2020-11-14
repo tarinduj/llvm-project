@@ -96,6 +96,7 @@ void mlir::populatePresburgerEvaluatePatterns(
     FoldIntersectPattern,
     FoldUnionPattern,
     FoldSubtractPattern,
+    FoldCoalescePattern,
     FoldComplementPattern,
     FoldEqualPattern
     >(ctx);

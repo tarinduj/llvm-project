@@ -200,7 +200,7 @@ void mlir::analysis::presburger::printPresburgerSetISL(raw_ostream &os,
   os << " : ";
   if (set.isMarkedEmpty()) {
     os << "false";
-  } else {
+  } else if (!set.isUniverse()){
     printConstraints(os, set);
   }
   os << "}";

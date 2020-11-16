@@ -25,8 +25,12 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
+class PresburgerSet;
+
 class PresburgerBasicSet {
 public:
+  friend class PresburgerSet;
+
   PresburgerBasicSet(unsigned oNDim = 0, unsigned oNParam = 0, unsigned oNExist = 0)
     : nDim(oNDim), nParam(oNParam), nExist(oNExist) {}
 

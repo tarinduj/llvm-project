@@ -262,8 +262,10 @@ PresburgerSet PresburgerSet::eliminateExistentials(const PresburgerBasicSet &bs)
   }
 
   PresburgerSet result(bs.getNumDims(), bs.getNumParams());
-  for (auto &bs : paramLexSimplex.findParamLexmin().domain) {
-    result.addBasicSet(bs);
+  for (auto &b : paramLexSimplex.findParamLexmin().domain) {
+    b.nParam = bs.nParam;
+    b.nDim = bs.nDim; 
+    result.addBasicSet(b);
   }
   return result;
 }

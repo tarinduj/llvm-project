@@ -197,10 +197,14 @@ void printExpr(raw_ostream &os, ArrayRef<int64_t> coeffs, int64_t constant,
 void mlir::analysis::presburger::printPresburgerSetISL(raw_ostream &os,
                                                     const PresburgerSet &set) {
   printVariableList(os, set.getNumDims(), set.getNumSyms());
+  if (set.isUniverse()) {
+    os << "}";
+    return;
+  }
   os << " : ";
   if (set.isMarkedEmpty()) {
     os << "false";
-  } else if (!set.isUniverse()){
+  } else {
     printConstraints(os, set);
   }
   os << "}";

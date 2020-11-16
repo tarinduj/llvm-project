@@ -28,12 +28,10 @@ bool PresburgerSet::isUniverse() const {
   if (markedEmpty || basicSets.empty())
     return false;
   for (const PresburgerBasicSet &bs : basicSets) {
-    if (bs.getNumInequalities() > 0)
-      return false;
-    if (bs.getNumEqualities() > 0)
-      return false;
+    if (bs.getNumInequalities() == 0 && bs.getNumEqualities() == 0)
+      return true;
   }
-  return true;
+  return false;
 }
 
 const SmallVector<PresburgerBasicSet, 4> &
@@ -332,11 +330,8 @@ bool PresburgerSet::equal(const PresburgerSet &s, const PresburgerSet &t) {
   // otherwise breaks here
   // assert(s.getNumSyms() + t.getNumSyms() == 0 &&
   //       "operations on sets with symbols are not yet supported");
-  if (s.getNumSyms() + t.getNumSyms() != 0)
-    return false;
-  if (s.getNumDims() != t.getNumDims())
-    return false;
 
+  assertDimensionsCompatible(s, t);
   PresburgerSet sCopy = s, tCopy = t;
   sCopy.subtract(t);
   tCopy.subtract(s);
@@ -344,7 +339,6 @@ bool PresburgerSet::equal(const PresburgerSet &s, const PresburgerSet &t) {
 }
 
 Optional<SmallVector<int64_t, 8>> PresburgerSet::findIntegerSample() {
-  assert(nSym == 0 && "sampling on sets with symbols is not yet supported");
   if (maybeSample)
     return maybeSample;
   if (markedEmpty)

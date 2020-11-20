@@ -307,6 +307,7 @@ PresburgerSet PresburgerSet::complement(const PresburgerSet &set) {
 // We compute (U_i T_i) - (U_i S_i) as U_i (T_i - U_i S_i).
 void PresburgerSet::subtract(const PresburgerSet &set) {
   assertDimensionsCompatible(set, *this);
+  
   if (markedEmpty)
     return;
   if (set.isMarkedEmpty())
@@ -362,7 +363,7 @@ Optional<SmallVector<int64_t, 8>> PresburgerSet::findIntegerSample() {
 
 bool PresburgerSet::isIntegerEmpty() {
   if (markedEmpty)
-    return false;
+    return true;
   for (PresburgerBasicSet &bs : basicSets) {
     if (!bs.isIntegerEmpty())
       return false;

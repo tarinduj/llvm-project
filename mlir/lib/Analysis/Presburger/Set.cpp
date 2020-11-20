@@ -334,9 +334,9 @@ bool PresburgerSet::equal(const PresburgerSet &s, const PresburgerSet &t) {
 
   assertDimensionsCompatible(s, t);
   PresburgerSet sCopy = s, tCopy = t;
-  sCopy.subtract(t);
-  tCopy.subtract(s);
-  return !sCopy.findIntegerSample() && !tCopy.findIntegerSample();
+  sCopy.subtract(std::move(t));
+  tCopy.subtract(std::move(s));
+  return sCopy.isIntegerEmpty() && tCopy.isIntegerEmpty();
 }
 
 Optional<SmallVector<int64_t, 8>> PresburgerSet::findIntegerSample() {

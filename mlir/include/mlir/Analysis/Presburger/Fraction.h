@@ -42,16 +42,24 @@ struct Fraction {
   int64_t num, den;
 };
 
+inline int64_t sign(int64_t x) {
+  if (x > 0)
+    return +1;
+  if (x < 0)
+    return -1;
+  return 0;
+}
+
 /// Three-way comparison between two fractions.
 /// Returns +1, 0, and -1 if the first fraction is greater than, equal to, or
 /// less than the second fraction, respectively.
 inline int compare(Fraction x, Fraction y) {
-  int64_t diff = x.num * y.den - y.num * x.den;
-  if (diff > 0)
-    return +1;
-  if (diff < 0)
-    return -1;
-  return 0;
+  int64_t p = x.num * y.den;
+  assert(sign(p) == sign(x.num)*sign(y.den));
+  int64_t q = y.num * x.den;
+  assert(sign(q) == sign(y.num)*sign(x.den));
+  int64_t diff = p - q;
+  return sign(diff);
 }
 inline int compare(Fraction x, int64_t y) {
   return compare(x, Fraction(y, 1));

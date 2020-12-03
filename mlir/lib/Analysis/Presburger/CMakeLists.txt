@@ -10,3 +10,5 @@ add_mlir_library(MLIRPresburger
   LinearTransform.cpp
   Coalesce.cpp
   )
+
+target_compile_options(obj.MLIRPresburger PRIVATE -ftrapv)

@@ -16,7 +16,7 @@ namespace mlir {
 /// corresponding to this convex hull.
 PresburgerSet coalesce(PresburgerSet &set);
 
-void dump(const ArrayRef<int64_t> cons);
+void dump(ArrayRef<int64_t> cons);
 
 /// compare two constraints and give true if they are equal. Can also handle
 /// cases in which for some integers a and b, c1 = a/b * c2. This is the same
@@ -40,6 +40,6 @@ combineConstraint(ArrayRef<int64_t> c1, ArrayRef<int64_t> c2, Fraction &ratio);
 /// bs, that satisfies ineq with equality, is redundant for all constraints of
 /// cut
 bool containedFacet(ArrayRef<int64_t> ineq, const PresburgerBasicSet &bs,
-                    const SmallVector<ArrayRef<int64_t>, 8> &cut);
+                    ArrayRef<ArrayRef<int64_t>> cut);
 
 } // namespace mlir

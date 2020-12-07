@@ -61,11 +61,11 @@ void addEqualitiesAsInequalities(const ArrayRef<ArrayRef<int64_t>> eq,
 
 /// adds all Equalities to bs
 void addEqualities(PresburgerBasicSet &bs,
-                   const SmallVector<ArrayRef<int64_t>, 8> &equalities);
+                   ArrayRef<ArrayRef<int64_t>> equalities);
 
 /// adds all Inequalities to bs
 void addInequalities(PresburgerBasicSet &bs,
-                     const SmallVector<ArrayRef<int64_t>, 8> &inequalities);
+                     ArrayRef<ArrayRef<int64_t>> inequalities);
 
 /// only gets called by classify
 /// classifies all constraints into redundant, cut or adjIneq according to the
@@ -76,8 +76,7 @@ void addInequalities(PresburgerBasicSet &bs,
 /// behind it. The moment either a separate or two adjacent constraints are
 /// encountered, the polytope cannot be coalesced anymore, so we can move to the
 /// next tuple.
-bool classifyIneq(Simplex &simp,
-                  const SmallVector<ArrayRef<int64_t>, 8> &constraints,
+bool classifyIneq(Simplex &simp, ArrayRef<ArrayRef<int64_t>> constraints,
                   Info &info);
 
 /// classifies all constraints into redundant, cut, adjIneq or t, where t stands
@@ -88,9 +87,8 @@ bool classifyIneq(Simplex &simp,
 /// behind it. The moment either a separate or two adjacent constraints are
 /// encountered, the polytope cannot be coalesced anymore, so we can move to the
 /// next tuple.
-bool classify(Simplex &simp,
-              const SmallVector<ArrayRef<int64_t>, 8> &inequalities,
-              const SmallVector<ArrayRef<int64_t>, 8> &equalities, Info &info);
+bool classify(Simplex &simp, ArrayRef<ArrayRef<int64_t>> inequalities,
+              ArrayRef<ArrayRef<int64_t>> equalities, Info &info);
 
 /// compute the protrusionCase and return whether it has worked
 ///
@@ -111,8 +109,7 @@ bool protrusionCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                     Info &infoA, const Info &infoB, unsigned i, unsigned j);
 
 /// compute, whether a constraint of cut sticks out of bs by more than 2
-bool stickingOut(const SmallVector<ArrayRef<int64_t>, 8> &cut,
-                 const PresburgerBasicSet &bs);
+bool stickingOut(ArrayRef<ArrayRef<int64_t>> cut, const PresburgerBasicSet &bs);
 
 /// adds a PresburgerBasicSet and removes the sets at i and j.
 void addCoalescedBasicSet(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
@@ -131,7 +128,7 @@ void addCoalescedBasicSet(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
 ///     \___\|/            \_____/
 ///
 ///
-bool cutCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector, unsigned i,
+bool cutCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector, unsigned i,
              unsigned j, const Info &infoA, const Info &infoB);
 
 /// compute adjIneq pure Case and return whether it has worked.
@@ -146,7 +143,7 @@ bool cutCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector, unsigned i,
 /// |    //       |          |              |
 /// |___//________|          |______________|
 ///
-bool adjIneqPureCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector,
+bool adjIneqPureCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                      unsigned i, unsigned j, const Info &infoA,
                      const Info &infoB);
 
@@ -164,8 +161,8 @@ bool adjIneqPureCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector,
 ///  |     \   ==> |     \
 ///  |_____|_      |______\
 ///
-bool adjIneqCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector, unsigned i,
-                 unsigned j, const Info &infoA, const Info &infoB);
+bool adjIneqCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
+                 unsigned i, unsigned j, const Info &infoA, const Info &infoB);
 
 /// compute the pure adjEqCase and return whether it has worked.
 ///
@@ -228,7 +225,7 @@ SmallVector<int64_t, 8> complement(ArrayRef<int64_t> t) {
 
 /// returns all Equalities of a BasicSet as a SmallVector of ArrayRefs
 void getBasicSetEqualities(const PresburgerBasicSet &bs,
-                           SmallVector<ArrayRef<int64_t>, 8> &eqs) {
+                           SmallVectorImpl<ArrayRef<int64_t>> &eqs) {
   for (unsigned k = 0; k < bs.getNumEqualities(); k++) {
     eqs.push_back(bs.getEquality(k).getCoeffs());
   }
@@ -236,7 +233,7 @@ void getBasicSetEqualities(const PresburgerBasicSet &bs,
 
 /// returns all Inequalities of a BasicSet as a SmallVector of ArrayRefs
 void getBasicSetInequalities(const PresburgerBasicSet &bs,
-                             SmallVector<ArrayRef<int64_t>, 8> &ineqs) {
+                             SmallVectorImpl<ArrayRef<int64_t>> &ineqs) {
   for (unsigned k = 0; k < bs.getNumInequalities(); k++) {
     ineqs.push_back(bs.getInequality(k).getCoeffs());
   }
@@ -379,20 +376,20 @@ PresburgerSet mlir::coalesce(PresburgerSet &set) {
 }
 
 void addInequalities(PresburgerBasicSet &bs,
-                     const SmallVector<ArrayRef<int64_t>, 8> &inequalities) {
+                     ArrayRef<ArrayRef<int64_t>> inequalities) {
   for (unsigned k = 0; k < inequalities.size(); k++) {
     bs.addInequality(inequalities[k]);
   }
 }
 
 void addEqualities(PresburgerBasicSet &bs,
-                   const SmallVector<ArrayRef<int64_t>, 8> &equalities) {
+                   ArrayRef<ArrayRef<int64_t>> equalities) {
   for (unsigned k = 0; k < equalities.size(); k++) {
     bs.addEquality(equalities[k]);
   }
 }
 
-bool adjIneqPureCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector,
+bool adjIneqPureCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                      unsigned i, unsigned j, const Info &infoA,
                      const Info &infoB) {
   PresburgerBasicSet newSet(basicSetVector[i].getNumDims(),
@@ -489,7 +486,7 @@ bool protrusionCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   return true;
 }
 
-bool stickingOut(const SmallVector<ArrayRef<int64_t>, 8> &cut,
+bool stickingOut(ArrayRef<ArrayRef<int64_t>> cut,
                  const PresburgerBasicSet &bs) {
   Simplex simp(bs);
   // for every cut constraint t, compute the optimum in the direction of cut. If
@@ -752,9 +749,8 @@ mlir::wrapping(const PresburgerBasicSet &bs, SmallVectorImpl<int64_t> &valid,
   return combineConstraint(valid, invalid, result.getValue());
 }
 
-bool classify(Simplex &simp,
-              const SmallVector<ArrayRef<int64_t>, 8> &inequalities,
-              const SmallVector<ArrayRef<int64_t>, 8> &equalities, Info &info) {
+bool classify(Simplex &simp, ArrayRef<ArrayRef<int64_t>> inequalities,
+              ArrayRef<ArrayRef<int64_t>> equalities, Info &info) {
   if (!classifyIneq(simp, inequalities, info))
     return false;
   SmallVector<ArrayRef<int64_t>, 8> eqAsIneq;
@@ -789,8 +785,7 @@ bool classify(Simplex &simp,
   return true;
 }
 
-bool classifyIneq(Simplex &simp,
-                  const SmallVector<ArrayRef<int64_t>, 8> &constraints,
+bool classifyIneq(Simplex &simp, ArrayRef<ArrayRef<int64_t>> constraints,
                   Info &info) {
   for (ArrayRef<int64_t> currentConstraint : constraints) {
     Simplex::IneqType ty = simp.ineqType(currentConstraint);
@@ -820,8 +815,8 @@ bool classifyIneq(Simplex &simp,
   return true;
 }
 
-bool adjIneqCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector, unsigned i,
-                 unsigned j, const Info &infoA, const Info &infoB) {
+bool adjIneqCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
+                 unsigned i, unsigned j, const Info &infoA, const Info &infoB) {
   ArrayRef<int64_t> t = infoA.adjIneq.getValue();
   PresburgerBasicSet bs(basicSetVector[i].getNumDims(),
                         basicSetVector[i].getNumParams());
@@ -854,7 +849,7 @@ bool adjIneqCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector, unsigned i,
   return true;
 }
 
-bool cutCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector, unsigned i,
+bool cutCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector, unsigned i,
              unsigned j, const Info &infoA, const Info &infoB) {
   // if all facets are contained, the redundant constraints of both a and b
   // define the new polytope
@@ -872,7 +867,7 @@ bool cutCase(SmallVector<PresburgerBasicSet, 4> &basicSetVector, unsigned i,
 }
 
 bool mlir::containedFacet(ArrayRef<int64_t> ineq, const PresburgerBasicSet &bs,
-                          const SmallVector<ArrayRef<int64_t>, 8> &cut) {
+                          ArrayRef<ArrayRef<int64_t>> cut) {
   Simplex simp(bs);
   simp.addEquality(ineq);
   for (ArrayRef<int64_t> curr : cut) {
@@ -899,7 +894,7 @@ void addEqualitiesAsInequalities(ArrayRef<ArrayRef<int64_t>> eq,
   }
 }
 
-void mlir::dump(const ArrayRef<int64_t> cons) {
+void mlir::dump(ArrayRef<int64_t> cons) {
   std::cout << cons[cons.size() - 1] << " + ";
   for (unsigned i = 1; i < cons.size(); i++) {
     std::cout << cons[i - 1] << "x" << i - 1;

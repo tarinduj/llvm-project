@@ -1,6 +1,7 @@
 add_mlir_dialect_library(MLIRPresburgerDialect
   PresburgerDialect.cpp
   PresburgerOps.cpp
+  PresburgerOptions.cpp
   Attributes.cpp
   Types.cpp
   Parser.cpp

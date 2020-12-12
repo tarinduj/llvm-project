@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Presburger/PresburgerOptions.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
@@ -163,15 +164,18 @@ int main(int argc, char **argv) {
   registerAsmPrinterCLOptions();
   registerMLIRContextCLOptions();
   registerPassManagerCLOptions();
+  // TODO remove this if we do not need this anymore
+  registerPresburgerCLOptions();
+
   PassPipelineCLParser passPipeline("", "Compiler passes to run");
 
   // Parse pass names in main to ensure static initialization completed.
   cl::ParseCommandLineOptions(argc, argv, "MLIR modular optimizer driver\n");
 
-  if(showDialects) {
+  if (showDialects) {
     llvm::outs() << "Registered Dialects:\n";
     MLIRContext context;
-    for(Dialect *dialect : context.getRegisteredDialects()) {
+    for (Dialect *dialect : context.getRegisteredDialects()) {
       llvm::outs() << dialect->getNamespace() << "\n";
     }
     return 0;

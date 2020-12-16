@@ -27,7 +27,8 @@ static SetOp unionSets(PatternRewriter &rewriter, Operation *op,
     auto end = std::chrono::system_clock::now();
     llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                           start)
-                        .count();
+                        .count()
+                 << "\n";
   } else {
     ps.unionSet(attr2.getValue());
   }
@@ -53,7 +54,8 @@ static SetOp intersectSets(PatternRewriter &rewriter, Operation *op,
     auto end = std::chrono::system_clock::now();
     llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                           start)
-                        .count();
+                        .count()
+                 << "\n";
   } else {
     ps.intersectSet(attr2.getValue());
   }
@@ -78,7 +80,8 @@ static SetOp subtractSets(PatternRewriter &rewriter, Operation *op,
     auto end = std::chrono::system_clock::now();
     llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                           start)
-                        .count();
+                        .count()
+                 << "\n";
   } else {
     ps.subtract(attr2.getValue());
   }
@@ -104,7 +107,8 @@ static SetOp coalesceSet(PatternRewriter &rewriter, Operation *op,
     auto end = std::chrono::system_clock::now();
     llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                           start)
-                        .count();
+                        .count()
+                 << "\n";
   } else {
     ps = coalesce(in);
   }
@@ -131,7 +135,8 @@ static SetOp eliminateExistentialsSet(PatternRewriter &rewriter, Operation *op,
     auto end = std::chrono::system_clock::now();
     llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                           start)
-                        .count();
+                        .count()
+                 << "\n";
   } else {
     ps = PresburgerSet::eliminateExistentials(in);
   }
@@ -156,7 +161,8 @@ static SetOp complementSet(PatternRewriter &rewriter, Operation *op,
     auto end = std::chrono::system_clock::now();
     llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                           start)
-                        .count();
+                        .count()
+                 << "\n";
   } else {
     ps = PresburgerSet::complement(attr.getValue());
   }
@@ -181,7 +187,8 @@ static ConstantOp areEqualSets(PatternRewriter &rewriter, Operation *op,
     auto end = std::chrono::system_clock::now();
     llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                           start)
-                        .count();
+                        .count()
+                 << "\n";
   } else {
     eq = PresburgerSet::equal(attr1.getValue(), attr2.getValue());
   }
@@ -205,7 +212,8 @@ static ConstantOp emptySet(PatternRewriter &rewriter, Operation *op,
     auto end = std::chrono::system_clock::now();
     llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                           start)
-                        .count();
+                        .count()
+                 << "\n";
   } else {
     empty = ps.isIntegerEmpty();
   }

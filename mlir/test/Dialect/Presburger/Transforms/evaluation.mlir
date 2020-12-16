@@ -346,12 +346,13 @@ func @empty() -> i1 {
   return %res : i1
 }
 
-func @simple_ex() -> !presburger.set<3,0> {
+// CHECK-LABEL: func @simple_ex
+func @simple_ex() -> !presburger.set<3,4> {
 
-  // CHECK: %[[S1:.*]] = presburger.set #presburger<"{{.*}}">
-  %set1 = presburger.set #presburger<"set(d0, d1, d2)[p0, p1, p2, p3] : (exists e0 : 2e0 <= d0 + d1 and d0 + d1 = 0)">
+  // CHECK-NEXT: %[[S:.*]] = presburger.set #presburger<"{{.*}}">
+  // CHECK-NEXT: return %[[S]]
+  %set1 = presburger.set #presburger<"set(d0, d1, d2)[s0, s1, s2, s3] : (d0 + d1 >= 0 and -d0 - d1 >= 0)">
 
-  // CHECK: %{{.*}} = presburger.eliminate_ex %[[S1]] : !presburger.set<3,4>
-  %uset = presburger.eliminate_ex %set1 : !presburger.set<3,0>
+  %uset = presburger.eliminate_ex %set1 : !presburger.set<3,4>
   return %uset : !presburger.set<3,4>
 }

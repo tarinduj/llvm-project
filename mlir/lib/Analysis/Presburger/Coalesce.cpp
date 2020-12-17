@@ -247,7 +247,7 @@ PresburgerSet mlir::coalesce(PresburgerSet &set) {
   // redefine coalescing function on two BasicSets, return a BasicSet and do the
   // looping strategy in a different function?
   for (unsigned i = 0; i < basicSetVector.size(); i++) {
-    for (unsigned j = i + 1; j < basicSetVector.size(); j++) {
+    for (unsigned j = 0; j < basicSetVector.size(); j++) {
       if (j == i)
         continue;
       PresburgerBasicSet bs1 = basicSetVector[i];

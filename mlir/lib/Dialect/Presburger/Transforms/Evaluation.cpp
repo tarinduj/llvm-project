@@ -9,6 +9,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
+#include <x86intrin.h>
 
 #include <chrono>
 
@@ -22,13 +23,11 @@ static SetOp unionSets(PatternRewriter &rewriter, Operation *op,
   PresburgerSet ps(attr1.getValue());
 
   if (printPresburgerRuntimes()) {
-    auto start = std::chrono::system_clock::now();
+    unsigned int dummy;
+    unsigned long long start = __rdtscp(&dummy);
     ps.unionSet(attr2.getValue());
-    auto end = std::chrono::system_clock::now();
-    llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          start)
-                        .count()
-                 << "\n";
+    unsigned long long end = __rdtscp(&dummy);
+    llvm::errs() << end - start << '\n';
   } else {
     ps.unionSet(attr2.getValue());
   }
@@ -49,13 +48,11 @@ static SetOp intersectSets(PatternRewriter &rewriter, Operation *op,
   PresburgerSet ps(attr1.getValue());
 
   if (printPresburgerRuntimes()) {
-    auto start = std::chrono::system_clock::now();
+    unsigned int dummy;
+    unsigned long long start = __rdtscp(&dummy);
     ps.intersectSet(attr2.getValue());
-    auto end = std::chrono::system_clock::now();
-    llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          start)
-                        .count()
-                 << "\n";
+    unsigned long long end = __rdtscp(&dummy);
+    llvm::errs() << end - start << '\n';
   } else {
     ps.intersectSet(attr2.getValue());
   }
@@ -75,13 +72,11 @@ static SetOp subtractSets(PatternRewriter &rewriter, Operation *op,
   PresburgerSet ps(attr1.getValue());
 
   if (printPresburgerRuntimes()) {
-    auto start = std::chrono::system_clock::now();
+    unsigned int dummy;
+    unsigned long long start = __rdtscp(&dummy);
     ps.subtract(attr2.getValue());
-    auto end = std::chrono::system_clock::now();
-    llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          start)
-                        .count()
-                 << "\n";
+    unsigned long long end = __rdtscp(&dummy);
+    llvm::errs() << end - start << '\n';
   } else {
     ps.subtract(attr2.getValue());
   }
@@ -102,13 +97,11 @@ static SetOp coalesceSet(PatternRewriter &rewriter, Operation *op,
   PresburgerSet in = attr.getValue();
   PresburgerSet ps;
   if (printPresburgerRuntimes()) {
-    auto start = std::chrono::system_clock::now();
+    unsigned int dummy;
+    unsigned long long start = __rdtscp(&dummy);
     ps = coalesce(in);
-    auto end = std::chrono::system_clock::now();
-    llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          start)
-                        .count()
-                 << "\n";
+    unsigned long long end = __rdtscp(&dummy);
+    llvm::errs() << end - start << '\n';
   } else {
     ps = coalesce(in);
   }
@@ -130,13 +123,11 @@ static SetOp eliminateExistentialsSet(PatternRewriter &rewriter, Operation *op,
 
   PresburgerSet ps;
   if (printPresburgerRuntimes()) {
-    auto start = std::chrono::system_clock::now();
+    unsigned int dummy;
+    unsigned long long start = __rdtscp(&dummy);
     ps = PresburgerSet::eliminateExistentials(in);
-    auto end = std::chrono::system_clock::now();
-    llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          start)
-                        .count()
-                 << "\n";
+    unsigned long long end = __rdtscp(&dummy);
+    llvm::errs() << end - start << '\n';
   } else {
     ps = PresburgerSet::eliminateExistentials(in);
   }
@@ -156,13 +147,11 @@ static SetOp complementSet(PatternRewriter &rewriter, Operation *op,
                            PresburgerSetAttr attr) {
   PresburgerSet ps;
   if (printPresburgerRuntimes()) {
-    auto start = std::chrono::system_clock::now();
+    unsigned int dummy;
+    unsigned long long start = __rdtscp(&dummy);
     ps = PresburgerSet::complement(attr.getValue());
-    auto end = std::chrono::system_clock::now();
-    llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          start)
-                        .count()
-                 << "\n";
+    unsigned long long end = __rdtscp(&dummy);
+    llvm::errs() << end - start << '\n';
   } else {
     ps = PresburgerSet::complement(attr.getValue());
   }
@@ -182,13 +171,11 @@ static ConstantOp areEqualSets(PatternRewriter &rewriter, Operation *op,
                                PresburgerSetAttr attr2) {
   bool eq = PresburgerSet::equal(attr1.getValue(), attr2.getValue());
   if (printPresburgerRuntimes()) {
-    auto start = std::chrono::system_clock::now();
+    unsigned int dummy;
+    unsigned long long start = __rdtscp(&dummy);
     eq = PresburgerSet::equal(attr1.getValue(), attr2.getValue());
-    auto end = std::chrono::system_clock::now();
-    llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          start)
-                        .count()
-                 << "\n";
+    unsigned long long end = __rdtscp(&dummy);
+    llvm::errs() << end - start << '\n';
   } else {
     eq = PresburgerSet::equal(attr1.getValue(), attr2.getValue());
   }
@@ -207,13 +194,11 @@ static ConstantOp emptySet(PatternRewriter &rewriter, Operation *op,
   PresburgerSet ps = attr.getValue();
   bool empty;
   if (printPresburgerRuntimes()) {
-    auto start = std::chrono::system_clock::now();
+    unsigned int dummy;
+    unsigned long long start = __rdtscp(&dummy);
     empty = ps.isIntegerEmpty();
-    auto end = std::chrono::system_clock::now();
-    llvm::errs() << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                          start)
-                        .count()
-                 << "\n";
+    unsigned long long end = __rdtscp(&dummy);
+    llvm::errs() << end - start << '\n';
   } else {
     empty = ps.isIntegerEmpty();
   }

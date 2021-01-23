@@ -1247,11 +1247,26 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
         basis.addToRow(i, i + 1, -1);
       dual = std::move(candidateDual[j]);
       dualDenom = candidateDualDenom[j];
+      // width_i(b{i+1} + u*b_i) should be minimized at our value of u.
+      // Check that this holds by comparing with width_i
+      basis.addToRow(i, i + 1, j == 0 ? -1 : +1);
+      int64_t unusedDualDenom;
+      SmallVector<int64_t, 8> unusedDuals;
+      Fraction otherWidth = gbrSimplex.computeWidthAndDuals(
+          basis.getRow(i + 1), unusedDuals, unusedDualDenom);
+      assert(otherWidth >= widthI[j] &&
+             "Computed u value does not correspond to minimum width!");
+      basis.addToRow(i, i + 1, j == 0 ? +1 : -1);
       return widthI[j];
     }
     assert(i + 1 - level < width.size() && "width_{i+1} wasn't saved");
     // When dual minimizes f_i(b_{i+1} + dual*b_i), this is equal to
     // width_{i+1}(b_{i+1}).
+    int64_t unusedDualDenom;
+    SmallVector<int64_t, 8> unusedDuals;
+    Fraction otherWidth = gbrSimplex.computeWidthAndDuals(
+        basis.getRow(i + 1), unusedDuals, unusedDualDenom);
+    assert(otherWidth == width[i + 1 - level]);
     return width[i + 1 - level];
   };
 

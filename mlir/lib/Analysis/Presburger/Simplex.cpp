@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/Presburger/Simplex.h"
-#include "mlir/Analysis/Presburger/PresburgerBasicSet.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
+#include "mlir/Analysis/Presburger/PresburgerBasicSet.h"
 #include "mlir/Support/MathExtras.h"
 
 using namespace mlir;
@@ -35,8 +35,7 @@ Simplex::Simplex(const FlatAffineConstraints &constraints)
   addFlatAffineConstraints(constraints);
 }
 
-Simplex::Simplex(const PresburgerBasicSet &bs)
-    : Simplex(bs.getNumTotalDims()) {
+Simplex::Simplex(const PresburgerBasicSet &bs) : Simplex(bs.getNumTotalDims()) {
   addBasicSet(bs);
 }
 
@@ -90,7 +89,7 @@ void Simplex::addZeroConstraint() {
 
 void Simplex::addDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom) {
   addVariable();
-  
+
   SmallVector<int64_t, 8> ineq(coeffs.begin(), coeffs.end());
   int64_t constTerm = ineq.back();
   ineq.back() = -denom;
@@ -109,7 +108,7 @@ void Simplex::addDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom) {
 unsigned Simplex::addRow(ArrayRef<int64_t> coeffs) {
   assert(coeffs.size() == 1 + var.size() &&
          "Incorrect number of coefficients!");
-  
+
   addZeroConstraint();
 
   tableau(nRow - 1, 1) = coeffs.back();
@@ -675,7 +674,7 @@ unsigned Simplex::getSnapshotBasis() {
       basis.push_back(index);
   }
   savedBases.push_back(std::move(basis));
-  
+
   return getSnapshot();
 }
 
@@ -747,7 +746,8 @@ void Simplex::undo(UndoLogEntry entry, Optional<int> index) {
     }
     unknown.zero = false;
   } else if (entry == UndoLogEntry::RemoveLastVariable) {
-    assert(var.back().orientation == Orientation::Column && "Not yet implemented");
+    assert(var.back().orientation == Orientation::Column &&
+           "Not yet implemented");
     swapColumns(var.back().pos, nCol - 1);
     tableau.resize(nRow, nCol - 1);
     var.pop_back();
@@ -774,7 +774,8 @@ void Simplex::undo(UndoLogEntry entry, Optional<int> index) {
         break;
       }
 
-      assert(u.orientation == Orientation::Column && "Basis unknown is still a row!");
+      assert(u.orientation == Orientation::Column &&
+             "Basis unknown is still a row!");
     }
   }
 }
@@ -1890,4 +1891,3 @@ void Simplex::print(raw_ostream &os) const {
 }
 
 void Simplex::dump() const { print(llvm::errs()); }
-

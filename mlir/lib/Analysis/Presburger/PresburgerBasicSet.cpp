@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/Presburger/ParamLexSimplex.h"
-#include "mlir/Analysis/Presburger/LinearTransform.h"
-#include "mlir/Analysis/Presburger/Printer.h"
 #include "mlir/Analysis/Presburger/ISLPrinter.h"
+#include "mlir/Analysis/Presburger/LinearTransform.h"
+#include "mlir/Analysis/Presburger/ParamLexSimplex.h"
+#include "mlir/Analysis/Presburger/Printer.h"
 #include "mlir/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -21,15 +21,12 @@ void PresburgerBasicSet::addInequality(ArrayRef<int64_t> coeffs) {
   ineqs.emplace_back(coeffs);
 }
 
-void PresburgerBasicSet::removeLastInequality() {
-  ineqs.pop_back();
-}
+void PresburgerBasicSet::removeLastInequality() { ineqs.pop_back(); }
 
-void PresburgerBasicSet::removeLastEquality() {
-  eqs.pop_back();
-}
+void PresburgerBasicSet::removeLastEquality() { eqs.pop_back(); }
 
-const InequalityConstraint &PresburgerBasicSet::getInequality(unsigned i) const {
+const InequalityConstraint &
+PresburgerBasicSet::getInequality(unsigned i) const {
   return ineqs[i];
 }
 const EqualityConstraint &PresburgerBasicSet::getEquality(unsigned i) const {
@@ -156,7 +153,8 @@ void PresburgerBasicSet::substitute(ArrayRef<int64_t> values) {
 // found a sample x satisfying the transformed constraint matrix MU. Therefore,
 // Ux is a sample that satisfies M.
 llvm::Optional<SmallVector<int64_t, 8>>
-PresburgerBasicSet::findSampleUnbounded(PresburgerBasicSet &cone, bool onlyEmptiness) const {
+PresburgerBasicSet::findSampleUnbounded(PresburgerBasicSet &cone,
+                                        bool onlyEmptiness) const {
   auto coeffMatrix = cone.coefficientMatrixFromEqs();
   LinearTransform U =
       LinearTransform::makeTransformToColumnEchelon(std::move(coeffMatrix));
@@ -234,8 +232,7 @@ Optional<SmallVector<int64_t, 8>> PresburgerBasicSet::findSampleFullCone() {
 // means that a linear combination of the unbounded dimensions was bounded
 // which is impossible since we are working in a basis where all bounded
 // directions lie in the span of the first `nDim - unboundedDims` directions.
-void PresburgerBasicSet::projectOutUnboundedDimensions(
-    unsigned unboundedDims) {
+void PresburgerBasicSet::projectOutUnboundedDimensions(unsigned unboundedDims) {
   assert(isPlainBasicSet());
   unsigned remainingDims = getNumTotalDims() - unboundedDims;
 
@@ -361,9 +358,10 @@ void PresburgerBasicSet::insertDimensions(unsigned pos, unsigned count) {
     div.insertDimensions(pos, count);
 }
 
-void PresburgerBasicSet::appendDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom) {
+void PresburgerBasicSet::appendDivisionVariable(ArrayRef<int64_t> coeffs,
+                                                int64_t denom) {
   assert(coeffs.size() == getNumTotalDims() + 1);
-  divs.emplace_back(coeffs, denom, /*variable = */getNumTotalDims());
+  divs.emplace_back(coeffs, denom, /*variable = */ getNumTotalDims());
 
   for (auto &ineq : ineqs)
     ineq.appendDimension();
@@ -374,14 +372,16 @@ void PresburgerBasicSet::appendDivisionVariable(ArrayRef<int64_t> coeffs, int64_
 }
 
 // TODO we can make these mutable arrays and move the divs in our only use case.
-void PresburgerBasicSet::appendDivisionVariables(ArrayRef<DivisionConstraint> newDivs) {
+void PresburgerBasicSet::appendDivisionVariables(
+    ArrayRef<DivisionConstraint> newDivs) {
   for (auto &div : newDivs)
     assert(div.getCoeffs().size() == getNumTotalDims() + newDivs.size() + 1);
   insertDimensions(nParam + nDim + nExist + divs.size(), newDivs.size());
   divs.insert(divs.end(), newDivs.begin(), newDivs.end());
 }
 
-void PresburgerBasicSet::prependDivisionVariables(ArrayRef<DivisionConstraint> newDivs) {
+void PresburgerBasicSet::prependDivisionVariables(
+    ArrayRef<DivisionConstraint> newDivs) {
   insertDimensions(nParam + nDim + nExist, newDivs.size());
   divs.insert(divs.begin(), newDivs.begin(), newDivs.end());
 }
@@ -396,7 +396,8 @@ void PresburgerBasicSet::appendExistentialDimensions(unsigned count) {
   nExist += count;
 }
 
-void PresburgerBasicSet::toCommonSpace(PresburgerBasicSet &a, PresburgerBasicSet &b) {
+void PresburgerBasicSet::toCommonSpace(PresburgerBasicSet &a,
+                                       PresburgerBasicSet &b) {
   unsigned initialANExist = a.nExist;
   a.appendExistentialDimensions(b.nExist);
   b.prependExistentialDimensions(initialANExist);
@@ -414,8 +415,10 @@ void PresburgerBasicSet::toCommonSpace(PresburgerBasicSet &a, PresburgerBasicSet
 
 void PresburgerBasicSet::intersect(PresburgerBasicSet bs) {
   toCommonSpace(*this, bs);
-  ineqs.insert(ineqs.end(), std::make_move_iterator(bs.ineqs.begin()), std::make_move_iterator(bs.ineqs.end()));
-  eqs.insert(eqs.end(), std::make_move_iterator(bs.eqs.begin()), std::make_move_iterator(bs.eqs.end()));
+  ineqs.insert(ineqs.end(), std::make_move_iterator(bs.ineqs.begin()),
+               std::make_move_iterator(bs.ineqs.end()));
+  eqs.insert(eqs.end(), std::make_move_iterator(bs.eqs.begin()),
+             std::make_move_iterator(bs.eqs.end()));
 }
 
 void PresburgerBasicSet::updateFromSimplex(const Simplex &simplex) {
@@ -461,7 +464,8 @@ void PresburgerBasicSet::dump() const {
 }
 
 void PresburgerBasicSet::dumpCoeffs() const {
-  llvm::errs() << "nDim = " << nDim << ", nSym = " << nParam << ", nExist = " << nExist << ", nDiv = " << divs.size() << "\n";
+  llvm::errs() << "nDim = " << nDim << ", nSym = " << nParam
+               << ", nExist = " << nExist << ", nDiv = " << divs.size() << "\n";
   llvm::errs() << "nTotalDims = " << getNumTotalDims() << "\n";
   llvm::errs() << "nIneqs = " << ineqs.size() << '\n';
   for (auto &ineq : ineqs) {

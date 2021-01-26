@@ -21,23 +21,23 @@ Matrix Matrix::identity(unsigned dimension) {
   return matrix;
 }
 
-int64_t &Matrix::at(unsigned row, unsigned column) {
+SafeInteger &Matrix::at(unsigned row, unsigned column) {
   assert(row < getNumRows() && "Row outside of range");
   assert(column < getNumColumns() && "Column outside of range");
   return data[row * nColumns + column];
 }
 
-int64_t Matrix::at(unsigned row, unsigned column) const {
+SafeInteger Matrix::at(unsigned row, unsigned column) const {
   assert(row < getNumRows() && "Row outside of range");
   assert(column < getNumColumns() && "Column outside of range");
   return data[row * nColumns + column];
 }
 
-int64_t &Matrix::operator()(unsigned row, unsigned column) {
+SafeInteger &Matrix::operator()(unsigned row, unsigned column) {
   return at(row, column);
 }
 
-int64_t Matrix::operator()(unsigned row, unsigned column) const {
+SafeInteger Matrix::operator()(unsigned row, unsigned column) const {
   return at(row, column);
 }
 
@@ -50,7 +50,7 @@ void Matrix::resize(unsigned newNRows, unsigned newNColumns) {
     nRows = newNRows;
     data.resize(nRows * nColumns);
   } else {
-    SmallVector<int64_t, 8> newData;
+    SmallVector<SafeInteger, 8> newData;
     newData.reserve(newNRows * newNColumns);
     for (unsigned row = 0; row < newNRows; row++) {
       for (unsigned col = 0; col < newNColumns; col++) {
@@ -89,11 +89,12 @@ void Matrix::negateColumn(unsigned column) {
   }
 }
 
-ArrayRef<int64_t> Matrix::getRow(unsigned row) const {
+ArrayRef<SafeInteger> Matrix::getRow(unsigned row) const {
   return {&data[row * nColumns], nColumns};
 }
 
-void Matrix::addToRow(unsigned sourceRow, unsigned targetRow, int64_t scale) {
+void Matrix::addToRow(unsigned sourceRow, unsigned targetRow,
+                      SafeInteger scale) {
   if (scale == 0)
     return;
   for (unsigned col = 0; col < nColumns; ++col)
@@ -102,7 +103,7 @@ void Matrix::addToRow(unsigned sourceRow, unsigned targetRow, int64_t scale) {
 }
 
 void Matrix::addToColumn(unsigned sourceColumn, unsigned targetColumn,
-                         int64_t scale) {
+                         SafeInteger scale) {
   if (scale == 0)
     return;
   for (unsigned row = 0, e = getNumRows(); row < e; ++row)
@@ -119,4 +120,3 @@ void Matrix::print(raw_ostream &os) const {
 }
 
 void Matrix::dump() const { print(llvm::errs()); }
-

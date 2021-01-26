@@ -24,9 +24,9 @@ static PresburgerSet setFromString(StringRef string) {
   return res;
 }
 
-void expectContainedFacet(bool expected, SmallVector<int64_t, 8> &ineq,
+void expectContainedFacet(bool expected, SmallVector<SafeInteger, 8> &ineq,
                           PresburgerBasicSet &bs,
-                          SmallVector<ArrayRef<int64_t>, 8> &cut) {
+                          SmallVector<ArrayRef<SafeInteger>, 8> &cut) {
   EXPECT_TRUE(expected == containedFacet(ineq, bs, cut));
 }
 
@@ -34,9 +34,9 @@ TEST(CoalesceTest, containedFacet1) {
   PresburgerSet set =
       setFromString("(x, y) : (x >= 0 and x <= 3 and y >= 0 and y <= 3)");
   PresburgerBasicSet bs = set.getBasicSets()[0];
-  SmallVector<int64_t, 8> ineq = {1, 0, 0};
-  SmallVector<int64_t, 8> cutConstraint1 = {1, 0, 2};
-  SmallVector<ArrayRef<int64_t>, 8> cutting = {cutConstraint1};
+  SmallVector<SafeInteger, 8> ineq = {1, 0, 0};
+  SmallVector<SafeInteger, 8> cutConstraint1 = {1, 0, 2};
+  SmallVector<ArrayRef<SafeInteger>, 8> cutting = {cutConstraint1};
   expectContainedFacet(true, ineq, bs, cutting);
 }
 
@@ -44,10 +44,11 @@ TEST(CoalesceTest, containedFacet2) {
   PresburgerSet set =
       setFromString("(x, y) : (x >= 0 and x <= 3 and y >= 0 and y <= 3)");
   PresburgerBasicSet bs = set.getBasicSets()[0];
-  SmallVector<int64_t, 8> ineq = {1, 0, 0};
-  SmallVector<int64_t, 8> cutConstraint1 = {1, 0, 2};
-  SmallVector<int64_t, 8> cutConstraint2 = {1, 0, 1};
-  SmallVector<ArrayRef<int64_t>, 8> cutting = {cutConstraint1, cutConstraint2};
+  SmallVector<SafeInteger, 8> ineq = {1, 0, 0};
+  SmallVector<SafeInteger, 8> cutConstraint1 = {1, 0, 2};
+  SmallVector<SafeInteger, 8> cutConstraint2 = {1, 0, 1};
+  SmallVector<ArrayRef<SafeInteger>, 8> cutting = {cutConstraint1,
+                                                   cutConstraint2};
   expectContainedFacet(true, ineq, bs, cutting);
 }
 
@@ -55,9 +56,9 @@ TEST(CoalesceTest, containedFacet3) {
   PresburgerSet set =
       setFromString("(x, y) : (x >= 0 and x <= 3 and y >= 0 and y <= 3)");
   PresburgerBasicSet bs = set.getBasicSets()[0];
-  SmallVector<int64_t, 8> ineq = {1, 0, 0};
-  SmallVector<int64_t, 8> cutConstraint1 = {1, 0, -5};
-  SmallVector<ArrayRef<int64_t>, 8> cutting = {cutConstraint1};
+  SmallVector<SafeInteger, 8> ineq = {1, 0, 0};
+  SmallVector<SafeInteger, 8> cutConstraint1 = {1, 0, -5};
+  SmallVector<ArrayRef<SafeInteger>, 8> cutting = {cutConstraint1};
   expectContainedFacet(false, ineq, bs, cutting);
 }
 
@@ -65,16 +66,17 @@ TEST(CoalesceTest, containedFacet4) {
   PresburgerSet set =
       setFromString("(x, y) : (x >= 0 and x <= 3 and y >= 0 and y <= 3)");
   PresburgerBasicSet bs = set.getBasicSets()[0];
-  SmallVector<int64_t, 8> ineq = {1, 0, 0};
-  SmallVector<int64_t, 8> cutConstraint1 = {0, 1, 2};
-  SmallVector<int64_t, 8> cutConstraint2 = {1, 0, -5};
-  SmallVector<ArrayRef<int64_t>, 8> cutting = {cutConstraint1, cutConstraint2};
+  SmallVector<SafeInteger, 8> ineq = {1, 0, 0};
+  SmallVector<SafeInteger, 8> cutConstraint1 = {0, 1, 2};
+  SmallVector<SafeInteger, 8> cutConstraint2 = {1, 0, -5};
+  SmallVector<ArrayRef<SafeInteger>, 8> cutting = {cutConstraint1,
+                                                   cutConstraint2};
   expectContainedFacet(false, ineq, bs, cutting);
 }
 
-void expectWrapping(Optional<SmallVector<int64_t, 8>> expected,
-                    PresburgerBasicSet bs, SmallVector<int64_t, 8> valid,
-                    SmallVector<int64_t, 8> invalid) {
+void expectWrapping(Optional<SmallVector<SafeInteger, 8>> expected,
+                    PresburgerBasicSet bs, SmallVector<SafeInteger, 8> valid,
+                    SmallVector<SafeInteger, 8> invalid) {
   if (!expected) {
     EXPECT_FALSE(wrapping(bs, valid, invalid).hasValue());
   } else {
@@ -91,29 +93,29 @@ void expectWrapping(Optional<SmallVector<int64_t, 8>> expected,
 TEST(CoalesceTest, wrapping) {
   PresburgerSet set1 = setFromString("(x,y) : (x = y and y <= 4 and y >= 0)");
   PresburgerBasicSet bs1 = set1.getBasicSets()[0];
-  SmallVector<int64_t, 8> valid1 = {-1, 1, 1};
-  SmallVector<int64_t, 8> invalid1 = {0, -1, 3};
-  SmallVector<int64_t, 8> expected1 = {-1, 0, 4};
+  SmallVector<SafeInteger, 8> valid1 = {-1, 1, 1};
+  SmallVector<SafeInteger, 8> invalid1 = {0, -1, 3};
+  SmallVector<SafeInteger, 8> expected1 = {-1, 0, 4};
   expectWrapping(expected1, bs1, valid1, invalid1);
   PresburgerSet set2 = setFromString("(x,y) : (2x = 3y and x >= 0 and x <= 6)");
   PresburgerBasicSet bs2 = set2.getBasicSets()[0];
-  SmallVector<int64_t, 8> valid2 = {-2, 3, 1};
-  SmallVector<int64_t, 8> invalid2 = {0, 1, -1};
-  SmallVector<int64_t, 8> expected2 = {-1, 2, 0};
+  SmallVector<SafeInteger, 8> valid2 = {-2, 3, 1};
+  SmallVector<SafeInteger, 8> invalid2 = {0, 1, -1};
+  SmallVector<SafeInteger, 8> expected2 = {-1, 2, 0};
   expectWrapping(expected2, bs2, valid2, invalid2);
 }
 
-void expectCombineConstraint(SmallVector<int64_t, 8> expected,
-                             SmallVector<int64_t, 8> c1,
-                             SmallVector<int64_t, 8> c2, Fraction ratio) {
-  SmallVector<int64_t, 8> result = combineConstraint(c1, c2, ratio);
+void expectCombineConstraint(SmallVector<SafeInteger, 8> expected,
+                             SmallVector<SafeInteger, 8> c1,
+                             SmallVector<SafeInteger, 8> c2, Fraction ratio) {
+  SmallVector<SafeInteger, 8> result = combineConstraint(c1, c2, ratio);
   EXPECT_TRUE(sameConstraint(expected, result));
 }
 
 TEST(CoalesceTest, combineConstraint) {
-  SmallVector<int64_t, 8> c1 = {0, 1, 1};
-  SmallVector<int64_t, 8> c2 = {3, 1, 5};
-  SmallVector<int64_t, 8> expected = {6, -1, 7};
+  SmallVector<SafeInteger, 8> c1 = {0, 1, 1};
+  SmallVector<SafeInteger, 8> c2 = {3, 1, 5};
+  SmallVector<SafeInteger, 8> expected = {6, -1, 7};
   Fraction ratio1(0, 1);
   Fraction ratio2(3, 2);
   expectCombineConstraint(c2, c1, c2, ratio1);

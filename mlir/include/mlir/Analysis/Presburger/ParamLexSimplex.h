@@ -14,8 +14,8 @@
 #ifndef MLIR_ANALYSIS_PRESBURGER_PARAMLEXSIMPLEX_H
 #define MLIR_ANALYSIS_PRESBURGER_PARAMLEXSIMPLEX_H
 
-#include "mlir/Analysis/Presburger/Simplex.h"
 #include "mlir/Analysis/Presburger/PresburgerBasicSet.h"
+#include "mlir/Analysis/Presburger/Simplex.h"
 // #include "mlir/Analysis/AffineStructures.h"
 // #include "mlir/Analysis/Presburger/Fraction.h"
 // #include "mlir/Analysis/Presburger/Matrix.h"
@@ -31,7 +31,7 @@ namespace presburger {
 
 struct pwaFunction {
   SmallVector<PresburgerBasicSet, 8> domain;
-  SmallVector<SmallVector<SmallVector<int64_t, 8>, 8>, 8> value;
+  SmallVector<SmallVector<SmallVector<SafeInteger, 8>, 8>, 8> value;
 
   void dump() {
     for (unsigned i = 0; i < value.size(); ++i) {
@@ -57,23 +57,26 @@ public:
   ParamLexSimplex(unsigned nDim, unsigned nParam);
   explicit ParamLexSimplex(const FlatAffineConstraints &constraints);
 
-  void addInequality(ArrayRef<int64_t> coeffs);
-  void addEquality(ArrayRef<int64_t> coeffs);
-  void addDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom);
+  void addInequality(ArrayRef<SafeInteger> coeffs);
+  void addEquality(ArrayRef<SafeInteger> coeffs);
+  void addDivisionVariable(ArrayRef<SafeInteger> coeffs, SafeInteger denom);
 
   pwaFunction findParamLexmin();
-  void findParamLexminRecursively(Simplex &domainSimplex, PresburgerBasicSet &domainSet, pwaFunction &result);
+  void findParamLexminRecursively(Simplex &domainSimplex,
+                                  PresburgerBasicSet &domainSet,
+                                  pwaFunction &result);
 
 private:
-  SmallVector<int64_t, 8> getRowParamSample(unsigned row);
+  SmallVector<SafeInteger, 8> getRowParamSample(unsigned row);
   LogicalResult moveRowUnknownToColumn(unsigned row);
   void restoreConsistency();
   unsigned getSnapshot();
-  // SmallVector<int64_t, 8> varCoeffsFromRowCoeffs(ArrayRef<int64_t> rowCoeffs) const;
+  // SmallVector<SafeInteger, 8> varCoeffsFromRowCoeffs(ArrayRef<SafeInteger>
+  // rowCoeffs) const;
   Optional<unsigned> findPivot(unsigned row) const;
 
   unsigned nParam, nDiv;
-  SmallVector<SmallVector<int64_t, 8>, 8> originalCoeffs;
+  SmallVector<SmallVector<SafeInteger, 8>, 8> originalCoeffs;
 };
 } // namespace presburger
 } // namespace analysis

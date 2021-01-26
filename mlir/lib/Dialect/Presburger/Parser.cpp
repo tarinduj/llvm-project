@@ -497,7 +497,7 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
           return failure();
         if (failed(lexer.consumeKindOrError(Token::Kind::Divide)))
           return failure();
-        
+
         std::unique_ptr<IntegerExpr> den;
         if (failed(parseInteger(den, false)))
           return failure();
@@ -506,7 +506,8 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
           return failure();
 
         divNames.emplace_back(name);
-        divs.emplace_back(std::make_unique<DivExpr>(std::move(num), std::move(den)));
+        divs.emplace_back(
+            std::make_unique<DivExpr>(std::move(num), std::move(den)));
       } else {
         exists.emplace_back(name);
       }
@@ -515,7 +516,7 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
         lexer.next();
         break;
       }
-      
+
       if (failed(lexer.consumeKindOrError(Token::Kind::Comma)))
         lexer.next();
     }
@@ -524,7 +525,8 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
   SmallVector<std::unique_ptr<ConstraintExpr>, 8> constraints;
   if (lexer.peek().isa(Token::Kind::RightParen)) {
     lexer.next();
-    expr = std::make_unique<AndExpr>(std::move(constraints), std::move(exists), std::move(divNames), std::move(divs));
+    expr = std::make_unique<AndExpr>(std::move(constraints), std::move(exists),
+                                     std::move(divNames), std::move(divs));
     return success();
   }
 
@@ -543,7 +545,8 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
   if (failed(lexer.consumeKindOrError(Token::Kind::RightParen)))
     return failure();
 
-  expr = std::make_unique<AndExpr>(std::move(constraints), std::move(exists), std::move(divNames), std::move(divs));
+  expr = std::make_unique<AndExpr>(std::move(constraints), std::move(exists),
+                                   std::move(divNames), std::move(divs));
   return success();
 }
 
@@ -794,7 +797,7 @@ LogicalResult PresburgerParser::parsePresburgerSet(Expr *constraints,
 /// AndExpr
 LogicalResult
 PresburgerParser::parsePresburgerBasicSet(Expr *constraints,
-                                             PresburgerBasicSet &cs) {                                               
+                                          PresburgerBasicSet &cs) {
   if (constraints->dyn_cast<OrExpr>() != nullptr)
     return emitError("or conditions are not valid for basic sets");
 
@@ -807,15 +810,17 @@ PresburgerParser::parsePresburgerBasicSet(Expr *constraints,
   } else if (auto andConstraints = constraints->dyn_cast<AndExpr>()) {
     initVariables(andConstraints->getExists(), existNameToIndex);
     initVariables(andConstraints->getDivNames(), divNameToIndex);
-    cs = PresburgerBasicSet(dimNameToIndex.size(), symNameToIndex.size(), existNameToIndex.size());
+    cs = PresburgerBasicSet(dimNameToIndex.size(), symNameToIndex.size(),
+                            existNameToIndex.size());
 
-    unsigned offset = dimNameToIndex.size() + symNameToIndex.size() + existNameToIndex.size();
+    unsigned offset =
+        dimNameToIndex.size() + symNameToIndex.size() + existNameToIndex.size();
     SmallVector<DivisionConstraint, 8> divs;
     for (auto &divExpr : andConstraints->getDivs()) {
-      std::pair<int64_t, SmallVector<int64_t, 8>> affineSum;
+      std::pair<SafeInteger, SmallVector<SafeInteger, 8>> affineSum;
       parseSum(divExpr->num.get(), affineSum);
-      int64_t denominator = divExpr->den->getValue();
-      SmallVector<int64_t, 8> coeffs(affineSum.second);
+      SafeInteger denominator = divExpr->den->getValue();
+      SmallVector<SafeInteger, 8> coeffs(affineSum.second);
       coeffs.push_back(affineSum.first);
       divs.emplace_back(coeffs, denominator, offset + divs.size());
     }
@@ -846,8 +851,8 @@ PresburgerParser::parseConstraint(ConstraintExpr *constraint,
   if (constraint == nullptr)
     llvm_unreachable("constraint was nullptr!");
 
-  std::pair<int64_t, SmallVector<int64_t, 8>> left;
-  std::pair<int64_t, SmallVector<int64_t, 8>> right;
+  std::pair<SafeInteger, SmallVector<SafeInteger, 8>> left;
+  std::pair<SafeInteger, SmallVector<SafeInteger, 8>> right;
   if (failed(parseSum(constraint->getLeftSum(), left)) ||
       failed(parseSum(constraint->getRightSum(), right)))
     return failure();
@@ -857,8 +862,8 @@ PresburgerParser::parseConstraint(ConstraintExpr *constraint,
   auto rightConst = right.first;
   auto rightCoeffs = right.second;
 
-  int64_t constant;
-  SmallVector<int64_t, 8> coeffs;
+  SafeInteger constant;
+  SmallVector<SafeInteger, 8> coeffs;
   if (constraint->getKind() == ConstraintExpr::Kind::LE) {
     constant = rightConst - leftConst;
     for (size_t i = 0; i < leftCoeffs.size(); i++)
@@ -888,12 +893,13 @@ PresburgerParser::parseConstraint(ConstraintExpr *constraint,
 /// The list of coefficients corresponds to the coefficients of the dimensions
 /// and after that the symbols.
 ///
-LogicalResult
-PresburgerParser::parseSum(Expr *expr,
-                           std::pair<int64_t, SmallVector<int64_t, 8>> &r) {
-  int64_t constant = 0;
-  SmallVector<int64_t, 8> coeffs(dimNameToIndex.size() + symNameToIndex.size() + existNameToIndex.size() + divNameToIndex.size(),
-                                 0);
+LogicalResult PresburgerParser::parseSum(
+    Expr *expr, std::pair<SafeInteger, SmallVector<SafeInteger, 8>> &r) {
+  SafeInteger constant = 0;
+  SmallVector<SafeInteger, 8> coeffs(
+      dimNameToIndex.size() + symNameToIndex.size() + existNameToIndex.size() +
+          divNameToIndex.size(),
+      0);
   if (auto *term = expr->dyn_cast<TermExpr>()) {
     if (failed(parseAndAddTerm(term, constant, coeffs)))
       return failure();
@@ -912,9 +918,9 @@ PresburgerParser::parseSum(Expr *expr,
 ///
 /// Fails if the variable name is unknown
 LogicalResult
-PresburgerParser::parseAndAddTerm(TermExpr *term, int64_t &constant,
-                                  SmallVector<int64_t, 8> &coeffs) {
-  int64_t delta = 1;
+PresburgerParser::parseAndAddTerm(TermExpr *term, SafeInteger &constant,
+                                  SmallVector<SafeInteger, 8> &coeffs) {
+  SafeInteger delta = 1;
   if (auto coeff = term->getCoeff())
     delta = coeff->getValue();
 
@@ -991,7 +997,7 @@ LogicalResult PresburgerParser::parsePresburgerExpr(PresburgerExpr &res) {
 /// Takes a PieceExpr and adds its corresponding representation to expr
 LogicalResult PresburgerParser::parseAndAddPiece(PieceExpr *piece,
                                                  PresburgerExpr &expr) {
-  std::pair<int64_t, SmallVector<int64_t, 8>> affineExpr;
+  std::pair<SafeInteger, SmallVector<SafeInteger, 8>> affineExpr;
   parseSum(piece->getExpr(), affineExpr);
 
   PresburgerSet set;
@@ -1001,7 +1007,8 @@ LogicalResult PresburgerParser::parseAndAddPiece(PieceExpr *piece,
   else
     parsePresburgerSet(piece->getConstraints(), set);
 
-  expr.addPiece(affineExpr, set);
+  llvm_unreachable("not yet implemented!");
+  // expr.addPiece(affineExpr, set);
   return success();
 }
 

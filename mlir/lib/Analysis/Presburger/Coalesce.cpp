@@ -20,19 +20,19 @@ using namespace mlir;
 /// dimensions.
 struct Info {
   // This is a hack to fix the memory leak
-  SmallVector<SmallVector<int64_t, 8>, 8> hack;
-  SmallVector<ArrayRef<int64_t>, 8> redundant;
-  SmallVector<ArrayRef<int64_t>, 8> cut;
-  Optional<ArrayRef<int64_t>> adjIneq;
-  Optional<ArrayRef<int64_t>> t;
+  SmallVector<SmallVector<SafeInteger, 8>, 8> hack;
+  SmallVector<ArrayRef<SafeInteger>, 8> redundant;
+  SmallVector<ArrayRef<SafeInteger>, 8> cut;
+  Optional<ArrayRef<SafeInteger>> adjIneq;
+  Optional<ArrayRef<SafeInteger>> t;
 
   void dump() {
     std::cout << "red:" << std::endl;
-    for (ArrayRef<int64_t> curr : this->redundant) {
+    for (ArrayRef<SafeInteger> curr : this->redundant) {
       mlir::dump(curr);
     }
     std::cout << "cut:" << std::endl;
-    for (ArrayRef<int64_t> curr : this->cut) {
+    for (ArrayRef<SafeInteger> curr : this->cut) {
       mlir::dump(curr);
     }
     if (this->adjIneq) {
@@ -48,24 +48,24 @@ struct Info {
 
 /// computes the complement of t
 /// i.e. for a given constraint t(x) >= 0 returns -t(x) -1 >= 0
-SmallVector<int64_t, 8> complement(ArrayRef<int64_t> t);
+SmallVector<SafeInteger, 8> complement(ArrayRef<SafeInteger> t);
 
 /// shifts t by amount
 /// i.e. for a given constraint t(x) >= 0 return t(x) + amount >= 0
-void shift(SmallVectorImpl<int64_t> &t, int amount);
+void shift(SmallVectorImpl<SafeInteger> &t, int amount);
 
 /// add eq as two inequalities to target
-void addEqualitiesAsInequalities(const ArrayRef<ArrayRef<int64_t>> eq,
-                                 SmallVectorImpl<ArrayRef<int64_t>> &target,
+void addEqualitiesAsInequalities(const ArrayRef<ArrayRef<SafeInteger>> eq,
+                                 SmallVectorImpl<ArrayRef<SafeInteger>> &target,
                                  Info &info);
 
 /// adds all Equalities to bs
 void addEqualities(PresburgerBasicSet &bs,
-                   ArrayRef<ArrayRef<int64_t>> equalities);
+                   ArrayRef<ArrayRef<SafeInteger>> equalities);
 
 /// adds all Inequalities to bs
 void addInequalities(PresburgerBasicSet &bs,
-                     ArrayRef<ArrayRef<int64_t>> inequalities);
+                     ArrayRef<ArrayRef<SafeInteger>> inequalities);
 
 /// only gets called by classify
 /// classifies all constraints into redundant, cut or adjIneq according to the
@@ -76,7 +76,7 @@ void addInequalities(PresburgerBasicSet &bs,
 /// behind it. The moment either a separate or two adjacent constraints are
 /// encountered, the polytope cannot be coalesced anymore, so we can move to the
 /// next tuple.
-bool classifyIneq(Simplex &simp, ArrayRef<ArrayRef<int64_t>> constraints,
+bool classifyIneq(Simplex &simp, ArrayRef<ArrayRef<SafeInteger>> constraints,
                   Info &info);
 
 /// classifies all constraints into redundant, cut, adjIneq or t, where t stands
@@ -87,8 +87,8 @@ bool classifyIneq(Simplex &simp, ArrayRef<ArrayRef<int64_t>> constraints,
 /// behind it. The moment either a separate or two adjacent constraints are
 /// encountered, the polytope cannot be coalesced anymore, so we can move to the
 /// next tuple.
-bool classify(Simplex &simp, ArrayRef<ArrayRef<int64_t>> inequalities,
-              ArrayRef<ArrayRef<int64_t>> equalities, Info &info);
+bool classify(Simplex &simp, ArrayRef<ArrayRef<SafeInteger>> inequalities,
+              ArrayRef<ArrayRef<SafeInteger>> equalities, Info &info);
 
 /// compute the protrusionCase and return whether it has worked
 ///
@@ -109,7 +109,8 @@ bool protrusionCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                     Info &infoA, const Info &infoB, unsigned i, unsigned j);
 
 /// compute, whether a constraint of cut sticks out of bs by more than 2
-bool stickingOut(ArrayRef<ArrayRef<int64_t>> cut, const PresburgerBasicSet &bs);
+bool stickingOut(ArrayRef<ArrayRef<SafeInteger>> cut,
+                 const PresburgerBasicSet &bs);
 
 /// adds a PresburgerBasicSet and removes the sets at i and j.
 void addCoalescedBasicSet(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
@@ -191,7 +192,7 @@ bool adjEqCasePure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
 ///  |______||        |_______|
 ///
 bool adjEqCaseNoCut(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
-                    unsigned i, unsigned j, SmallVector<int64_t, 8> t,
+                    unsigned i, unsigned j, SmallVector<SafeInteger, 8> t,
                     Info &infoB);
 
 /// compute the non-pure adjEqCase and return whether it has worked.
@@ -210,12 +211,12 @@ bool adjEqCaseNonPure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                       unsigned i, unsigned j, const Info &infoA,
                       const Info &infoB);
 
-void shift(SmallVectorImpl<int64_t> &t, int amount) {
+void shift(SmallVectorImpl<SafeInteger> &t, int amount) {
   t.push_back(t.pop_back_val() + amount);
 }
 
-SmallVector<int64_t, 8> complement(ArrayRef<int64_t> t) {
-  SmallVector<int64_t, 8> complement;
+SmallVector<SafeInteger, 8> complement(ArrayRef<SafeInteger> t) {
+  SmallVector<SafeInteger, 8> complement;
   for (unsigned k = 0; k < t.size() - 1; k++) {
     complement.push_back(-t[k]);
   }
@@ -225,7 +226,7 @@ SmallVector<int64_t, 8> complement(ArrayRef<int64_t> t) {
 
 /// returns all Equalities of a BasicSet as a SmallVector of ArrayRefs
 void getBasicSetEqualities(const PresburgerBasicSet &bs,
-                           SmallVectorImpl<ArrayRef<int64_t>> &eqs) {
+                           SmallVectorImpl<ArrayRef<SafeInteger>> &eqs) {
   for (unsigned k = 0; k < bs.getNumEqualities(); k++) {
     eqs.push_back(bs.getEquality(k).getCoeffs());
   }
@@ -233,7 +234,7 @@ void getBasicSetEqualities(const PresburgerBasicSet &bs,
 
 /// returns all Inequalities of a BasicSet as a SmallVector of ArrayRefs
 void getBasicSetInequalities(const PresburgerBasicSet &bs,
-                             SmallVectorImpl<ArrayRef<int64_t>> &ineqs) {
+                             SmallVectorImpl<ArrayRef<SafeInteger>> &ineqs) {
   for (unsigned k = 0; k < bs.getNumInequalities(); k++) {
     ineqs.push_back(bs.getInequality(k).getCoeffs());
   }
@@ -249,13 +250,13 @@ PresburgerSet mlir::coalesce(PresburgerSet &set) {
     for (unsigned j = i + 1; j < basicSetVector.size(); j++) {
       PresburgerBasicSet bs1 = basicSetVector[i];
       Simplex simplex1(bs1);
-      SmallVector<ArrayRef<int64_t>, 8> equalities1, inequalities1;
+      SmallVector<ArrayRef<SafeInteger>, 8> equalities1, inequalities1;
       getBasicSetEqualities(bs1, equalities1);
       getBasicSetInequalities(bs1, inequalities1);
 
       PresburgerBasicSet bs2 = basicSetVector[j];
       Simplex simplex2(bs2);
-      SmallVector<ArrayRef<int64_t>, 8> equalities2, inequalities2;
+      SmallVector<ArrayRef<SafeInteger>, 8> equalities2, inequalities2;
       getBasicSetEqualities(bs2, equalities2);
       getBasicSetInequalities(bs2, inequalities2);
 
@@ -338,7 +339,7 @@ PresburgerSet mlir::coalesce(PresburgerSet &set) {
         // adjEq Case for one equality 1
         // compute the inequality, that is adjacent to an equality by computing
         // the complement of the inequality part of an equality
-        SmallVector<int64_t, 8> adjEq = complement(info1.t.getValue());
+        SmallVector<SafeInteger, 8> adjEq = complement(info1.t.getValue());
         if (adjEqCaseNoCut(basicSetVector, i, j, adjEq, info2)) {
           // adjEq noCut case
           i--;
@@ -353,7 +354,7 @@ PresburgerSet mlir::coalesce(PresburgerSet &set) {
         // adjEq Case for one equality 2
         // compute the inequality, that is adjacent to an equality by computing
         // the complement of the inequality part of an equality
-        SmallVector<int64_t, 8> adjEq = complement(info2.t.getValue());
+        SmallVector<SafeInteger, 8> adjEq = complement(info2.t.getValue());
         if (adjEqCaseNoCut(basicSetVector, j, i, adjEq, info1)) {
           // adjEq noCut case
           i--;
@@ -374,14 +375,14 @@ PresburgerSet mlir::coalesce(PresburgerSet &set) {
 }
 
 void addInequalities(PresburgerBasicSet &bs,
-                     ArrayRef<ArrayRef<int64_t>> inequalities) {
+                     ArrayRef<ArrayRef<SafeInteger>> inequalities) {
   for (unsigned k = 0; k < inequalities.size(); k++) {
     bs.addInequality(inequalities[k]);
   }
 }
 
 void addEqualities(PresburgerBasicSet &bs,
-                   ArrayRef<ArrayRef<int64_t>> equalities) {
+                   ArrayRef<ArrayRef<SafeInteger>> equalities) {
   for (unsigned k = 0; k < equalities.size(); k++) {
     bs.addEquality(equalities[k]);
   }
@@ -418,14 +419,14 @@ bool protrusionCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                     Info &infoA, const Info &infoB, unsigned i, unsigned j) {
   PresburgerBasicSet &a = basicSetVector[i];
   PresburgerBasicSet &b = basicSetVector[j];
-  SmallVector<ArrayRef<int64_t>, 8> constraintsB, equalitiesB;
+  SmallVector<ArrayRef<SafeInteger>, 8> constraintsB, equalitiesB;
   getBasicSetEqualities(b, equalitiesB);
   getBasicSetInequalities(b, constraintsB);
   addEqualitiesAsInequalities(equalitiesB, constraintsB, infoA);
 
   // For every cut constraint t of a, bPrime is computed as b intersected with
   // t(x) + 1 = 0. For this, t is shifted by 1.
-  SmallVector<SmallVector<int64_t, 8>, 8> wrapped;
+  SmallVector<SmallVector<SafeInteger, 8>, 8> wrapped;
   for (unsigned l = 0; l < infoA.cut.size(); l++) {
     auto t = llvm::to_vector<8>(infoA.cut[l]);
     PresburgerBasicSet bPrime =
@@ -444,7 +445,7 @@ bool protrusionCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
       // ones, that actually define bPrime are considered. So the ones, that
       // actually "touche" the polytope bPrime. Those are wrapped around t(x) +
       // 1 to include a.
-      for (ArrayRef<int64_t> currCut : infoB.cut) {
+      for (ArrayRef<SafeInteger> currCut : infoB.cut) {
         auto curr1 = llvm::to_vector<8>(currCut);
         Simplex simp2(bPrime);
         simp2.addEquality(curr1);
@@ -470,12 +471,12 @@ bool protrusionCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   // constraints.
   addInequalities(newSet, infoA.redundant);
   addInequalities(newSet, infoB.redundant);
-  for (const SmallVector<int64_t, 8> &curr : wrapped) {
+  for (const SmallVector<SafeInteger, 8> &curr : wrapped) {
     newSet.addInequality(curr);
   }
   // Additionally for every remaining cut constraint t of a, t + 1 >= 0 is
   // added.
-  for (ArrayRef<int64_t> currRef : infoA.cut) {
+  for (ArrayRef<SafeInteger> currRef : infoA.cut) {
     auto curr = llvm::to_vector<8>(currRef);
     shift(curr, 1);
     newSet.addInequality(curr);
@@ -484,13 +485,13 @@ bool protrusionCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   return true;
 }
 
-bool stickingOut(ArrayRef<ArrayRef<int64_t>> cut,
+bool stickingOut(ArrayRef<ArrayRef<SafeInteger>> cut,
                  const PresburgerBasicSet &bs) {
   Simplex simp(bs);
   // for every cut constraint t, compute the optimum in the direction of cut. If
   // the optimum is < -2, the polytopee doesn't stick too much out of the other
   // one.
-  for (ArrayRef<int64_t> curr : cut) {
+  for (ArrayRef<SafeInteger> curr : cut) {
     auto result = simp.computeOptimum(Simplex::Direction::Down, curr);
     if (!result) {
       return false;
@@ -503,7 +504,7 @@ bool stickingOut(ArrayRef<ArrayRef<int64_t>> cut,
   return true;
 }
 
-bool mlir::sameConstraint(ArrayRef<int64_t> c1, ArrayRef<int64_t> c2) {
+bool mlir::sameConstraint(ArrayRef<SafeInteger> c1, ArrayRef<SafeInteger> c2) {
   Fraction ratio(0, 1);
   assert(c1.size() == c2.size() && "the constraints have different dimensions");
   // if c1 = a*c2, this iterates over the vector trying to find a as soon as
@@ -528,14 +529,14 @@ bool mlir::sameConstraint(ArrayRef<int64_t> c1, ArrayRef<int64_t> c2) {
 }
 
 bool adjEqCaseNoCut(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
-                    unsigned i, unsigned j, SmallVector<int64_t, 8> t,
+                    unsigned i, unsigned j, SmallVector<SafeInteger, 8> t,
                     Info &infoB) {
   PresburgerBasicSet &A = basicSetVector[j];
   PresburgerBasicSet &B = basicSetVector[i];
   // relax t by 1 and add all other constraints of A to newSet.
   // TODO: is looping only over the inequalities sufficient here?
   // Reasoning: if A had an equality, we would be in a different case.
-  SmallVector<SmallVector<int64_t, 8>, 8> newSetInequalities;
+  SmallVector<SmallVector<SafeInteger, 8>, 8> newSetInequalities;
   for (unsigned k = 0; k < A.getNumInequalities(); k++) {
     auto curr = llvm::to_vector<8>(A.getInequality(k).getCoeffs());
     if (!sameConstraint(t, curr)) {
@@ -546,7 +547,7 @@ bool adjEqCaseNoCut(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   shift(t, 1);
   newSetInequalities.push_back(t);
   PresburgerBasicSet newSet(A.getNumDims(), A.getNumParams());
-  for (const SmallVector<int64_t, 8> &curr : newSetInequalities) {
+  for (const SmallVector<SafeInteger, 8> &curr : newSetInequalities) {
     newSet.addInequality(curr);
   }
 
@@ -555,7 +556,7 @@ bool adjEqCaseNoCut(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   // extension of A.
   Simplex simp(newSet);
   simp.addEquality(t);
-  SmallVector<ArrayRef<int64_t>, 8> constraintsB, equalitiesB;
+  SmallVector<ArrayRef<SafeInteger>, 8> constraintsB, equalitiesB;
   for (unsigned k = 0; k < B.getNumEqualities(); k++) {
     equalitiesB.push_back(B.getEquality(k).getCoeffs());
   }
@@ -563,7 +564,7 @@ bool adjEqCaseNoCut(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
     constraintsB.push_back(B.getInequality(k).getCoeffs());
   }
   addEqualitiesAsInequalities(equalitiesB, constraintsB, infoB);
-  for (ArrayRef<int64_t> curr : constraintsB) {
+  for (ArrayRef<SafeInteger> curr : constraintsB) {
     if (simp.ineqType(curr) != Simplex::IneqType::Redundant) {
       return false;
     }
@@ -577,19 +578,19 @@ bool adjEqCaseNonPure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                       const Info &infoB) {
   PresburgerBasicSet &a = basicSetVector[i];
   PresburgerBasicSet &b = basicSetVector[j];
-  SmallVector<SmallVector<int64_t, 8>, 8> wrapped;
-  SmallVector<int64_t, 8> minusT;
+  SmallVector<SmallVector<SafeInteger, 8>, 8> wrapped;
+  SmallVector<SafeInteger, 8> minusT;
   // the constraint of a adjacent to an equality, it the complement of the
   // constraint f b, that is part of an equality and adjacent to an inequality.
-  SmallVector<int64_t, 8> t =
+  SmallVector<SafeInteger, 8> t =
       complement(llvm::to_vector<8>(infoB.t.getValue()));
-  for (const int64_t n : t) {
+  for (const SafeInteger n : t) {
     minusT.push_back(-n);
   }
 
   // TODO: can only cut be non-redundant?
   // The cut constraints of a are wrapped around -t to include B.
-  for (ArrayRef<int64_t> currRef : infoA.cut) {
+  for (ArrayRef<SafeInteger> currRef : infoA.cut) {
     // TODO: why does the pure case differ here in that it doesn't wrap t?
     auto curr = llvm::to_vector<8>(currRef);
     auto result = wrapping(b, minusT, curr);
@@ -600,7 +601,7 @@ bool adjEqCaseNonPure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
 
   // Some of the wrapped constraints can now be non redudant.
   Simplex simp(b);
-  for (const SmallVector<int64_t, 8> &curr : wrapped) {
+  for (const SmallVector<SafeInteger, 8> &curr : wrapped) {
     if (simp.ineqType(curr) != Simplex::IneqType::Redundant) {
       return false;
     }
@@ -611,7 +612,7 @@ bool adjEqCaseNonPure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   // TODO: can only cut be non-redundant?
   // the cut constraints of b (except -t - 1) are wrapped around t + 1 to
   // include a.
-  for (ArrayRef<int64_t> currRef : infoB.cut) {
+  for (ArrayRef<SafeInteger> currRef : infoB.cut) {
     if (!sameConstraint(minusT, currRef)) {
       auto curr = llvm::to_vector<8>(currRef);
       auto result = wrapping(a, t, curr);
@@ -624,7 +625,7 @@ bool adjEqCaseNonPure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   PresburgerBasicSet newSet(b.getNumDims(), b.getNumParams());
   // The new polytope consists of all the wrapped constraints and all the
   // redundant constraints
-  for (const SmallVector<int64_t, 8> &curr : wrapped) {
+  for (const SmallVector<SafeInteger, 8> &curr : wrapped) {
     newSet.addInequality(curr);
   }
   addInequalities(newSet, infoA.redundant);
@@ -641,16 +642,16 @@ bool adjEqCasePure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                    const Info &infoB) {
   PresburgerBasicSet &a = basicSetVector[i];
   PresburgerBasicSet &b = basicSetVector[j];
-  SmallVector<SmallVector<int64_t, 8>, 8> wrapped;
-  SmallVector<int64_t, 8> minusT;
+  SmallVector<SmallVector<SafeInteger, 8>, 8> wrapped;
+  SmallVector<SafeInteger, 8> minusT;
   auto t = llvm::to_vector<8>(infoA.t.getValue());
-  for (const int64_t n : t) {
+  for (const SafeInteger n : t) {
     minusT.push_back(-n);
   }
 
   // TODO: can only cut be non-redundant?
   // The cut constraints of a (except t) are wrapped around -t to include B.
-  for (ArrayRef<int64_t> currRef : infoA.cut) {
+  for (ArrayRef<SafeInteger> currRef : infoA.cut) {
     if (!sameConstraint(t, currRef)) {
       auto curr = llvm::to_vector<8>(currRef);
       auto result = wrapping(b, minusT, curr);
@@ -665,7 +666,7 @@ bool adjEqCasePure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   // TODO: can only cut be non-redundant?
   // the cut constraints of b (except -t -1) are wrapped around t+1 to include
   // a.
-  for (ArrayRef<int64_t> currRef : infoB.cut) {
+  for (ArrayRef<SafeInteger> currRef : infoB.cut) {
     if (!sameConstraint(minusT, currRef)) {
       auto curr = llvm::to_vector<8>(currRef);
       auto result = wrapping(a, t, curr);
@@ -678,7 +679,7 @@ bool adjEqCasePure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   PresburgerBasicSet newSet(b.getNumDims(), b.getNumParams());
   // The new polytope consists of all the wrapped constraints and all the
   // redundant constraints
-  for (const SmallVector<int64_t, 8> &curr : wrapped) {
+  for (const SmallVector<SafeInteger, 8> &curr : wrapped) {
     newSet.addInequality(curr);
   }
   addInequalities(newSet, infoA.redundant);
@@ -689,22 +690,23 @@ bool adjEqCasePure(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   return true;
 }
 
-SmallVector<int64_t, 8> mlir::combineConstraint(ArrayRef<int64_t> c1,
-                                                ArrayRef<int64_t> c2,
-                                                Fraction &ratio) {
+SmallVector<SafeInteger, 8> mlir::combineConstraint(ArrayRef<SafeInteger> c1,
+                                                    ArrayRef<SafeInteger> c2,
+                                                    Fraction &ratio) {
   assert(c1.size() == c2.size() && "dimensions must be equal");
-  int64_t n = ratio.num;
-  int64_t d = ratio.den;
-  SmallVector<int64_t, 8> result;
+  SafeInteger n = ratio.num;
+  SafeInteger d = ratio.den;
+  SmallVector<SafeInteger, 8> result;
   for (unsigned i = 0; i < c1.size(); i++) {
     result.push_back(-n * c1[i] + d * c2[i]);
   }
   return result;
 }
 
-Optional<SmallVector<int64_t, 8>>
-mlir::wrapping(const PresburgerBasicSet &bs, SmallVectorImpl<int64_t> &valid,
-               SmallVectorImpl<int64_t> &invalid) {
+Optional<SmallVector<SafeInteger, 8>>
+mlir::wrapping(const PresburgerBasicSet &bs,
+               SmallVectorImpl<SafeInteger> &valid,
+               SmallVectorImpl<SafeInteger> &invalid) {
   assert(valid.size() == invalid.size() && "dimensions must be equal");
   unsigned n = bs.getNumTotalDims();
   Simplex simplex(n + 1);
@@ -724,7 +726,7 @@ mlir::wrapping(const PresburgerBasicSet &bs, SmallVectorImpl<int64_t> &valid,
   // add lambda >= 0
   // TODO: why does it work with n here? Isn't this constraint actually n+2
   // long?
-  SmallVector<int64_t, 8> lambda(n, 0);
+  SmallVector<SafeInteger, 8> lambda(n, 0);
   lambda.push_back(1);
   lambda.push_back(0);
   simplex.addInequality(lambda);
@@ -747,13 +749,13 @@ mlir::wrapping(const PresburgerBasicSet &bs, SmallVectorImpl<int64_t> &valid,
   return combineConstraint(valid, invalid, result.getValue());
 }
 
-bool classify(Simplex &simp, ArrayRef<ArrayRef<int64_t>> inequalities,
-              ArrayRef<ArrayRef<int64_t>> equalities, Info &info) {
+bool classify(Simplex &simp, ArrayRef<ArrayRef<SafeInteger>> inequalities,
+              ArrayRef<ArrayRef<SafeInteger>> equalities, Info &info) {
   if (!classifyIneq(simp, inequalities, info))
     return false;
-  SmallVector<ArrayRef<int64_t>, 8> eqAsIneq;
+  SmallVector<ArrayRef<SafeInteger>, 8> eqAsIneq;
   addEqualitiesAsInequalities(equalities, eqAsIneq, info);
-  for (ArrayRef<int64_t> currentConstraint : eqAsIneq) {
+  for (ArrayRef<SafeInteger> currentConstraint : eqAsIneq) {
     Simplex::IneqType ty = simp.ineqType(currentConstraint);
     switch (ty) {
     case Simplex::IneqType::Redundant:
@@ -783,9 +785,9 @@ bool classify(Simplex &simp, ArrayRef<ArrayRef<int64_t>> inequalities,
   return true;
 }
 
-bool classifyIneq(Simplex &simp, ArrayRef<ArrayRef<int64_t>> constraints,
+bool classifyIneq(Simplex &simp, ArrayRef<ArrayRef<SafeInteger>> constraints,
                   Info &info) {
-  for (ArrayRef<int64_t> currentConstraint : constraints) {
+  for (ArrayRef<SafeInteger> currentConstraint : constraints) {
     Simplex::IneqType ty = simp.ineqType(currentConstraint);
     switch (ty) {
     case Simplex::IneqType::Redundant:
@@ -815,7 +817,7 @@ bool classifyIneq(Simplex &simp, ArrayRef<ArrayRef<int64_t>> constraints,
 
 bool adjIneqCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
                  unsigned i, unsigned j, const Info &infoA, const Info &infoB) {
-  ArrayRef<int64_t> t = infoA.adjIneq.getValue();
+  ArrayRef<SafeInteger> t = infoA.adjIneq.getValue();
   PresburgerBasicSet bs(basicSetVector[i].getNumDims(),
                         basicSetVector[i].getNumParams());
   addInequalities(bs, infoA.redundant);
@@ -828,7 +830,7 @@ bool adjIneqCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector,
   // polytope
   Simplex comp(bs);
   comp.addInequality(complement(t));
-  for (ArrayRef<int64_t> curr : infoB.cut) {
+  for (ArrayRef<SafeInteger> curr : infoB.cut) {
     if (comp.ineqType(curr) != Simplex::IneqType::Redundant) {
       return false;
     }
@@ -851,7 +853,7 @@ bool cutCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector, unsigned i,
              unsigned j, const Info &infoA, const Info &infoB) {
   // if all facets are contained, the redundant constraints of both a and b
   // define the new polytope
-  for (ArrayRef<int64_t> curr : infoA.cut) {
+  for (ArrayRef<SafeInteger> curr : infoA.cut) {
     if (!containedFacet(curr, basicSetVector[i], infoB.cut)) {
       return false;
     }
@@ -864,11 +866,12 @@ bool cutCase(SmallVectorImpl<PresburgerBasicSet> &basicSetVector, unsigned i,
   return true;
 }
 
-bool mlir::containedFacet(ArrayRef<int64_t> ineq, const PresburgerBasicSet &bs,
-                          ArrayRef<ArrayRef<int64_t>> cut) {
+bool mlir::containedFacet(ArrayRef<SafeInteger> ineq,
+                          const PresburgerBasicSet &bs,
+                          ArrayRef<ArrayRef<SafeInteger>> cut) {
   Simplex simp(bs);
   simp.addEquality(ineq);
-  for (ArrayRef<int64_t> curr : cut) {
+  for (ArrayRef<SafeInteger> curr : cut) {
     if (simp.ineqType(curr) != Simplex::IneqType::Redundant) {
       return false;
     }
@@ -876,30 +879,30 @@ bool mlir::containedFacet(ArrayRef<int64_t> ineq, const PresburgerBasicSet &bs,
   return true;
 }
 
-void addEqualitiesAsInequalities(ArrayRef<ArrayRef<int64_t>> eq,
-                                 SmallVectorImpl<ArrayRef<int64_t>> &target,
+void addEqualitiesAsInequalities(ArrayRef<ArrayRef<SafeInteger>> eq,
+                                 SmallVectorImpl<ArrayRef<SafeInteger>> &target,
                                  Info &info) {
-  for (ArrayRef<int64_t> curr : eq) {
+  for (ArrayRef<SafeInteger> curr : eq) {
     target.push_back(curr);
     // TODO: fix this memory leak
-    SmallVector<int64_t, 8> inverted;
-    for (const int64_t n : curr) {
+    SmallVector<SafeInteger, 8> inverted;
+    for (const SafeInteger n : curr) {
       inverted.push_back(-n);
     }
     info.hack.push_back(inverted);
-    ArrayRef<int64_t> invertedRef(info.hack.back());
+    ArrayRef<SafeInteger> invertedRef(info.hack.back());
     target.push_back(invertedRef);
   }
 }
 
-void mlir::dump(ArrayRef<int64_t> cons) {
-  std::cout << cons[cons.size() - 1] << " + ";
+void mlir::dump(ArrayRef<SafeInteger> cons) {
+  llvm::errs() << cons[cons.size() - 1] << " + ";
   for (unsigned i = 1; i < cons.size(); i++) {
-    std::cout << cons[i - 1] << "x" << i - 1;
+    llvm::errs() << cons[i - 1] << "x" << i - 1;
     if (i == cons.size() - 1) {
       break;
     }
-    std::cout << " + ";
+    llvm::errs() << " + ";
   }
-  std::cout << " >= 0" << std::endl;
+  llvm::errs() << " >= 0\n";
 }

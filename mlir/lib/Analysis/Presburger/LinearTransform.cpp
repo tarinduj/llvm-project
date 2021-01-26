@@ -92,14 +92,14 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType m) {
   return LinearTransform(std::move(resultMatrix));
 }
 
-SmallVector<int64_t, 8>
-LinearTransform::postMultiplyRow(ArrayRef<int64_t> row) {
+SmallVector<SafeInteger, 8>
+LinearTransform::postMultiplyRow(ArrayRef<SafeInteger> row) {
   assert(row.size() == matrix.getNumRows() &&
          "row vector dimension should be matrix output dimension");
 
-  SmallVector<int64_t, 8> result;
+  SmallVector<SafeInteger, 8> result;
   for (unsigned col = 0, e = matrix.getNumColumns(); col < e; col++) {
-    int64_t elem = 0;
+    SafeInteger elem = 0;
     for (unsigned i = 0, e = matrix.getNumRows(); i < e; i++)
       elem += row[i] * matrix(i, col);
     result.push_back(elem);
@@ -107,14 +107,14 @@ LinearTransform::postMultiplyRow(ArrayRef<int64_t> row) {
   return result;
 }
 
-SmallVector<int64_t, 8>
-LinearTransform::preMultiplyColumn(ArrayRef<int64_t> col) {
+SmallVector<SafeInteger, 8>
+LinearTransform::preMultiplyColumn(ArrayRef<SafeInteger> col) {
   assert(matrix.getNumColumns() == col.size() &&
          "row vector dimension should be matrix output dimension");
 
-  SmallVector<int64_t, 8> result;
+  SmallVector<SafeInteger, 8> result;
   for (unsigned row = 0, e = matrix.getNumRows(); row < e; row++) {
-    int64_t elem = 0;
+    SafeInteger elem = 0;
     for (unsigned i = 0, e = matrix.getNumColumns(); i < e; i++)
       elem += matrix(row, i) * col[i];
     result.push_back(elem);
@@ -127,21 +127,21 @@ LinearTransform::postMultiplyBasicSet(const PresburgerBasicSet &bs) {
   PresburgerBasicSet result(bs.getNumTotalDims(), 0, 0);
 
   for (unsigned i = 0; i < bs.getNumEqualities(); ++i) {
-    ArrayRef<int64_t> eq = bs.getEquality(i).getCoeffs();
+    ArrayRef<SafeInteger> eq = bs.getEquality(i).getCoeffs();
 
-    int64_t c = eq.back();
+    SafeInteger c = eq.back();
 
-    SmallVector<int64_t, 8> newEq = postMultiplyRow(eq.drop_back());
+    SmallVector<SafeInteger, 8> newEq = postMultiplyRow(eq.drop_back());
     newEq.push_back(c);
     result.addEquality(newEq);
   }
 
   for (unsigned i = 0; i < bs.getNumInequalities(); ++i) {
-    ArrayRef<int64_t> ineq = bs.getInequality(i).getCoeffs();
+    ArrayRef<SafeInteger> ineq = bs.getInequality(i).getCoeffs();
 
-    int64_t c = ineq.back();
+    SafeInteger c = ineq.back();
 
-    SmallVector<int64_t, 8> newIneq = postMultiplyRow(ineq.drop_back());
+    SmallVector<SafeInteger, 8> newIneq = postMultiplyRow(ineq.drop_back());
     newIneq.push_back(c);
     result.addInequality(newIneq);
   }

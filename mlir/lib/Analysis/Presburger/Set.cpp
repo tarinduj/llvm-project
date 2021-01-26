@@ -1,9 +1,9 @@
 #include "mlir/Analysis/Presburger/Set.h"
 #include "mlir/Analysis/Presburger/Constraint.h"
-#include "mlir/Analysis/Presburger/Printer.h"
 #include "mlir/Analysis/Presburger/ISLPrinter.h"
-#include "mlir/Analysis/Presburger/Simplex.h"
 #include "mlir/Analysis/Presburger/ParamLexSimplex.h"
+#include "mlir/Analysis/Presburger/Printer.h"
+#include "mlir/Analysis/Presburger/Simplex.h"
 
 // TODO should we change this to a storage type?
 using namespace mlir;
@@ -14,15 +14,15 @@ PresburgerSet::PresburgerSet(PresburgerBasicSet cs)
   addBasicSet(cs);
 }
 
-unsigned PresburgerSet::getNumBasicSets() const {
-  return basicSets.size();
-}
+unsigned PresburgerSet::getNumBasicSets() const { return basicSets.size(); }
 
 unsigned PresburgerSet::getNumDims() const { return nDim; }
 
 unsigned PresburgerSet::getNumSyms() const { return nSym; }
 
-bool PresburgerSet::isMarkedEmpty() const { return markedEmpty || basicSets.empty(); }
+bool PresburgerSet::isMarkedEmpty() const {
+  return markedEmpty || basicSets.empty();
+}
 
 bool PresburgerSet::isUniverse() const {
   if (markedEmpty || basicSets.empty())
@@ -34,8 +34,7 @@ bool PresburgerSet::isUniverse() const {
   return false;
 }
 
-const SmallVector<PresburgerBasicSet, 4> &
-PresburgerSet::getBasicSets() const {
+const SmallVector<PresburgerBasicSet, 4> &PresburgerSet::getBasicSets() const {
   return basicSets;
 }
 
@@ -106,10 +105,11 @@ PresburgerSet PresburgerSet::makeEmptySet(unsigned nDim, unsigned nSym) {
 }
 
 /// Return `coeffs` with all the elements negated.
-static SmallVector<int64_t, 8> getNegatedCoeffs(ArrayRef<int64_t> coeffs) {
-  SmallVector<int64_t, 8> negatedCoeffs;
+static SmallVector<SafeInteger, 8>
+getNegatedCoeffs(ArrayRef<SafeInteger> coeffs) {
+  SmallVector<SafeInteger, 8> negatedCoeffs;
   negatedCoeffs.reserve(coeffs.size());
-  for (int64_t coeff : coeffs)
+  for (SafeInteger coeff : coeffs)
     negatedCoeffs.emplace_back(-coeff);
   return negatedCoeffs;
 }
@@ -118,12 +118,13 @@ static SmallVector<int64_t, 8> getNegatedCoeffs(ArrayRef<int64_t> coeffs) {
 ///
 /// The complement of a_1 x_1 + ... + a_n x_ + c >= 0 is
 /// a_1 x_1 + ... + a_n x_ + c < 0, i.e., -a_1 x_1 - ... - a_n x_ - c - 1 >= 0.
-static SmallVector<int64_t, 8> getComplementIneq(ArrayRef<int64_t> ineq) {
-  SmallVector<int64_t, 8> coeffs;
+static SmallVector<SafeInteger, 8>
+getComplementIneq(ArrayRef<SafeInteger> ineq) {
+  SmallVector<SafeInteger, 8> coeffs;
   coeffs.reserve(ineq.size());
-  for (int64_t coeff : ineq)
+  for (SafeInteger coeff : ineq)
     coeffs.emplace_back(-coeff);
-  --coeffs.back();
+  coeffs.back() -= 1;
   return coeffs;
 }
 
@@ -162,7 +163,8 @@ void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
   for (unsigned j = 0; j < numSIDivs; ++j)
     simplex.addVariable();
 
-  for (unsigned j = sI.getNumDivs() - numSIDivs, e = sI.getNumDivs(); j < e; ++j) {
+  for (unsigned j = sI.getNumDivs() - numSIDivs, e = sI.getNumDivs(); j < e;
+       ++j) {
     const DivisionConstraint &div = sI.getDivisions()[j];
     simplex.addInequality(div.getInequalityLowerBound().getCoeffs());
     simplex.addInequality(div.getInequalityUpperBound().getCoeffs());
@@ -192,7 +194,7 @@ void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
   // actually equal to b ^ s_i1 ^ s_i2 ^ ... ^ s_ij, and ineq is the next
   // inequality, s_{i,j+1}. This function recurses into the next level i + 1
   // with the part b ^ s_i1 ^ s_i2 ^ ... ^ s_ij ^ ~s_{i,j+1}.
-  auto recurseWithInequality = [&, i](ArrayRef<int64_t> ineq) {
+  auto recurseWithInequality = [&, i](ArrayRef<SafeInteger> ineq) {
     size_t snapshot = simplex.getSnapshot();
     b.addInequality(ineq);
     simplex.addInequality(ineq);
@@ -204,7 +206,7 @@ void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
   // For each inequality ineq, we first recurse with the part where ineq
   // is not satisfied, and then add the ineq to b and simplex because
   // ineq must be satisfied by all later parts.
-  auto processInequality = [&](ArrayRef<int64_t> ineq) {
+  auto processInequality = [&](ArrayRef<SafeInteger> ineq) {
     recurseWithInequality(getComplementIneq(ineq));
     b.addInequality(ineq);
     simplex.addInequality(ineq);
@@ -225,7 +227,7 @@ void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
 
   offset = sI.getNumInequalities();
   for (unsigned j = 0, e = sI.getNumEqualities(); j < e; ++j) {
-    const ArrayRef<int64_t> &coeffs = sI.getEquality(j).getCoeffs();
+    const ArrayRef<SafeInteger> &coeffs = sI.getEquality(j).getCoeffs();
     // Same as the above loop for inequalities, done once each for the positive
     // and negative inequalities that make up this equality.
     if (!isMarkedRedundant[offset + 2 * j])
@@ -245,8 +247,10 @@ void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
   b = oldB;
 }
 
-PresburgerSet PresburgerSet::eliminateExistentials(const PresburgerBasicSet &bs) {
-  ParamLexSimplex paramLexSimplex(bs.getNumTotalDims(), bs.getNumParams() + bs.getNumDims());
+PresburgerSet /* why does the formatter want to merge these words?? */
+PresburgerSet::eliminateExistentials(const PresburgerBasicSet &bs) {
+  ParamLexSimplex paramLexSimplex(bs.getNumTotalDims(),
+                                  bs.getNumParams() + bs.getNumDims());
   for (const auto &div : bs.getDivisions()) {
     // The division variables must be in the same order they are stored in the
     // basic set.
@@ -263,7 +267,7 @@ PresburgerSet PresburgerSet::eliminateExistentials(const PresburgerBasicSet &bs)
   PresburgerSet result(bs.getNumDims(), bs.getNumParams());
   for (auto &b : paramLexSimplex.findParamLexmin().domain) {
     b.nParam = bs.nParam;
-    b.nDim = bs.nDim; 
+    b.nDim = bs.nDim;
     result.addBasicSet(b);
   }
   return result;
@@ -307,7 +311,7 @@ PresburgerSet PresburgerSet::complement(const PresburgerSet &set) {
 // We compute (U_i T_i) - (U_i S_i) as U_i (T_i - U_i S_i).
 void PresburgerSet::subtract(const PresburgerSet &set) {
   assertDimensionsCompatible(set, *this);
-  
+
   if (markedEmpty)
     return;
   if (set.isMarkedEmpty())
@@ -344,19 +348,19 @@ bool PresburgerSet::equal(const PresburgerSet &s, const PresburgerSet &t) {
   return true;
 }
 
-Optional<SmallVector<int64_t, 8>> PresburgerSet::findIntegerSample() {
+Optional<SmallVector<SafeInteger, 8>> PresburgerSet::findIntegerSample() {
   if (maybeSample)
     return maybeSample;
   if (markedEmpty)
     return {};
   if (isUniverse())
-    return SmallVector<int64_t, 8>(nDim, 0);
+    return SmallVector<SafeInteger, 8>(nDim, 0);
 
   for (PresburgerBasicSet &cs : basicSets) {
     if (auto opt = cs.findIntegerSample()) {
-      maybeSample = SmallVector<int64_t, 8>();
+      maybeSample = SmallVector<SafeInteger, 8>();
 
-      for (int64_t v : opt.getValue())
+      for (SafeInteger v : opt.getValue())
         maybeSample->push_back(v);
 
       return maybeSample;
@@ -375,10 +379,10 @@ bool PresburgerSet::isIntegerEmpty() {
   return true;
 }
 
-llvm::Optional<SmallVector<int64_t, 8>>
+llvm::Optional<SmallVector<SafeInteger, 8>>
 PresburgerSet::maybeGetCachedSample() const {
   if (isUniverse())
-    return SmallVector<int64_t, 8>(nDim, 0);
+    return SmallVector<SafeInteger, 8>(nDim, 0);
   return maybeSample;
 }
 
@@ -387,13 +391,19 @@ void PresburgerSet::printISL(raw_ostream &os) const {
   printPresburgerSetISL(os, *this);
 }
 
-void PresburgerSet::dumpISL() const { printISL(llvm::errs()); llvm::errs() << '\n'; }
+void PresburgerSet::dumpISL() const {
+  printISL(llvm::errs());
+  llvm::errs() << '\n';
+}
 
 void PresburgerSet::print(raw_ostream &os) const {
   printPresburgerSet(os, *this);
 }
 
-void PresburgerSet::dump() const { print(llvm::errs()); llvm::errs() << '\n'; }
+void PresburgerSet::dump() const {
+  print(llvm::errs());
+  llvm::errs() << '\n';
+}
 
 void PresburgerSet::dumpCoeffs() const {
   llvm::errs() << "nBasicSets = " << basicSets.size() << '\n';

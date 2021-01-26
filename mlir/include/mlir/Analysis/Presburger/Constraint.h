@@ -13,12 +13,14 @@
 #ifndef MLIR_ANALYSIS_PRESBURGER_CONSTRAINT_H
 #define MLIR_ANALYSIS_PRESBURGER_CONSTRAINT_H
 
+#include "mlir/Analysis/Presburger/SafeInteger.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace mlir {
+using analysis::presburger::SafeInteger;
 
 class Constraint {
 public:
@@ -44,33 +46,24 @@ public:
     coeffs.erase(coeffs.begin() + pos, coeffs.begin() + pos + count);
   }
 
-  ArrayRef<int64_t> getCoeffs() const {
-    return coeffs;
-  }
+  ArrayRef<SafeInteger> getCoeffs() const { return coeffs; }
 
-  void shiftToOrigin() {
-    coeffs.back() = 0;
-  }
+  void shiftToOrigin() { coeffs.back() = 0; }
 
-  void substitute(ArrayRef<int64_t> values) {
+  void substitute(ArrayRef<SafeInteger> values) {
     assert(values.size() <= getNumDims() && "Too many values to substitute!");
     for (size_t i = 0; i < values.size(); i++)
       coeffs.back() += values[i] * coeffs[i];
 
-    coeffs = SmallVector<int64_t, 8>(coeffs.begin() + values.size(), coeffs.end());
+    coeffs = SmallVector<SafeInteger, 8>(coeffs.begin() + values.size(),
+                                         coeffs.end());
   }
 
-  void shift(int64_t x) {
-    coeffs.back() += x;
-  }
+  void shift(SafeInteger x) { coeffs.back() += x; }
 
-  void appendDimension() {
-    insertDimensions(getNumDims(), 1);
-  }
+  void appendDimension() { insertDimensions(getNumDims(), 1); }
 
-  void removeLastDimension() {
-    eraseDimensions(getNumDims() - 1, 1);
-  }
+  void removeLastDimension() { eraseDimensions(getNumDims() - 1, 1); }
 
   void print(raw_ostream &os) const {
     bool first = true;
@@ -98,7 +91,7 @@ public:
         if (-coeffs[i] != 1)
           os << -coeffs[i];
       }
-      
+
       os << "x" << i;
     }
   }
@@ -113,13 +106,14 @@ public:
   }
 
 protected:
-  Constraint(ArrayRef<int64_t> oCoeffs) : coeffs(oCoeffs.begin(), oCoeffs.end()) {}
-  SmallVector<int64_t, 8> coeffs;
+  Constraint(ArrayRef<SafeInteger> oCoeffs)
+      : coeffs(oCoeffs.begin(), oCoeffs.end()) {}
+  SmallVector<SafeInteger, 8> coeffs;
 };
 
 class InequalityConstraint : public Constraint {
 public:
-  InequalityConstraint(ArrayRef<int64_t> oCoeffs) : Constraint(oCoeffs) {}
+  InequalityConstraint(ArrayRef<SafeInteger> oCoeffs) : Constraint(oCoeffs) {}
   void print(raw_ostream &os) const {
     Constraint::print(os);
     os << " >= 0";
@@ -129,7 +123,7 @@ public:
 
 class EqualityConstraint : public Constraint {
 public:
-  EqualityConstraint(ArrayRef<int64_t> oCoeffs) : Constraint(oCoeffs) {}
+  EqualityConstraint(ArrayRef<SafeInteger> oCoeffs) : Constraint(oCoeffs) {}
   void print(raw_ostream &os) const {
     Constraint::print(os);
     os << " = 0";
@@ -139,28 +133,27 @@ public:
 
 class DivisionConstraint : public Constraint {
 public:
-  DivisionConstraint(ArrayRef<int64_t> oCoeffs, int64_t oDenom, unsigned oVariable)
-    : Constraint(oCoeffs), denom(oDenom), variable(oVariable) {}
+  DivisionConstraint(ArrayRef<SafeInteger> oCoeffs, SafeInteger oDenom,
+                     unsigned oVariable)
+      : Constraint(oCoeffs), denom(oDenom), variable(oVariable) {}
   void print(raw_ostream &os) const {
     os << "x" << variable << " = floor((";
     Constraint::print(os);
     os << ")/" << denom << ')';
   }
 
-  int64_t getDenominator() const {
-    return denom;
-  }
+  SafeInteger getDenominator() const { return denom; }
 
   InequalityConstraint getInequalityLowerBound() const {
-    SmallVector<int64_t, 8> ineqCoeffs = coeffs;
+    SmallVector<SafeInteger, 8> ineqCoeffs = coeffs;
     ineqCoeffs[variable] -= denom;
     return InequalityConstraint(ineqCoeffs);
   }
 
   InequalityConstraint getInequalityUpperBound() const {
-    SmallVector<int64_t, 8> ineqCoeffs;
+    SmallVector<SafeInteger, 8> ineqCoeffs;
     ineqCoeffs.reserve(coeffs.size());
-    for (int64_t coeff : coeffs)
+    for (SafeInteger coeff : coeffs)
       ineqCoeffs.push_back(-coeff);
     ineqCoeffs[variable] += denom;
     ineqCoeffs.back() += denom - 1;
@@ -179,13 +172,14 @@ public:
     Constraint::eraseDimensions(pos, count);
   }
 
-  void substitute(ArrayRef<int64_t> values) {
+  void substitute(ArrayRef<SafeInteger> values) {
     assert(variable >= values.size() && "Not yet implemented");
   }
 
   void dump() const { print(llvm::errs()); }
+
 private:
-  int64_t denom;
+  SafeInteger denom;
   unsigned variable;
 };
 } // namespace mlir

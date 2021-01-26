@@ -227,26 +227,26 @@ TEST(SimplexTest, addEquality_separate) {
   EXPECT_TRUE(simplex.isEmpty());
 }
 namespace {
-void expectInequalityMakesSetEmpty(Simplex &simplex, ArrayRef<int64_t> coeffs,
-                                   bool expect) {
+void expectInequalityMakesSetEmpty(Simplex &simplex,
+                                   ArrayRef<SafeInteger> coeffs, bool expect) {
   ASSERT_FALSE(simplex.isEmpty());
   unsigned snapshot = simplex.getSnapshot();
   simplex.addInequality(coeffs);
   EXPECT_EQ(simplex.isEmpty(), expect);
   simplex.rollback(snapshot);
 }
-}
+} // namespace
 
 TEST(SimplexTest, addInequality_rollback) {
   Simplex simplex(3);
-  SmallVector<int64_t, 4> coeffs[]{{1, 0, 0, 0},   // u >= 0.
-                                   {-1, 0, 0, 0},  // u <= 0.
-                                   {1, -1, 1, 0},  // u - v + w >= 0.
-                                   {1, 1, -1, 0}}; // u + v - w >= 0.
+  SmallVector<SafeInteger, 4> coeffs[]{{1, 0, 0, 0},   // u >= 0.
+                                       {-1, 0, 0, 0},  // u <= 0.
+                                       {1, -1, 1, 0},  // u - v + w >= 0.
+                                       {1, 1, -1, 0}}; // u + v - w >= 0.
   // The above constraints force u = 0 and v = w.
   // The constraints below violate v = w.
-  SmallVector<int64_t, 4> checkCoeffs[]{{0, 1, -1, -1},  // v - w >= 1.
-                                        {0, -1, 1, -1}}; // v - w <= -1.
+  SmallVector<SafeInteger, 4> checkCoeffs[]{{0, 1, -1, -1},  // v - w >= 1.
+                                            {0, -1, 1, -1}}; // v - w <= -1.
 
   for (int run = 0; run < 4; run++) {
     unsigned snapshot = simplex.getSnapshot();
@@ -269,9 +269,10 @@ TEST(SimplexTest, addInequality_rollback) {
 }
 
 namespace {
-Simplex simplexFromConstraints(unsigned nDim,
-                               SmallVector<SmallVector<int64_t, 8>, 8> ineqs,
-                               SmallVector<SmallVector<int64_t, 8>, 8> eqs) {
+Simplex /* workaround lsp/clang-format bug */
+simplexFromConstraints(unsigned nDim,
+                       SmallVector<SmallVector<SafeInteger, 8>, 8> ineqs,
+                       SmallVector<SmallVector<SafeInteger, 8>, 8> eqs) {
   Simplex simplex(nDim);
   for (const auto &ineq : ineqs)
     simplex.addInequality(ineq);
@@ -279,7 +280,7 @@ Simplex simplexFromConstraints(unsigned nDim,
     simplex.addEquality(eq);
   return simplex;
 }
-}
+} // namespace
 
 TEST(SimplexTest, isUnbounded) {
   EXPECT_FALSE(simplexFromConstraints(
@@ -361,10 +362,10 @@ TEST(SimplexTest, isUnbounded) {
 
 TEST(SimplexTest, ineqType) {
   Simplex simplex(1);
-  simplex.addEquality({1, 0}); // x >= 0.
+  simplex.addEquality({1, 0});                                    // x >= 0.
   EXPECT_EQ(simplex.ineqType({1, -1}), Simplex::IneqType::AdjEq); // x >= 1.
   Simplex simplex2(1);
-  simplex2.addInequality({1, -1}); // x >= 1.
+  simplex2.addInequality({1, -1});                                   // x >= 1.
   EXPECT_EQ(simplex2.ineqType({-1, 0}), Simplex::IneqType::AdjIneq); // x <= 0.
   Simplex simplex3(1);
   simplex3.addInequality({1, -2}); // x >= 2.

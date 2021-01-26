@@ -158,7 +158,7 @@ public:
   /// Add an inequality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
   /// is the current number of variables, then the corresponding inequality is
   /// c_n + c_0*x_0 + c_1*x_1 + ... + c_{n-1}*x_{n-1} >= 0.
-  void addInequality(ArrayRef<int64_t> coeffs);
+  void addInequality(ArrayRef<SafeInteger> coeffs);
 
   /// Returns the number of variables in the tableau.
   unsigned numVariables() const;
@@ -169,10 +169,10 @@ public:
   /// Add an equality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
   /// is the current number of variables, then the corresponding equality is
   /// c_n + c_0*x_0 + c_1*x_1 + ... + c_{n-1}*x_{n-1} == 0.
-  void addEquality(ArrayRef<int64_t> coeffs);
+  void addEquality(ArrayRef<SafeInteger> coeffs);
 
   void addVariable();
-  void addDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom);
+  void addDivisionVariable(ArrayRef<SafeInteger> coeffs, SafeInteger denom);
 
   /// Mark the tableau as being empty.
   void markEmpty();
@@ -199,7 +199,7 @@ public:
   ///             inequality
   ///
   /// \returns an IneqType, the type of the specified inequality.
-  IneqType ineqType(ArrayRef<int64_t> coeffs);
+  IneqType ineqType(ArrayRef<SafeInteger> coeffs);
 
   /// Compute the maximum or minimum value of the given row, depending on
   /// direction.
@@ -214,11 +214,12 @@ public:
   /// Returns a (num, den) pair denoting the optimum, or a null value if no
   /// optimum exists, i.e., if the expression is unbounded in this direction.
   Optional<Fraction> computeOptimum(Direction direction,
-                                    ArrayRef<int64_t> coeffs);
+                                    ArrayRef<SafeInteger> coeffs);
 
   /// Returns a (min, max) pair denoting the minimum and maximum integer values
   /// of the given expression.
-  std::pair<int64_t, int64_t> computeIntegerBounds(ArrayRef<int64_t> coeffs);
+  std::pair<SafeInteger, SafeInteger>
+  computeIntegerBounds(ArrayRef<SafeInteger> coeffs);
 
   /// Returns true if the polytope is unbounded, i.e., extends to infinity in
   /// some direction. Otherwise, returns false.
@@ -234,13 +235,14 @@ public:
 
   /// Returns the current sample point if it is integral. Otherwise, returns
   /// None.
-  Optional<SmallVector<int64_t, 8>> getSamplePointIfIntegral() const;
+  Optional<SmallVector<SafeInteger, 8>> getSamplePointIfIntegral() const;
 
   /// Returns an integer sample point if one exists, or None
   /// otherwise. This should only be called for bounded sets.
-  Optional<SmallVector<int64_t, 8>> findIntegerSample();
+  Optional<SmallVector<SafeInteger, 8>> findIntegerSample();
 
-  std::pair<int64_t, SmallVector<int64_t, 8>> findRationalSample() const;
+  std::pair<SafeInteger, SmallVector<SafeInteger, 8>>
+  findRationalSample() const;
 
   /// Print the tableau's internal state.
   void print(raw_ostream &os) const;
@@ -336,7 +338,7 @@ protected:
   /// \returns +1 if the maximum value is greater than \p origin, 0 if they are
   // equal, and -1 if it is less than \p origin.
   template <int origin>
-  int64_t signOfMax(Unknown &u);
+  SafeInteger signOfMax(Unknown &u);
 
   /// Returns the unknown associated with index.
   const Unknown &unknownFromIndex(int index) const;
@@ -399,7 +401,7 @@ protected:
   void addZeroConstraint();
 
   /// Add a new row to the tableau and the associated data structures.
-  unsigned addRow(ArrayRef<int64_t> coeffs);
+  unsigned addRow(ArrayRef<SafeInteger> coeffs);
 
   /// Normalize the given row by removing common factors between the numerator
   /// and the denominator.
@@ -458,7 +460,8 @@ protected:
   Optional<unsigned> findPivotRow(Optional<unsigned> skipRow,
                                   Direction direction, unsigned col) const;
 
-  int64_t sign(int64_t num, int64_t den = 1, int64_t origin = 0) const;
+  SafeInteger sign(SafeInteger num, SafeInteger den = 1,
+                   SafeInteger origin = 0) const;
 
   /// Reduce the given basis, starting at the specified level, using general
   /// basis reduction.

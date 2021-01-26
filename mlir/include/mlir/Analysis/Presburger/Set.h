@@ -37,13 +37,12 @@ public:
   static PresburgerSet makeEmptySet(unsigned nDim, unsigned nSym);
   static PresburgerSet complement(const PresburgerSet &set);
   void subtract(const PresburgerSet &set);
-  static PresburgerSet subtract(PresburgerBasicSet c,
-                                const PresburgerSet &set);
+  static PresburgerSet subtract(PresburgerBasicSet c, const PresburgerSet &set);
 
-  llvm::Optional<SmallVector<int64_t, 8>> findIntegerSample();
+  llvm::Optional<SmallVector<SafeInteger, 8>> findIntegerSample();
   bool isIntegerEmpty();
   // bool containsPoint(const std::vector<INT> &values) const;
-  llvm::Optional<SmallVector<int64_t, 8>> maybeGetCachedSample() const;
+  llvm::Optional<SmallVector<SafeInteger, 8>> maybeGetCachedSample() const;
 
 private:
   unsigned nDim;
@@ -53,9 +52,9 @@ private:
   // If this is set to true, then the set is empty, irrespective of the state
   // of basicSets.
   bool markedEmpty;
-  Optional<SmallVector<int64_t, 8>> maybeSample;
+  Optional<SmallVector<SafeInteger, 8>> maybeSample;
   void printBasicSet(raw_ostream &os, PresburgerBasicSet cs) const;
-  void printVar(raw_ostream &os, int64_t var, unsigned i,
+  void printVar(raw_ostream &os, SafeInteger var, unsigned i,
                 unsigned &countNonZero) const;
 };
 

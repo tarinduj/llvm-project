@@ -177,15 +177,15 @@ public:
 
 class IntegerExpr : public Expr {
 public:
-  explicit IntegerExpr(int64_t value) : value(value) {}
+  explicit IntegerExpr(SafeInteger value) : value(value) {}
 
-  int64_t getValue() { return value; }
+  SafeInteger getValue() { return value; }
 
   static Type getStaticType() { return Type::Integer; }
   virtual Type getType() { return Type::Integer; }
 
 private:
-  int64_t value;
+  SafeInteger value;
 };
 
 class VariableExpr : public Expr {
@@ -257,19 +257,21 @@ private:
 };
 
 struct DivExpr {
-  explicit DivExpr(std::unique_ptr<Expr> oNum, std::unique_ptr<IntegerExpr> oDen)
-  : num(std::move(oNum)), den(std::move(oDen)) {}
+  explicit DivExpr(std::unique_ptr<Expr> oNum,
+                   std::unique_ptr<IntegerExpr> oDen)
+      : num(std::move(oNum)), den(std::move(oDen)) {}
   std::unique_ptr<Expr> num;
   std::unique_ptr<IntegerExpr> den;
 };
 
 class AndExpr : public Expr {
 public:
-  explicit AndExpr(SmallVector<std::unique_ptr<ConstraintExpr>, 8> oConstraints, SmallVector<StringRef, 8> oExists, SmallVector<StringRef, 8> oDivNames, SmallVector<std::unique_ptr<DivExpr>, 8> oDivs)
-      : constraints(std::move(oConstraints)),
-        exists(std::move(oExists)),
-        divNames(std::move(oDivNames)),
-        divs(std::move(oDivs)) {}
+  explicit AndExpr(SmallVector<std::unique_ptr<ConstraintExpr>, 8> oConstraints,
+                   SmallVector<StringRef, 8> oExists,
+                   SmallVector<StringRef, 8> oDivNames,
+                   SmallVector<std::unique_ptr<DivExpr>, 8> oDivs)
+      : constraints(std::move(oConstraints)), exists(std::move(oExists)),
+        divNames(std::move(oDivNames)), divs(std::move(oDivs)) {}
 
   size_t getNumConstraints() { return constraints.size(); }
   ConstraintExpr &getConstraint(size_t position) {
@@ -425,7 +427,7 @@ private:
 class PresburgerParser {
 public:
   enum class Kind { Equality, Inequality };
-  using Constraint = std::pair<SmallVector<int64_t, 8>, Kind>;
+  using Constraint = std::pair<SmallVector<SafeInteger, 8>, Kind>;
 
   PresburgerParser(Parser parser);
 
@@ -440,14 +442,14 @@ private:
   LogicalResult parsePresburgerSet(Expr *constraints, PresburgerSet &set);
   LogicalResult parseAndAddPiece(PieceExpr *piece, PresburgerExpr &expr);
   LogicalResult parsePresburgerBasicSet(Expr *constraints,
-                                           PresburgerBasicSet &bs);
+                                        PresburgerBasicSet &bs);
   LogicalResult initVariables(const SmallVector<StringRef, 8> &vars,
                               StringMap<size_t> &map);
   LogicalResult parseConstraint(ConstraintExpr *constraint, Constraint &c);
-  LogicalResult parseSum(Expr *expr,
-                         std::pair<int64_t, SmallVector<int64_t, 8>> &r);
-  LogicalResult parseAndAddTerm(TermExpr *term, int64_t &constant,
-                                SmallVector<int64_t, 8> &coeffs);
+  LogicalResult
+  parseSum(Expr *expr, std::pair<SafeInteger, SmallVector<SafeInteger, 8>> &r);
+  LogicalResult parseAndAddTerm(TermExpr *term, SafeInteger &constant,
+                                SmallVector<SafeInteger, 8> &coeffs);
   void addConstraint(PresburgerBasicSet &bs, Constraint &constraint);
   InFlightDiagnostic emitError(SMLoc loc, const Twine &message = {});
   InFlightDiagnostic emitError(const Twine &message = {});

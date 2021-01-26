@@ -87,16 +87,17 @@ void Simplex::addZeroConstraint() {
   undoLog.emplace_back(UndoLogEntry::RemoveLastConstraint, Optional<int>());
 }
 
-void Simplex::addDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom) {
+void Simplex::addDivisionVariable(ArrayRef<SafeInteger> coeffs,
+                                  SafeInteger denom) {
   addVariable();
 
-  SmallVector<int64_t, 8> ineq(coeffs.begin(), coeffs.end());
-  int64_t constTerm = ineq.back();
+  SmallVector<SafeInteger, 8> ineq(coeffs.begin(), coeffs.end());
+  SafeInteger constTerm = ineq.back();
   ineq.back() = -denom;
   ineq.push_back(constTerm);
   addInequality(ineq);
 
-  for (int64_t &coeff : ineq)
+  for (SafeInteger &coeff : ineq)
     coeff = -coeff;
   ineq.back() += denom - 1;
   addInequality(ineq);
@@ -105,7 +106,7 @@ void Simplex::addDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom) {
 /// Add a new row to the tableau corresponding to the given constant term and
 /// list of coefficients. The coefficients are specified as a vector of
 /// (variable index, coefficient) pairs.
-unsigned Simplex::addRow(ArrayRef<int64_t> coeffs) {
+unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
   assert(coeffs.size() == 1 + var.size() &&
          "Incorrect number of coefficients!");
 
@@ -130,9 +131,10 @@ unsigned Simplex::addRow(ArrayRef<int64_t> coeffs) {
     // row, scaled by the coefficient for the variable, accounting for the two
     // rows potentially having different denominators. The new denominator is
     // the lcm of the two.
-    int64_t lcm = mlir::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
-    int64_t nRowCoeff = lcm / tableau(nRow - 1, 0);
-    int64_t idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
+    SafeInteger lcm =
+        mlir::analysis::presburger::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
+    SafeInteger nRowCoeff = lcm / tableau(nRow - 1, 0);
+    SafeInteger idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
     tableau(nRow - 1, 0) = lcm;
     for (unsigned col = 1; col < nCol; ++col)
       tableau(nRow - 1, col) =
@@ -146,11 +148,11 @@ unsigned Simplex::addRow(ArrayRef<int64_t> coeffs) {
 /// Normalize the row by removing factors that are common between the
 /// denominator and all the numerator coefficients.
 void Simplex::normalizeRow(unsigned row) {
-  int64_t gcd = 0;
+  SafeInteger gcd = 0;
   for (unsigned col = 0; col < nCol; ++col) {
     if (gcd == 1)
       break;
-    gcd = llvm::greatestCommonDivisor(gcd, std::abs(tableau(row, col)));
+    gcd = llvm::greatestCommonDivisor(gcd, abs(tableau(row, col)));
   }
   if (gcd == 0 || gcd == 1)
     return;
@@ -159,7 +161,7 @@ void Simplex::normalizeRow(unsigned row) {
 }
 
 namespace {
-bool signMatchesDirection(int64_t elem, Direction direction) {
+bool signMatchesDirection(SafeInteger elem, Direction direction) {
   assert(elem != 0 && "elem should not be 0");
   return direction == Direction::Up ? elem > 0 : elem < 0;
 }
@@ -250,7 +252,7 @@ inline Simplex::IneqType Simplex::separationType(unsigned row) {
 ///
 /// If the tableau is empty the behaviour is exactly that of isl, and is left
 /// unspecified for isl-parity.
-Simplex::IneqType Simplex::ineqType(ArrayRef<int64_t> coeffs) {
+Simplex::IneqType Simplex::ineqType(ArrayRef<SafeInteger> coeffs) {
   extendConstraints(1);
   unsigned snap = getSnapshot();
   unsigned con_index = addRow(coeffs);
@@ -261,7 +263,7 @@ Simplex::IneqType Simplex::ineqType(ArrayRef<int64_t> coeffs) {
   if (tableau(row, 1) < 0 && !rowIsAtLeastZero(con[con_index]))
     type = separationType(row);
   else {
-    int64_t min_sample_value = -tableau(row, 0) + 1;
+    SafeInteger min_sample_value = -tableau(row, 0) + 1;
     // The constraint may have been marked redundant in signOfMax above.
     if (con[con_index].redundant || (tableau(row, 1) >= min_sample_value &&
                                      constraintIsRedundant(con_index)))
@@ -316,7 +318,7 @@ Optional<Simplex::Pivot> Simplex::findPivot(int row,
   Optional<unsigned> col;
 
   for (unsigned j = liveColBegin; j < nCol; ++j) {
-    int64_t elem = tableau(row, j);
+    SafeInteger elem = tableau(row, j);
     if (elem == 0)
       continue;
 
@@ -461,18 +463,18 @@ Optional<unsigned> Simplex::findPivotRow(Optional<unsigned> skipRow,
                                          Direction direction,
                                          unsigned col) const {
   Optional<unsigned> retRow;
-  int64_t retElem, retConst;
+  SafeInteger retElem, retConst;
   for (unsigned row = nRedundant; row < nRow; ++row) {
     if (skipRow && row == *skipRow)
       continue;
-    int64_t elem = tableau(row, col);
+    SafeInteger elem = tableau(row, col);
     if (elem == 0)
       continue;
     if (!unknownFromRow(row).restricted)
       continue;
     if (signMatchesDirection(elem, direction))
       continue;
-    int64_t constTerm = tableau(row, 1);
+    SafeInteger constTerm = tableau(row, 1);
 
     if (!retRow) {
       retRow = row;
@@ -481,7 +483,7 @@ Optional<unsigned> Simplex::findPivotRow(Optional<unsigned> skipRow,
       continue;
     }
 
-    int64_t diff = retConst * elem - constTerm * retElem;
+    SafeInteger diff = retConst * elem - constTerm * retElem;
     if ((diff == 0 && rowUnknown[row] < rowUnknown[*retRow]) ||
         (diff != 0 && !signMatchesDirection(diff, direction))) {
       retRow = row;
@@ -590,7 +592,7 @@ bool Simplex::constraintIsEquality(int conIndex) const {
 /// We add the inequality and mark it as restricted. We then try to make its
 /// sample value non-negative. If this is not possible, the tableau has become
 /// empty and we mark it as such.
-void Simplex::addInequality(ArrayRef<int64_t> coeffs) {
+void Simplex::addInequality(ArrayRef<SafeInteger> coeffs) {
   unsigned conIndex = addRow(coeffs);
   Unknown &u = con[conIndex];
   u.restricted = true;
@@ -605,10 +607,10 @@ void Simplex::addInequality(ArrayRef<int64_t> coeffs) {
 ///
 /// We simply add two opposing inequalities, which force the expression to
 /// be zero.
-void Simplex::addEquality(ArrayRef<int64_t> coeffs) {
+void Simplex::addEquality(ArrayRef<SafeInteger> coeffs) {
   addInequality(coeffs);
-  SmallVector<int64_t, 8> negatedCoeffs;
-  for (int64_t coeff : coeffs)
+  SmallVector<SafeInteger, 8> negatedCoeffs;
+  for (SafeInteger coeff : coeffs)
     negatedCoeffs.emplace_back(-coeff);
   addInequality(negatedCoeffs);
 }
@@ -812,7 +814,7 @@ Optional<Fraction> Simplex::computeRowOptimum(Direction direction,
 /// Compute the optimum of the specified expression in the specified direction,
 /// or None if it is unbounded.
 Optional<Fraction> Simplex::computeOptimum(Direction direction,
-                                           ArrayRef<int64_t> coeffs) {
+                                           ArrayRef<SafeInteger> coeffs) {
   assert(!empty && "Tableau should not be empty");
 
   unsigned snapshot = getSnapshot();
@@ -827,7 +829,7 @@ bool Simplex::isUnbounded() {
   if (empty)
     return false;
 
-  SmallVector<int64_t, 8> dir(var.size() + 1);
+  SmallVector<SafeInteger, 8> dir(var.size() + 1);
   for (unsigned i = 0; i < var.size(); ++i) {
     dir[i] = 1;
 
@@ -968,10 +970,11 @@ SmallVector<Fraction, 8> Simplex::getSamplePoint() const {
 void Simplex::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
   assert(cs.getNumIds() == numVariables() &&
          "FlatAffineConstraints must have same dimensionality as simplex");
-  for (unsigned i = 0; i < cs.getNumInequalities(); ++i)
-    addInequality(cs.getInequality(i));
-  for (unsigned i = 0; i < cs.getNumEqualities(); ++i)
-    addEquality(cs.getEquality(i));
+  llvm_unreachable("not yet implemented!");
+  // for (unsigned i = 0; i < cs.getNumInequalities(); ++i)
+  //   addInequality(cs.getInequality(i));
+  // for (unsigned i = 0; i < cs.getNumEqualities(); ++i)
+  //   addEquality(cs.getEquality(i));
 }
 
 void Simplex::addBasicSet(const PresburgerBasicSet &bs) {
@@ -983,14 +986,15 @@ void Simplex::addBasicSet(const PresburgerBasicSet &bs) {
     addEquality(eq.getCoeffs());
 }
 
-Optional<SmallVector<int64_t, 8>> Simplex::getSamplePointIfIntegral() const {
+Optional<SmallVector<SafeInteger, 8>>
+Simplex::getSamplePointIfIntegral() const {
   // The tableau is empty, so no sample point exists.
   if (empty)
     return {};
 
   SmallVector<Fraction, 8> sample = getSamplePoint();
 
-  SmallVector<int64_t, 8> integralSample;
+  SmallVector<SafeInteger, 8> integralSample;
   for (Fraction f : sample) {
     if (f.num % f.den != 0)
       return {};
@@ -1024,19 +1028,19 @@ public:
   /// Add an equality dotProduct(dir, x - y) == 0.
   /// First pushes a snapshot for the current simplex state to the stack so
   /// that this can be rolled back later.
-  void addEqualityForDirection(ArrayRef<int64_t> dir) {
-    assert(
-        std::any_of(dir.begin(), dir.end(), [](int64_t x) { return x != 0; }) &&
-        "Direction passed is the zero vector!");
+  void addEqualityForDirection(ArrayRef<SafeInteger> dir) {
+    assert(std::any_of(dir.begin(), dir.end(),
+                       [](SafeInteger x) { return x != 0; }) &&
+           "Direction passed is the zero vector!");
     snapshotStack.push_back(simplex.getSnapshot());
     simplex.addEquality(getCoeffsForDirection(dir));
   }
 
   /// Compute max(dotProduct(dir, x - y)) and save the dual variables for only
   /// the direction equalities to `dual`.
-  Fraction computeWidthAndDuals(ArrayRef<int64_t> dir,
-                                SmallVectorImpl<int64_t> &dual,
-                                int64_t &dualDenom) {
+  Fraction computeWidthAndDuals(ArrayRef<SafeInteger> dir,
+                                SmallVectorImpl<SafeInteger> &dual,
+                                SafeInteger &dualDenom) {
     unsigned snap = simplex.getSnapshot();
     unsigned conIndex = simplex.addRow(getCoeffsForDirection(dir));
     unsigned row = simplex.con[conIndex].pos;
@@ -1050,7 +1054,7 @@ public:
     // If the inequality is in row position, the dual variable is zero.
     // If it is in column position, the numerator is the value at the row being
     // maximized.
-    auto getDualForInequality = [this, &row](unsigned i) -> int64_t {
+    auto getDualForInequality = [this, &row](unsigned i) -> SafeInteger {
       if (simplex.con[i].orientation == Orientation::Row)
         return 0;
       return -simplex.tableau(row, simplex.con[i].pos);
@@ -1081,12 +1085,12 @@ private:
   /// i.e.,   dir_1 * x_1 + dir_2 * x_2 + ... + dir_n * x_n
   ///       - dir_1 * y_1 - dir_2 * y_2 - ... - dir_n * y_n,
   /// where n is the dimension of the original polytope.
-  SmallVector<int64_t, 8> getCoeffsForDirection(ArrayRef<int64_t> dir) {
+  SmallVector<SafeInteger, 8> getCoeffsForDirection(ArrayRef<SafeInteger> dir) {
     assert(2 * dir.size() == simplex.numVariables() &&
            "Direction vector has wrong dimensionality");
-    SmallVector<int64_t, 8> coeffs(dir.begin(), dir.end());
+    SmallVector<SafeInteger, 8> coeffs(dir.begin(), dir.end());
     coeffs.reserve(2 * dir.size());
-    for (int64_t coeff : dir)
+    for (SafeInteger coeff : dir)
       coeffs.push_back(-coeff);
     coeffs.push_back(0); // constant term
     return coeffs;
@@ -1168,8 +1172,8 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
 
   GBRSimplex gbrSimplex(*this);
   SmallVector<Fraction, 8> width;
-  SmallVector<int64_t, 8> dual;
-  int64_t dualDenom;
+  SmallVector<SafeInteger, 8> dual;
+  SafeInteger dualDenom;
 
   // Finds the value of u that minimizes width_i(b_{i+1} + u*b_i), caches the
   // duals from this computation, sets b_{i+1} to b_{i+1} + u*b_i, and returns
@@ -1192,11 +1196,11 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
   auto updateBasisWithUAndGetFCandidate = [&](unsigned i) -> Fraction {
     assert(i < level + dual.size() && "dual_i is not known!");
 
-    int64_t u = floorDiv(dual[i - level], dualDenom);
+    SafeInteger u = floorDiv(dual[i - level], dualDenom);
     basis.addToRow(i, i + 1, u);
     if (dual[i - level] % dualDenom != 0) {
-      SmallVector<int64_t, 8> candidateDual[2];
-      int64_t candidateDualDenom[2];
+      SmallVector<SafeInteger, 8> candidateDual[2];
+      SafeInteger candidateDualDenom[2];
       Fraction widthI[2];
 
       // Initially u is floor(dual) and basis reflects this.
@@ -1204,7 +1208,7 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
           basis.getRow(i + 1), candidateDual[0], candidateDualDenom[0]);
 
       // Now try ceil(dual), i.e. floor(dual) + 1.
-      ++u;
+      u += 1;
       basis.addToRow(i, i + 1, 1);
       widthI[1] = gbrSimplex.computeWidthAndDuals(
           basis.getRow(i + 1), candidateDual[1], candidateDualDenom[1]);
@@ -1219,8 +1223,8 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
       // Check that this holds by comparing with width_i
 #ifndef NDEBUG
       basis.addToRow(i, i + 1, j == 0 ? -1 : +1);
-      int64_t unusedDualDenom;
-      SmallVector<int64_t, 8> unusedDuals;
+      SafeInteger unusedDualDenom;
+      SmallVector<SafeInteger, 8> unusedDuals;
       Fraction otherWidth = gbrSimplex.computeWidthAndDuals(
           basis.getRow(i + 1), unusedDuals, unusedDualDenom);
       assert(otherWidth >= widthI[j] &&
@@ -1233,8 +1237,8 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
     // When dual minimizes f_i(b_{i+1} + dual*b_i), this is equal to
     // width_{i+1}(b_{i+1}).
 #ifndef NDEBUG
-    int64_t unusedDualDenom;
-    SmallVector<int64_t, 8> unusedDuals;
+    SafeInteger unusedDualDenom;
+    SmallVector<SafeInteger, 8> unusedDuals;
     Fraction otherWidth = gbrSimplex.computeWidthAndDuals(
         basis.getRow(i + 1), unusedDuals, unusedDualDenom);
     assert(otherWidth == width[i + 1 - level]);
@@ -1326,7 +1330,7 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
 ///
 /// To avoid potentially arbitrarily large recursion depths leading to stack
 /// overflows, this algorithm is implemented iteratively.
-Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
+Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
   if (empty)
     return {};
   if (auto maybeSample = getSamplePointIfIntegral())
@@ -1340,9 +1344,9 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
   // level.
   SmallVector<unsigned, 8> snapshotStack;
   // The maximum value in the range of the direction for each level.
-  SmallVector<int64_t, 8> upperBoundStack;
+  SmallVector<SafeInteger, 8> upperBoundStack;
   // The next value to try constraining the basis vector to at each level.
-  SmallVector<int64_t, 8> nextValueStack;
+  SmallVector<SafeInteger, 8> nextValueStack;
 
   snapshotStack.reserve(basis.getNumRows());
   upperBoundStack.reserve(basis.getNumRows());
@@ -1362,11 +1366,11 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
       // just come down a level ("recursed"). Find the lower and upper bounds.
       // If there is more than one integer point in the range, perform
       // generalized basis reduction.
-      SmallVector<int64_t, 8> basisCoeffs =
+      SmallVector<SafeInteger, 8> basisCoeffs =
           llvm::to_vector<8>(basis.getRow(level));
       basisCoeffs.push_back(0);
 
-      int64_t minRoundedUp, maxRoundedDown;
+      SafeInteger minRoundedUp, maxRoundedDown;
       if (Optional<Fraction> maybeMin =
               computeOptimum(Simplex::Direction::Down, basisCoeffs))
         minRoundedUp = ceil(*maybeMin);
@@ -1466,8 +1470,8 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
     // to the snapshot of the starting state at this level. (in the "recursed"
     // case this has no effect)
     rollback(snapshotStack.back());
-    int64_t nextValue = nextValueStack.back();
-    nextValueStack.back()++;
+    SafeInteger nextValue = nextValueStack.back();
+    nextValueStack.back() += 1;
     if (nextValue > upperBoundStack.back()) {
       // We have exhausted the range and found no solution. Pop the stack and
       // return up a level.
@@ -1479,8 +1483,8 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
     }
 
     // Try the next value in the range and "recurse" into the next level.
-    SmallVector<int64_t, 8> basisCoeffs(basis.getRow(level).begin(),
-                                        basis.getRow(level).end());
+    SmallVector<SafeInteger, 8> basisCoeffs(basis.getRow(level).begin(),
+                                            basis.getRow(level).end());
     basisCoeffs.push_back(-nextValue);
     addEquality(basisCoeffs);
     level++;
@@ -1489,26 +1493,26 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
   return {};
 }
 
-std::pair<int64_t, SmallVector<int64_t, 8>>
+std::pair<SafeInteger, SmallVector<SafeInteger, 8>>
 Simplex::findRationalSample() const {
-  int64_t denom = 1;
+  SafeInteger denom = 1;
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Row)
       denom = lcm(denom, tableau(u.pos, 0));
   }
-  SmallVector<int64_t, 8> sample;
-  int64_t gcd = denom;
+  SmallVector<SafeInteger, 8> sample;
+  SafeInteger gcd = denom;
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Column)
       sample.push_back(0);
     else {
       sample.push_back((tableau(u.pos, 1) * denom) / tableau(u.pos, 0));
-      gcd = llvm::greatestCommonDivisor(std::abs(gcd), std::abs(sample.back()));
+      gcd = llvm::greatestCommonDivisor(abs(gcd), abs(sample.back()));
     }
   }
   if (gcd != 0) {
     denom /= gcd;
-    for (int64_t &elem : sample)
+    for (SafeInteger &elem : sample)
       elem /= gcd;
   }
 
@@ -1517,16 +1521,16 @@ Simplex::findRationalSample() const {
 
 /// Compute the minimum and maximum integer values the expression can take. We
 /// compute each separately.
-std::pair<int64_t, int64_t>
-Simplex::computeIntegerBounds(ArrayRef<int64_t> coeffs) {
-  int64_t minRoundedUp;
+std::pair<SafeInteger, SafeInteger>
+Simplex::computeIntegerBounds(ArrayRef<SafeInteger> coeffs) {
+  SafeInteger minRoundedUp;
   if (Optional<Fraction> maybeMin =
           computeOptimum(Simplex::Direction::Down, coeffs))
     minRoundedUp = ceil(*maybeMin);
   else
     llvm_unreachable("Tableau should not be unbounded");
 
-  int64_t maxRoundedDown;
+  SafeInteger maxRoundedDown;
   if (Optional<Fraction> maybeMax =
           computeOptimum(Simplex::Direction::Up, coeffs))
     maxRoundedDown = floor(*maybeMax);
@@ -1646,7 +1650,8 @@ inline void Simplex::toRow(Unknown &unknown, Direction direction) {
                      "specified directions.");
 }
 
-inline int64_t Simplex::sign(int64_t num, int64_t den, int64_t origin) const {
+inline SafeInteger Simplex::sign(SafeInteger num, SafeInteger den,
+                                 SafeInteger origin) const {
   if (num > origin * den)
     return +1;
   else if (num < origin * den)
@@ -1667,7 +1672,7 @@ inline int64_t Simplex::sign(int64_t num, int64_t den, int64_t origin) const {
 /// Otherwise, we move the unknown up to a row and keep trying to find upward
 /// pivots until the unknown becomes unbounded or becomes maximised.
 template <int origin>
-int64_t Simplex::signOfMax(Unknown &u) {
+SafeInteger Simplex::signOfMax(Unknown &u) {
   static_assert(origin >= 0, "");
   assert(!u.redundant && "signOfMax called for redundant unknown");
 
@@ -1828,7 +1833,7 @@ inline void Simplex::cutToHyperplane(int conIndex) {
   // tableau.updateRowSparsity(nRow);
   nRow++;
 
-  int64_t sgn = signOfMax<0>(tempVar);
+  SafeInteger sgn = signOfMax<0>(tempVar);
   if (sgn < 0) {
     assert(tempVar.orientation == Orientation::Row &&
            "temp_var is in column position");
@@ -1894,7 +1899,7 @@ void Simplex::detectImplicitEqualities() {
     if (!unknownIsRelevant(con[i]))
       continue;
 
-    int64_t sgn = signOfMax<0>(con[i]);
+    SafeInteger sgn = signOfMax<0>(con[i]);
     if (sgn == 0) {
       closeRow(con[i].pos, false);
     } else if (signOfMax<1>(con[i]) < 0) {

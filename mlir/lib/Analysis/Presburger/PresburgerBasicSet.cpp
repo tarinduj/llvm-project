@@ -17,7 +17,7 @@ using namespace mlir;
 using namespace mlir::analysis;
 using namespace mlir::analysis::presburger;
 
-void PresburgerBasicSet::addInequality(ArrayRef<int64_t> coeffs) {
+void PresburgerBasicSet::addInequality(ArrayRef<SafeInteger> coeffs) {
   ineqs.emplace_back(coeffs);
 }
 
@@ -52,7 +52,7 @@ void PresburgerBasicSet::removeLastDivision() {
     div.removeLastDimension();
 }
 
-void PresburgerBasicSet::addEquality(ArrayRef<int64_t> coeffs) {
+void PresburgerBasicSet::addEquality(ArrayRef<SafeInteger> coeffs) {
   eqs.emplace_back(coeffs);
 }
 
@@ -67,7 +67,7 @@ PresburgerBasicSet PresburgerBasicSet::makePlainBasicSet() const {
   return plainBasicSet;
 }
 
-Optional<SmallVector<int64_t, 8>>
+Optional<SmallVector<SafeInteger, 8>>
 PresburgerBasicSet::findIntegerSample() const {
   if (!isPlainBasicSet())
     return makePlainBasicSet().findIntegerSample();
@@ -93,7 +93,7 @@ bool PresburgerBasicSet::isIntegerEmpty() {
     return !findSampleBounded().hasValue();
 }
 
-Optional<std::pair<int64_t, SmallVector<int64_t, 8>>>
+Optional<std::pair<SafeInteger, SmallVector<SafeInteger, 8>>>
 PresburgerBasicSet::findRationalSample() const {
   Simplex simplex(*this);
   if (simplex.isEmpty())
@@ -119,7 +119,7 @@ bool PresburgerBasicSet::isPlainBasicSet() const {
   return nParam == 0 && nExist == 0 && divs.empty();
 }
 
-void PresburgerBasicSet::substitute(ArrayRef<int64_t> values) {
+void PresburgerBasicSet::substitute(ArrayRef<SafeInteger> values) {
   assert(isPlainBasicSet());
   for (auto &ineq : ineqs)
     ineq.substitute(values);
@@ -155,7 +155,7 @@ void PresburgerBasicSet::substitute(ArrayRef<int64_t> values) {
 // Let the initial transform be U. Let the constraints matrix be M. We have
 // found a sample x satisfying the transformed constraint matrix MU. Therefore,
 // Ux is a sample that satisfies M.
-llvm::Optional<SmallVector<int64_t, 8>>
+llvm::Optional<SmallVector<SafeInteger, 8>>
 PresburgerBasicSet::findSampleUnbounded(PresburgerBasicSet &cone,
                                         bool onlyEmptiness) const {
   auto coeffMatrix = cone.coefficientMatrixFromEqs();
@@ -177,7 +177,7 @@ PresburgerBasicSet::findSampleUnbounded(PresburgerBasicSet &cone,
 
   // TODO change to SmallVector!
 
-  SmallVector<int64_t, 8> sample(*maybeBoundedSample);
+  SmallVector<SafeInteger, 8> sample(*maybeBoundedSample);
   sample.insert(sample.end(), maybeUnboundedSample->begin(),
                 maybeUnboundedSample->end());
   return U.preMultiplyColumn(std::move(sample));
@@ -194,15 +194,15 @@ PresburgerBasicSet::findSampleUnbounded(PresburgerBasicSet &cone,
 // ensure that x + e also satisfies this for any e such that every coordinate is
 // in [0, 1). So we want <a, x> + <a, e> >= c. This is satisfied if we satisfy
 // the single constraint <a, x> + sum_{a_i < 0} a_i >= c.
-Optional<SmallVector<int64_t, 8>> PresburgerBasicSet::findSampleFullCone() {
+Optional<SmallVector<SafeInteger, 8>> PresburgerBasicSet::findSampleFullCone() {
   // NOTE isl instead makes a recession cone, shifts the cone to some rational
   // point in the initial set, and then does the following on the shifted cone.
   // It is unclear why we need to do all that since the current basic set is
   // already the required shifted cone.
   for (unsigned i = 0, e = getNumInequalities(); i < e; ++i) {
-    int64_t shift = 0;
+    SafeInteger shift = 0;
     for (unsigned j = 0, e = getNumTotalDims(); j < e; ++j) {
-      int64_t coeff = ineqs[i].getCoeffs()[j];
+      SafeInteger coeff = ineqs[i].getCoeffs()[j];
       if (coeff < 0)
         shift += coeff;
     }
@@ -283,7 +283,7 @@ void PresburgerBasicSet::projectOutUnboundedDimensions(unsigned unboundedDims) {
   nDim = remainingDims;
 }
 
-Optional<SmallVector<int64_t, 8>>
+Optional<SmallVector<SafeInteger, 8>>
 PresburgerBasicSet::findBoundedDimensionsSample(
     const PresburgerBasicSet &cone) const {
   assert(cone.isPlainBasicSet());
@@ -293,10 +293,10 @@ PresburgerBasicSet::findBoundedDimensionsSample(
   return boundedSet.findSampleBounded();
 }
 
-Optional<SmallVector<int64_t, 8>>
+Optional<SmallVector<SafeInteger, 8>>
 PresburgerBasicSet::findSampleBounded() const {
   if (getNumTotalDims() == 0)
-    return SmallVector<int64_t, 8>();
+    return SmallVector<SafeInteger, 8>();
 
   Simplex simplex(*this);
   if (simplex.isEmpty())
@@ -361,8 +361,8 @@ void PresburgerBasicSet::insertDimensions(unsigned pos, unsigned count) {
     div.insertDimensions(pos, count);
 }
 
-void PresburgerBasicSet::appendDivisionVariable(ArrayRef<int64_t> coeffs,
-                                                int64_t denom) {
+void PresburgerBasicSet::appendDivisionVariable(ArrayRef<SafeInteger> coeffs,
+                                                SafeInteger denom) {
   assert(coeffs.size() == getNumTotalDims() + 1);
   divs.emplace_back(coeffs, denom, /*variable = */ getNumTotalDims());
 

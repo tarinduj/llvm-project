@@ -14,6 +14,7 @@
 #ifndef MLIR_ANALYSIS_PRESBURGER_MATRIX_H
 #define MLIR_ANALYSIS_PRESBURGER_MATRIX_H
 
+#include "mlir/Analysis/Presburger/SafeInteger.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
@@ -39,10 +40,10 @@ public:
   static Matrix identity(unsigned dimension);
 
   /// Access the element at the specified row and column.
-  int64_t &at(unsigned row, unsigned column);
-  int64_t at(unsigned row, unsigned column) const;
-  int64_t &operator()(unsigned row, unsigned column);
-  int64_t operator()(unsigned row, unsigned column) const;
+  SafeInteger &at(unsigned row, unsigned column);
+  SafeInteger at(unsigned row, unsigned column) const;
+  SafeInteger &operator()(unsigned row, unsigned column);
+  SafeInteger operator()(unsigned row, unsigned column) const;
 
   /// Swap the given columns.
   void swapColumns(unsigned column, unsigned otherColumn);
@@ -60,12 +61,13 @@ public:
   unsigned getNumColumns() const;
 
   /// Get an ArrayRef corresponding to the specified row.
-  ArrayRef<int64_t> getRow(unsigned row) const;
+  ArrayRef<SafeInteger> getRow(unsigned row) const;
 
   /// Add `scale` multiples of the source row to the target row.
-  void addToRow(unsigned sourceRow, unsigned targetRow, int64_t scale);
+  void addToRow(unsigned sourceRow, unsigned targetRow, SafeInteger scale);
 
-  void addToColumn(unsigned sourceColumn, unsigned targetColumn, int64_t scale);
+  void addToColumn(unsigned sourceColumn, unsigned targetColumn,
+                   SafeInteger scale);
 
   /// Resize the matrix to the specified dimensions. If a dimension is smaller,
   /// the values are truncated; if it is bigger, the new values are default
@@ -80,7 +82,7 @@ private:
   unsigned nRows, nColumns;
 
   /// Stores the data. data.size() is equal to nRows * nColumns.
-  SmallVector<int64_t, 64> data;
+  SmallVector<SafeInteger, 64> data;
 };
 
 } // namespace presburger

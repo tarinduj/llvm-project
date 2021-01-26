@@ -1069,7 +1069,8 @@ FlatAffineConstraints::findRationalSample() const {
   Simplex simplex(*this);
   if (simplex.isEmpty())
     return {};
-  return simplex.findRationalSample();
+  llvm_unreachable("not yet implemented");
+  // return simplex.findRationalSample();
 }
 
 // Returns a matrix of the constraint coefficients in the specified vector.
@@ -1134,7 +1135,8 @@ FlatAffineConstraints::findSampleUnbounded(FlatAffineConstraints &cone) const {
   SmallVector<int64_t, 8> sample(*maybeBoundedSample);
   sample.insert(sample.end(), maybeUnboundedSample->begin(),
                 maybeUnboundedSample->end());
-  return U.preMultiplyColumn(std::move(sample));
+  llvm_unreachable("not yet implemented!");
+  // return U.preMultiplyColumn(std::move(sample));
 }
 
 // Find a sample in this basic set, which must be a full-dimensional cone
@@ -1255,7 +1257,8 @@ FlatAffineConstraints::findSampleBounded() const {
   // into one where the equalities appear as the first directions, so that
   // in the basis search recursion these immediately get assigned their
   // values.
-  return simplex.findIntegerSample();
+  llvm_unreachable("not yet implemented!");
+  // return simplex.findIntegerSample();
 }
 
 // We shift all the constraints to the origin, then construct a simplex and

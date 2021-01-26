@@ -31,11 +31,14 @@ class PresburgerBasicSet {
 public:
   friend class PresburgerSet;
 
-  PresburgerBasicSet(unsigned oNDim = 0, unsigned oNParam = 0, unsigned oNExist = 0)
-    : nDim(oNDim), nParam(oNParam), nExist(oNExist) {}
+  PresburgerBasicSet(unsigned oNDim = 0, unsigned oNParam = 0,
+                     unsigned oNExist = 0)
+      : nDim(oNDim), nParam(oNParam), nExist(oNExist) {}
 
   unsigned getNumDims() const { return nDim; }
-  unsigned getNumTotalDims() const { return nParam + nDim + nExist + divs.size(); }
+  unsigned getNumTotalDims() const {
+    return nParam + nDim + nExist + divs.size();
+  }
   unsigned getNumParams() const { return nParam; }
   unsigned getNumExists() const { return nExist; }
   unsigned getNumDivs() const { return divs.size(); }
@@ -44,7 +47,7 @@ public:
 
   void intersect(PresburgerBasicSet bs);
 
-  void appendDivisionVariable(ArrayRef<int64_t> coeffs, int64_t denom);
+  void appendDivisionVariable(ArrayRef<SafeInteger> coeffs, SafeInteger denom);
 
   static void toCommonSpace(PresburgerBasicSet &a, PresburgerBasicSet &b);
   void appendDivisionVariables(ArrayRef<DivisionConstraint> newDivs);
@@ -56,8 +59,8 @@ public:
   ArrayRef<EqualityConstraint> getEqualities() const;
   ArrayRef<DivisionConstraint> getDivisions() const;
 
-  void addInequality(ArrayRef<int64_t> coeffs);
-  void addEquality(ArrayRef<int64_t> coeffs);
+  void addInequality(ArrayRef<SafeInteger> coeffs);
+  void addEquality(ArrayRef<SafeInteger> coeffs);
 
   void removeLastInequality();
   void removeLastEquality();
@@ -71,13 +74,13 @@ public:
   /// the set is bounded. This should not be called for unbounded sets.
   ///
   /// Returns such a point if one exists, or an empty Optional otherwise.
-  Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
+  Optional<SmallVector<SafeInteger, 8>> findIntegerSample() const;
 
   bool isIntegerEmpty();
 
   /// Get a {denominator, sample} pair representing a rational sample point in
   /// this basic set.
-  Optional<std::pair<int64_t, SmallVector<int64_t, 8>>>
+  Optional<std::pair<SafeInteger, SmallVector<SafeInteger, 8>>>
   findRationalSample() const;
 
   PresburgerBasicSet makeRecessionCone() const;
@@ -91,27 +94,27 @@ public:
   void dumpISL() const;
 
 private:
-  void substitute(ArrayRef<int64_t> values);
+  void substitute(ArrayRef<SafeInteger> values);
 
   /// Find a sample point in this basic set, when it is known that this basic
   /// set has no unbounded directions.
   ///
   /// \returns the sample point or an empty llvm::Optional if the set is empty.
-  Optional<SmallVector<int64_t, 8>> findSampleBounded() const;
+  Optional<SmallVector<SafeInteger, 8>> findSampleBounded() const;
 
   /// Find a sample for only the bounded dimensions of this basic set.
   ///
   /// \param cone should be the recession cone of this basic set.
   ///
   /// \returns the sample or an empty std::optional if no sample exists.
-  Optional<SmallVector<int64_t, 8>>
+  Optional<SmallVector<SafeInteger, 8>>
   findBoundedDimensionsSample(const PresburgerBasicSet &cone) const;
 
   /// Find a sample for this basic set, which is known to be a full-dimensional
   /// cone.
   ///
   /// \returns the sample point or an empty std::optional if the set is empty.
-  Optional<SmallVector<int64_t, 8>> findSampleFullCone();
+  Optional<SmallVector<SafeInteger, 8>> findSampleFullCone();
 
   /// Project this basic set to its bounded dimensions. It is assumed that the
   /// unbounded dimensions occupy the last \p unboundedDims dimensions.
@@ -123,7 +126,7 @@ private:
   ///
   /// \returns the sample point or an empty llvm::Optional if the set
   /// is empty.
-  Optional<SmallVector<int64_t, 8>>
+  Optional<SmallVector<SafeInteger, 8>>
   findSampleUnbounded(PresburgerBasicSet &cone, bool onlyEmptiness) const;
 
   Matrix coefficientMatrixFromEqs() const;

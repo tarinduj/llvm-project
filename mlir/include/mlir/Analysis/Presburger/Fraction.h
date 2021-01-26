@@ -14,6 +14,7 @@
 #ifndef MLIR_ANALYSIS_PRESBURGER_FRACTION_H
 #define MLIR_ANALYSIS_PRESBURGER_FRACTION_H
 
+#include "mlir/Analysis/Presburger/SafeInteger.h"
 #include "mlir/Support/MathExtras.h"
 
 namespace mlir {
@@ -30,7 +31,7 @@ struct Fraction {
   Fraction() : num(0), den(1) {}
 
   /// Construct a Fraction from a numerator and denominator.
-  Fraction(int64_t oNum, int64_t oDen) : num(oNum), den(oDen) {
+  Fraction(SafeInteger oNum, SafeInteger oDen) : num(oNum), den(oDen) {
     if (den < 0) {
       num = -num;
       den = -den;
@@ -39,10 +40,10 @@ struct Fraction {
 
   /// The numerator and denominator, respectively. The denominator is always
   /// positive.
-  int64_t num, den;
+  SafeInteger num, den;
 };
 
-inline int64_t sign(int64_t x) {
+inline int sign(SafeInteger x) {
   if (x > 0)
     return +1;
   if (x < 0)
@@ -54,23 +55,22 @@ inline int64_t sign(int64_t x) {
 /// Returns +1, 0, and -1 if the first fraction is greater than, equal to, or
 /// less than the second fraction, respectively.
 inline int compare(Fraction x, Fraction y) {
-  int64_t p = x.num * y.den;
-  assert(sign(p) == sign(x.num)*sign(y.den));
-  int64_t q = y.num * x.den;
-  assert(sign(q) == sign(y.num)*sign(x.den));
-  int64_t diff = p - q;
+  SafeInteger p = x.num * y.den;
+  assert(sign(p) == sign(x.num) * sign(y.den));
+  SafeInteger q = y.num * x.den;
+  assert(sign(q) == sign(y.num) * sign(x.den));
+  SafeInteger diff = p - q;
   return sign(diff);
 }
-inline int compare(Fraction x, int64_t y) {
+inline int compare(Fraction x, SafeInteger y) {
   return compare(x, Fraction(y, 1));
 }
-inline int compare(int64_t x, Fraction y) {
+inline int compare(SafeInteger x, Fraction y) {
   return compare(Fraction(x, 1), y);
 }
 
-
-inline int64_t floor(Fraction f) { return floorDiv(f.num, f.den); }
-inline int64_t ceil(Fraction f) { return ceilDiv(f.num, f.den); }
+inline SafeInteger floor(Fraction f) { return floorDiv(f.num, f.den); }
+inline SafeInteger ceil(Fraction f) { return ceilDiv(f.num, f.den); }
 inline Fraction operator-(Fraction x) { return Fraction(-x.num, x.den); }
 inline bool operator<(Fraction x, Fraction y) { return compare(x, y) < 0; }
 inline bool operator<=(Fraction x, Fraction y) { return compare(x, y) <= 0; }
@@ -79,20 +79,19 @@ inline bool operator!=(Fraction x, Fraction y) { return compare(x, y) != 0; }
 inline bool operator>(Fraction x, Fraction y) { return compare(x, y) > 0; }
 inline bool operator>=(Fraction x, Fraction y) { return compare(x, y) >= 0; }
 
-inline bool operator<(Fraction x, int64_t y) { return compare(x, y) < 0; }
-inline bool operator<=(Fraction x, int64_t y) { return compare(x, y) <= 0; }
-inline bool operator==(Fraction x, int64_t y) { return compare(x, y) == 0; }
-inline bool operator!=(Fraction x, int64_t y) { return compare(x, y) != 0; }
-inline bool operator>(Fraction x, int64_t y) { return compare(x, y) > 0; }
-inline bool operator>=(Fraction x, int64_t y) { return compare(x, y) >= 0; }
+inline bool operator<(Fraction x, SafeInteger y) { return compare(x, y) < 0; }
+inline bool operator<=(Fraction x, SafeInteger y) { return compare(x, y) <= 0; }
+inline bool operator==(Fraction x, SafeInteger y) { return compare(x, y) == 0; }
+inline bool operator!=(Fraction x, SafeInteger y) { return compare(x, y) != 0; }
+inline bool operator>(Fraction x, SafeInteger y) { return compare(x, y) > 0; }
+inline bool operator>=(Fraction x, SafeInteger y) { return compare(x, y) >= 0; }
 
-inline bool operator<(int64_t x, Fraction y) { return compare(x, y) < 0; }
-inline bool operator<=(int64_t x, Fraction y) { return compare(x, y) <= 0; }
-inline bool operator==(int64_t x, Fraction y) { return compare(x, y) == 0; }
-inline bool operator!=(int64_t x, Fraction y) { return compare(x, y) != 0; }
-inline bool operator>(int64_t x, Fraction y) { return compare(x, y) > 0; }
-inline bool operator>=(int64_t x, Fraction y) { return compare(x, y) >= 0; }
-
+inline bool operator<(SafeInteger x, Fraction y) { return compare(x, y) < 0; }
+inline bool operator<=(SafeInteger x, Fraction y) { return compare(x, y) <= 0; }
+inline bool operator==(SafeInteger x, Fraction y) { return compare(x, y) == 0; }
+inline bool operator!=(SafeInteger x, Fraction y) { return compare(x, y) != 0; }
+inline bool operator>(SafeInteger x, Fraction y) { return compare(x, y) > 0; }
+inline bool operator>=(SafeInteger x, Fraction y) { return compare(x, y) >= 0; }
 
 inline Fraction operator*(Fraction x, Fraction y) {
   return Fraction(x.num * y.num, x.den * y.den);

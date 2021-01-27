@@ -34,8 +34,7 @@ struct PresburgerTransformer {
       return builder.create<ConstantIntOp>(loc, 1, 1);
     }
     Value condition = builder.create<ConstantIntOp>(loc, 0, 1);
-    for (const PresburgerBasicSet &basicSet :
-         set.getBasicSets()) {
+    for (const PresburgerBasicSet &basicSet : set.getBasicSets()) {
       Value isInBasicSet = lowerBasicSet(basicSet);
 
       condition = builder.create<OrOp>(loc, condition, isInBasicSet);
@@ -50,14 +49,14 @@ struct PresburgerTransformer {
 
     Value condition = builder.create<ConstantIntOp>(loc, 1, 1);
     for (unsigned i = 0, e = basicSet.getNumEqualities(); i < e; ++i) {
-      ArrayRef<int64_t> eq = basicSet.getEquality(i).getCoeffs();
+      ArrayRef<SafeInteger> eq = basicSet.getEquality(i).getCoeffs();
       Value isConsSat = lowerPresburgerConstraint(eq.drop_back(), eq.back(),
                                                   CmpIPredicate::eq);
       condition = builder.create<AndOp>(loc, condition, isConsSat);
     }
 
     for (unsigned i = 0, e = basicSet.getNumInequalities(); i < e; ++i) {
-      ArrayRef<int64_t> ineq = basicSet.getInequality(i).getCoeffs();
+      ArrayRef<SafeInteger> ineq = basicSet.getInequality(i).getCoeffs();
       Value isConsSat = lowerPresburgerConstraint(ineq.drop_back(), ineq.back(),
                                                   CmpIPredicate::sge);
       condition = builder.create<AndOp>(loc, condition, isConsSat);
@@ -66,21 +65,22 @@ struct PresburgerTransformer {
   }
 
   /// TODO add comment
-  Value lowerExpr(ArrayRef<int64_t> coeffs, int64_t c) {
-    Value sum = builder.create<ConstantIndexOp>(loc, c);
+  Value lowerExpr(ArrayRef<SafeInteger> coeffs, SafeInteger c) {
+    llvm_unreachable("not yet implemented");
+    // Value sum = builder.create<ConstantIndexOp>(loc, c.valk);
 
-    // TODO can we do a kind of zip().fold() ?
-    for (unsigned i = 0, e = coeffs.size(); i < e; ++i) {
-      Value coeff = builder.create<ConstantIndexOp>(loc, coeffs[i]);
-      Value val = dimAndSymbolValues[i];
+    // // TODO can we do a kind of zip().fold() ?
+    // for (unsigned i = 0, e = coeffs.size(); i < e; ++i) {
+    //   Value coeff = builder.create<ConstantIndexOp>(loc, coeffs[i]);
+    //   Value val = dimAndSymbolValues[i];
 
-      Value prod = builder.create<MulIOp>(loc, coeff, val);
-      sum = builder.create<AddIOp>(loc, sum, prod);
-    }
-    return sum;
+    //   Value prod = builder.create<MulIOp>(loc, coeff, val);
+    //   sum = builder.create<AddIOp>(loc, sum, prod);
+    // }
+    // return sum;
   }
 
-  Value lowerPresburgerConstraint(ArrayRef<int64_t> coeffs, int64_t c,
+  Value lowerPresburgerConstraint(ArrayRef<SafeInteger> coeffs, SafeInteger c,
                                   CmpIPredicate pred) {
     assert(coeffs.size() == dimAndSymbolValues.size() &&
            "expect coefficients for every dim and symbol");
@@ -176,7 +176,8 @@ public:
       rewriter.setInsertionPointToStart(evalBlock);
 
       ExprType pieceExpr = expr.getExprs()[i];
-      Value res = t.lowerExpr(pieceExpr.second, pieceExpr.first);
+      llvm_unreachable("not yet implemented!");
+      Value res; //= t.lowerExpr(pieceExpr.second, pieceExpr.first);
       rewriter.create<BranchOp>(loc, after, res);
 
       rewriter.setInsertionPointToEnd(containsBlock);

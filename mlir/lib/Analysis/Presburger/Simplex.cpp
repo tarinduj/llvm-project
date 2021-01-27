@@ -1329,6 +1329,8 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
 Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
   if (empty)
     return {};
+  if (auto maybeSample = getSamplePointIfIntegral())
+    return *maybeSample;
 
   unsigned nDims = var.size();
   Matrix basis = Matrix::identity(nDims);
@@ -1365,8 +1367,20 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
       basisCoeffs.push_back(0);
 
       int64_t minRoundedUp, maxRoundedDown;
-      std::tie(minRoundedUp, maxRoundedDown) =
-          computeIntegerBounds(basisCoeffs);
+      if (Optional<Fraction> maybeMin =
+              computeOptimum(Simplex::Direction::Down, basisCoeffs))
+        minRoundedUp = ceil(*maybeMin);
+      else
+        llvm_unreachable("Tableau should not be unbounded");
+
+      if (auto maybeSample = getSamplePointIfIntegral())
+        return *maybeSample;
+
+      if (Optional<Fraction> maybeMax =
+              computeOptimum(Simplex::Direction::Up, basisCoeffs))
+        maxRoundedDown = floor(*maybeMax);
+      else
+        llvm_unreachable("Tableau should not be unbounded");
 
       // Heuristic: if the sample point is integral at this point, just return
       // it.
@@ -1377,8 +1391,23 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
         reduceBasis(basis, level);
         basisCoeffs = llvm::to_vector<8>(basis.getRow(level));
         basisCoeffs.push_back(0);
-        std::tie(minRoundedUp, maxRoundedDown) =
-            computeIntegerBounds(basisCoeffs);
+        if (Optional<Fraction> maybeMin =
+                computeOptimum(Simplex::Direction::Down, basisCoeffs))
+          minRoundedUp = ceil(*maybeMin);
+        else
+          llvm_unreachable("Tableau should not be unbounded");
+
+        if (auto maybeSample = getSamplePointIfIntegral())
+          return *maybeSample;
+
+        if (Optional<Fraction> maybeMax =
+                computeOptimum(Simplex::Direction::Up, basisCoeffs))
+          maxRoundedDown = floor(*maybeMax);
+        else
+          llvm_unreachable("Tableau should not be unbounded");
+
+        if (auto maybeSample = getSamplePointIfIntegral())
+          return *maybeSample;
       }
 
       snapshotStack.push_back(getSnapshot());

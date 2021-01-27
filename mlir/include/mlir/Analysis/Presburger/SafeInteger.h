@@ -18,6 +18,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
+#include <iostream>
 
 namespace mlir {
 namespace analysis {
@@ -29,7 +30,7 @@ using llvm::APInt;
 /// Overflows are asserted to not occur.
 struct SafeInteger {
   /// Construct a SafeInteger from a numerator and denominator.
-  SafeInteger(int64_t oVal) : val(oVal) {}
+  SafeInteger(__int128_t oVal) : val(oVal) {}
 
   /// Default constructor initializes the number to zero.
   SafeInteger() : SafeInteger(0) {}
@@ -37,7 +38,7 @@ struct SafeInteger {
   inline explicit operator bool();
 
   /// The stored value. This is always 64-bit.
-  int64_t val;
+  __int128_t val;
 };
 
 inline void overflowErrorIf(bool overflow) {
@@ -67,14 +68,14 @@ inline bool operator>=(const SafeInteger &x, const SafeInteger &y) {
 }
 
 inline SafeInteger operator+(const SafeInteger &x, const SafeInteger &y) {
-  int64_t result;
+  __int128_t result;
   bool overflow = __builtin_add_overflow(x.val, y.val, &result);
   overflowErrorIf(overflow);
   return SafeInteger(result);
 }
 
 inline SafeInteger operator-(const SafeInteger &x, const SafeInteger &y) {
-  int64_t result;
+  __int128_t result;
   bool overflow = __builtin_sub_overflow(x.val, y.val, &result);
   overflowErrorIf(overflow);
   return SafeInteger(result);
@@ -85,7 +86,7 @@ inline SafeInteger operator-(const SafeInteger &x) {
 }
 
 inline SafeInteger operator*(const SafeInteger &x, const SafeInteger &y) {
-  int64_t result;
+  __int128_t result;
   bool overflow = __builtin_mul_overflow(x.val, y.val, &result);
   overflowErrorIf(overflow);
   return SafeInteger(result);
@@ -138,12 +139,25 @@ inline SafeInteger mod(SafeInteger lhs, SafeInteger rhs) {
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                      const SafeInteger &x) {
-  os << x.val;
+  std::string out;
+  auto copy = x;
+  if (copy < 0) {
+    os << '-';
+    copy = -copy;
+  }
+  while (copy > 0) {
+    out.push_back('0' + int(copy.val % 10));
+    copy /= 10;
+  }
+  std::reverse(out.begin(), out.end());
+
+  os << out;
   return os;
 }
 
 inline std::ostream &operator<<(std::ostream &os, const SafeInteger &x) {
-  os << x.val;
+  os << "[SafeInteger::operator<<(std::ostream) NYI";
+  // os << x.val;
   return os;
 }
 

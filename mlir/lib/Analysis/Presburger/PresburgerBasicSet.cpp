@@ -80,6 +80,9 @@ PresburgerBasicSet::findIntegerSample() const {
 }
 
 bool PresburgerBasicSet::isIntegerEmpty() {
+  // dumpISL();
+  if (ineqs.empty() && eqs.empty())
+    return false;
   if (!isPlainBasicSet())
     return makePlainBasicSet().isIntegerEmpty();
 

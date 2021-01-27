@@ -1388,6 +1388,47 @@ Optional<SmallVector<int64_t, 8>> Simplex::findIntegerSample() {
         return *maybeSample;
 
       if (minRoundedUp < maxRoundedDown) {
+        {
+          auto snap = getSnapshot();
+          auto min = minRoundedUp, max = maxRoundedDown;
+          for (unsigned i = level; i < basis.getNumRows(); ++i) {
+            SmallVector<int64_t, 8> basisCoeffs(basis.getRow(i).begin(),
+                                                basis.getRow(i).end());
+            basisCoeffs.push_back(0);
+            if (i != level) {
+              if (Optional<Fraction> maybeMin =
+                      computeOptimum(Simplex::Direction::Down, basisCoeffs))
+                min = ceil(*maybeMin);
+              else
+                llvm_unreachable("Tableau should not be unbounded");
+
+              if (auto maybeSample = getSamplePointIfIntegral())
+                return *maybeSample;
+
+              if (Optional<Fraction> maybeMax =
+                      computeOptimum(Simplex::Direction::Up, basisCoeffs))
+                max = floor(*maybeMax);
+              else
+                llvm_unreachable("Tableau should not be unbounded");
+
+              if (min > max)
+                break;
+
+              if (auto maybeSample = getSamplePointIfIntegral())
+                return *maybeSample;
+            }
+
+            auto mid = (min + max)/2;
+            basisCoeffs.back() = -mid;
+            addEquality(basisCoeffs);
+            if (empty)
+              break;
+            if (auto maybeSample = getSamplePointIfIntegral())
+              return *maybeSample;
+          }
+
+          rollback(snap);
+        }
         reduceBasis(basis, level);
         basisCoeffs = llvm::to_vector<8>(basis.getRow(level));
         basisCoeffs.push_back(0);

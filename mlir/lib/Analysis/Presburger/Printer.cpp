@@ -12,7 +12,7 @@ void printVariableList(raw_ostream &os, unsigned nDim, unsigned nSym);
 void printExpr(raw_ostream &os, ArrayRef<SafeInteger> coeffs,
                SafeInteger constant, const PresburgerBasicSet &bs);
 bool printCoeff(raw_ostream &os, SafeInteger val, bool first);
-void printVarName(raw_ostream &os, SafeInteger i, const PresburgerBasicSet &bs);
+void printVarName(raw_ostream &os, unsigned i, const PresburgerBasicSet &bs);
 void printConst(raw_ostream &os, SafeInteger c, bool first);
 
 /// Prints the '(d0, ..., dN)[s0, ... ,sM]' dimension and symbol list.
@@ -131,7 +131,7 @@ bool printCoeff(raw_ostream &os, SafeInteger val, bool first) {
 /// dimensions and therefore prefixed with 'd', everything afterwards is a
 /// symbol with prefix 's'.
 ///
-void printVarName(raw_ostream &os, SafeInteger i,
+void printVarName(raw_ostream &os, unsigned i,
                   const PresburgerBasicSet &bs) {
   if (i < bs.getNumDims()) {
     os << 'd' << i;

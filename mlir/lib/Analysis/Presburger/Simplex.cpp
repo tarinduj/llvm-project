@@ -1396,7 +1396,7 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
           auto snap = getSnapshot();
           auto min = minRoundedUp, max = maxRoundedDown;
           for (unsigned i = level; i < basis.getNumRows(); ++i) {
-            SmallVector<int64_t, 8> basisCoeffs(basis.getRow(i).begin(),
+            SmallVector<SafeInteger, 8> basisCoeffs(basis.getRow(i).begin(),
                                                 basis.getRow(i).end());
             basisCoeffs.push_back(0);
             if (i != level) {

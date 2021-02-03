@@ -15,13 +15,6 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
-TEST(SimplexTest, SafeInteger) {
-  SafeInteger u = 1;
-  for (int i = 1; i <= 200; i++) {
-    u *= 2;
-    llvm::errs() << u.state << ' ' << u.val64 << ' ' << u.val128 << '\n';
-  }
-}
 /// Take a snapshot, add constraints making the set empty, and rollback.
 /// The set should not be empty after rolling back.
 TEST(SimplexTest, emptyRollback) {

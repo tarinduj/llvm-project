@@ -305,15 +305,14 @@ TEST(ParamLexSimplexTest, ParamLexMinTest) {
   //   simplex.findParamLexmin().dump();
   // }
 
-  { // [x] -> {[a, b, c] : x = 4a + 6b + 15c and a >= 0 and b >= 0 and c >= 0}
-    ParamLexSimplex simplex(4, 1);
-    simplex.addInequality({0, 1, 0, 0, 0}); // a >= 0
-    simplex.addInequality({0, 0, 1, 0, 0}); // b >= 0
-    simplex.addInequality({0, 0, 0, 1, 0}); // c >= 0
-    simplex.addEquality({1, -4, -6, -15, 0});  // x == 4a + 6b + 15c
-    simplex.findParamLexmin().dump();
-
-  }
+  // { // [x] -> {[a, b, c] : x = 4a + 6b + 15c and a >= 0 and b >= 0 and c >= 0}
+  //   ParamLexSimplex simplex(4, 1);
+  //   simplex.addInequality({0, 1, 0, 0, 0}); // a >= 0
+  //   simplex.addInequality({0, 0, 1, 0, 0}); // b >= 0
+  //   simplex.addInequality({0, 0, 0, 1, 0}); // c >= 0
+  //   simplex.addEquality({1, -4, -6, -15, 0});  // x == 4a + 6b + 15c
+  //   simplex.findParamLexmin().dump();
+  // }
 }
 
 } // namespace mlir

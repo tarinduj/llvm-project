@@ -31,7 +31,7 @@ using llvm::APInt;
 struct SafeInteger {
   /// Construct a SafeInteger from a numerator and denominator.
   explicit SafeInteger(const __int128_t &x, int64_t y, uint8_t state) : val128(x), val64(y), state(128) {}
-  static SafeInteger make128(const __int128_t &oVal) const { return SafeInteger{oVal, 0, 128}; }
+  static SafeInteger make128(const __int128_t &oVal) { return SafeInteger{oVal, 0, 128}; }
   SafeInteger(int64_t oVal) : val64(oVal), state(64) {}
 
   /// Default constructor initializes the number to zero.
@@ -106,23 +106,22 @@ inline SafeInteger operator+(const SafeInteger &x, const SafeInteger &y) {
       __int128_t result;
       bool overflow = __builtin_add_overflow(x.val64, y.val128, &result);
       overflowErrorIf(overflow);
-      return SafeInteger(result);
+      return SafeInteger::make128(result);
     }
   } else {
     if (y.state == 64) {
       __int128_t result;
       bool overflow = __builtin_add_overflow(x.val128, y.val64, &result);
       overflowErrorIf(overflow);
-      return SafeInteger(result);
+      return SafeInteger::make128(result);
     } else {
       __int128_t result;
       bool overflow = __builtin_add_overflow(x.val128, y.val128, &result);
       overflowErrorIf(overflow);
-      return SafeInteger(result);
+      return SafeInteger::make128(result);
     }
   }
 }
-
 
 inline SafeInteger operator-(const SafeInteger &x, const SafeInteger &y) {
   if (x.state == 64) {
@@ -136,19 +135,19 @@ inline SafeInteger operator-(const SafeInteger &x, const SafeInteger &y) {
       __int128_t result;
       bool overflow = __builtin_sub_overflow(x.val64, y.val128, &result);
       overflowErrorIf(overflow);
-      return SafeInteger(result);
+      return SafeInteger::make128(result);
     }
   } else {
     if (y.state == 64) {
       __int128_t result;
       bool overflow = __builtin_sub_overflow(x.val128, y.val64, &result);
       overflowErrorIf(overflow);
-      return SafeInteger(result);
+      return SafeInteger::make128(result);
     } else {
       __int128_t result;
       bool overflow = __builtin_sub_overflow(x.val128, y.val128, &result);
       overflowErrorIf(overflow);
-      return SafeInteger(result);
+      return SafeInteger::make128(result);
     }
   }
 }
@@ -169,19 +168,19 @@ inline SafeInteger operator*(const SafeInteger &x, const SafeInteger &y) {
       __int128_t result;
       bool overflow = __builtin_mul_overflow(x.val64, y.val128, &result);
       overflowErrorIf(overflow);
-      return SafeInteger(result);
+      return SafeInteger::make128(result);
     }
   } else {
     if (y.state == 64) {
       __int128_t result;
       bool overflow = __builtin_mul_overflow(x.val128, y.val64, &result);
       overflowErrorIf(overflow);
-      return SafeInteger(result);
+      return SafeInteger::make128(result);
     } else {
       __int128_t result;
       bool overflow = __builtin_mul_overflow(x.val128, y.val128, &result);
       overflowErrorIf(overflow);
-      return SafeInteger(result);
+      return SafeInteger::make128(result);
     }
   }
 }
@@ -192,21 +191,21 @@ inline SafeInteger operator/(const SafeInteger &x, const SafeInteger &y) {
     if (y.state == 64) {
       if (y.val64 == -1)
         return -x;
-      return x.val64 % y.val64;
+      return SafeInteger(x.val64 / y.val64);
     } else {
       if (y.val128 == -1)
         return -x;
-      return x.val64 % y.val128;
+      return SafeInteger::make128(x.val64 / y.val128);
     }
   } else {
     if (y.state == 64) {
       if (y.val64 == -1)
         return -x;
-      return x.val128 % y.val64;
+      return SafeInteger::make128(x.val128 / y.val64);
     } else {
       if (y.val128 == -1)
         return -x;
-      return x.val128 % y.val128;
+      return SafeInteger::make128(x.val128 / y.val128);
     }
   }
 }
@@ -216,13 +215,13 @@ inline SafeInteger operator%(const SafeInteger &x, const SafeInteger &y) {
     if (y.state == 64) {
       return x.val64 % y.val64;
     } else {
-      return x.val64 % y.val128;
+      return SafeInteger::make128(x.val64 % y.val128);
     }
   } else {
     if (y.state == 64) {
-      return x.val128 % y.val64;
+      return SafeInteger::make128(x.val128 % y.val64);
     } else {
-      return x.val128 % y.val128;
+      return SafeInteger::make128(x.val128 % y.val128);
     }
   }
 }

@@ -264,6 +264,10 @@ inline SafeInteger mod(SafeInteger lhs, SafeInteger rhs) {
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                      const SafeInteger &x) {
+  if (x == 0) {
+    os << "0";
+    return os;
+  }
   std::string out;
   auto copy = x;
   if (copy < 0) {

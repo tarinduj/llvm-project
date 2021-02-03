@@ -76,10 +76,12 @@ void ParamLexSimplex::addInequality(ArrayRef<SafeInteger> coeffs) {
 void ParamLexSimplex::addEquality(ArrayRef<SafeInteger> coeffs) {
   assert(coeffs.size() == var.size() + 1 - 1); // - 1 for M
   addInequality(coeffs);
+  con.back().zero = true;
   SmallVector<SafeInteger, 8> negatedCoeffs;
   for (SafeInteger coeff : coeffs)
     negatedCoeffs.emplace_back(-coeff);
   addInequality(negatedCoeffs);
+  con.back().zero = true;
 }
 
 /// Add a division variable to the tableau. If coeffs is c_0, c_1, ... c_n,
@@ -95,21 +97,26 @@ void ParamLexSimplex::addEquality(ArrayRef<SafeInteger> coeffs) {
 /// be zero.
 void ParamLexSimplex::addDivisionVariable(ArrayRef<SafeInteger> coeffs,
                                           SafeInteger denom) {
-  assert(coeffs.size() == var.size() + 1 - 1); // - 1 for M
+  // assert(coeffs.size() == var.size() + 1 - 1); // - 1 for M
+  // llvm::errs() << "adding div: ";
+  // for (auto x : coeffs) {
+  //   llvm::errs() << x << ' ';
+  // }
+  // llvm::errs() << '\n';
   addVariable();
   nParam++;
   nDiv++;
 
-  SmallVector<SafeInteger, 8> ineq(coeffs.begin(), coeffs.end());
-  SafeInteger constTerm = ineq.back();
-  ineq.back() = -denom;
-  ineq.push_back(constTerm);
-  addInequality(ineq);
+  // SmallVector<SafeInteger, 8> ineq(coeffs.begin(), coeffs.end());
+  // SafeInteger constTerm = ineq.back();
+  // ineq.back() = -denom;
+  // ineq.push_back(constTerm);
+  // addInequality(ineq);
 
-  for (SafeInteger &coeff : ineq)
-    coeff = -coeff;
-  ineq.back() += denom - 1;
-  addInequality(ineq);
+  // for (SafeInteger &coeff : ineq)
+  //   coeff = -coeff;
+  // ineq.back() += denom - 1;
+  // addInequality(ineq);
 }
 
 // Find the pivot column for the given pivot row which would result in the
@@ -338,8 +345,73 @@ void ParamLexSimplex::findParamLexminRecursively(Simplex &domainSimplex,
     if (rowHasIntegerCoeffs(row))
       continue;
 
-    SmallVector<SafeInteger, 8> domainDivCoeffs;
     SafeInteger denom = tableau(row, 0);
+    bool paramCoeffsIntegral = true;
+    for (unsigned col = nCol - nParam; col < nCol; col++) {
+      if (mod(tableau(row, col), denom) != 0) {
+        paramCoeffsIntegral = false;
+        break;
+      }
+    }
+
+    bool otherCoeffsIntegral = true;
+    for (unsigned col = 3; col < nCol - nParam; ++col) {
+      if (unknownFromColumn(col).zero)
+        continue;
+      if (mod(tableau(row, col), denom) != 0) {
+        otherCoeffsIntegral = false;
+        break;
+      }
+    }
+
+    bool constIntegral = mod(tableau(row, 1), denom) == 0;
+
+    SmallVector<SafeInteger, 8> domainDivCoeffs;
+    if (otherCoeffsIntegral) {
+      for (unsigned col = nCol - nParam; col < nCol; ++col)
+        domainDivCoeffs.push_back(mod(tableau(row, col), denom));
+      domainDivCoeffs.push_back(mod(tableau(row, 1), denom));
+      unsigned snapshot = getSnapshot();
+      unsigned domainSnapshot = domainSimplex.getSnapshot();
+      domainSimplex.addDivisionVariable(domainDivCoeffs, denom);
+      domainSet.appendDivisionVariable(domainDivCoeffs, denom);
+
+      SmallVector<SafeInteger, 8> ineqCoeffs;
+      for (unsigned col = nCol - nParam; col < nCol; ++col)
+        ineqCoeffs.push_back(-tableau(row, col));
+      ineqCoeffs.push_back(denom);
+      ineqCoeffs.push_back(-tableau(row, 1));
+      domainSimplex.addInequality(ineqCoeffs);
+      domainSet.addInequality(ineqCoeffs);
+
+
+      // This has to be after we extract the coeffs above!
+      addVariable();
+      nParam++;
+      nDiv++;
+
+      SmallVector<SafeInteger, 8> oldRow;
+      oldRow.reserve(nCol);
+      for (unsigned col = 0; col < nCol; ++col) {
+        oldRow.push_back(tableau(row, col));
+        tableau(row, col) /= denom;
+      }
+      tableau(row, nCol - 1) += 1;
+
+      findParamLexminRecursively(domainSimplex, domainSet, result);
+
+      domainSet.removeLastInequality();
+      domainSet.removeLastDivision();
+      for (unsigned col = 0; col < nCol; ++col)
+        tableau(row, col) = oldRow[col];
+      domainSimplex.rollback(domainSnapshot);
+      nParam--;
+      nDiv--;
+      rollback(snapshot);
+      return;
+    }
+    // llvm::errs() << "const: " << constIntegral << ", param: " << paramCoeffsIntegral <<  '\n';
+
     for (unsigned col = nCol - nParam; col < nCol; ++col)
       domainDivCoeffs.push_back(mod(-tableau(row, col), denom));
     domainDivCoeffs.push_back(mod(-tableau(row, 1), denom));
@@ -409,4 +481,5 @@ void ParamLexSimplex::findParamLexminRecursively(Simplex &domainSimplex,
     lexmin.push_back(std::move(value));
   }
   result.value.push_back(lexmin);
+  // result.dump();
 }

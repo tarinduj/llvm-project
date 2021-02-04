@@ -14,14 +14,6 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
-// TEST(SafeIntegerTest, Transprecision) {
-//   SafeInteger x = 1;
-//   for (int i = 1; i <= 200; i++) {
-//     x *= 2;
-//     llvm::errs() << i << '\t' << int(x.state) << '\t' << x << '\n';
-//   }
-// }
-
 TEST(MatrixTest, ReadWrite) {
   Matrix mat(5, 5);
   for (unsigned row = 0; row < 5; ++row)

@@ -30,9 +30,7 @@ using llvm::APInt;
 /// Overflows are asserted to not occur.
 struct SafeInteger {
   /// Construct a SafeInteger from a numerator and denominator.
-  explicit SafeInteger(const __int128_t &x, int64_t y, uint8_t state) : val128(x), val64(y), state(128) {}
-  static SafeInteger make128(const __int128_t &oVal) const { return SafeInteger{oVal, 0, 128}; }
-  SafeInteger(int64_t oVal) : val64(oVal), state(64) {}
+  SafeInteger(__int128_t oVal) : val(oVal) {}
 
   /// Default constructor initializes the number to zero.
   SafeInteger() : SafeInteger(0) {}
@@ -40,9 +38,7 @@ struct SafeInteger {
   inline explicit operator bool();
 
   /// The stored value. This is always 64-bit.
-  __int128_t val128;
-  int64_t val64;
-  uint8_t state;
+  __int128_t val;
 };
 
 inline void overflowErrorIf(bool overflow) {
@@ -52,105 +48,37 @@ inline void overflowErrorIf(bool overflow) {
   }
 }
 
-template <typename T>
-inline int sign(const T &x) {
-  if (x == 0)
-    return 0;
-  return x > 0 ? +1 : -1;
-}
-
-inline int compare(const SafeInteger &x, const SafeInteger &y) {
-  if (x.state == 128) {
-    if (y.state == 128) {
-      return sign(x.val128 - y.val128);
-    } else {
-      return sign(x.val128 - y.val64);
-    }
-  } else {
-    if (y.state == 128) {
-      return sign(x.val64 - y.val128);
-    } else {
-      return sign(x.val64 - y.val64);
-    }
-  }
-}
-
 inline bool operator<(const SafeInteger &x, const SafeInteger &y) {
-  return compare(x, y) < 0;
+  return x.val < y.val;
 }
 inline bool operator<=(const SafeInteger &x, const SafeInteger &y) {
-  return compare(x, y) <= 0;
+  return x.val <= y.val;
 }
 inline bool operator==(const SafeInteger &x, const SafeInteger &y) {
-  return compare(x, y) == 0;
+  return x.val == y.val;
 }
 inline bool operator!=(const SafeInteger &x, const SafeInteger &y) {
-  return compare(x, y) != 0;
+  return x.val != y.val;
 }
 inline bool operator>(const SafeInteger &x, const SafeInteger &y) {
-  return compare(x, y) > 0;
+  return x.val > y.val;
 }
 inline bool operator>=(const SafeInteger &x, const SafeInteger &y) {
-  return compare(x, y) >= 0;
+  return x.val >= y.val;
 }
 
 inline SafeInteger operator+(const SafeInteger &x, const SafeInteger &y) {
-  if (x.state == 64) {
-    if (y.state == 64) {
-      int64_t result;
-      bool overflow = __builtin_add_overflow(x.val64, y.val64, &result);
-      if (overflow)
-        return SafeInteger::make128(__int128_t(x.val64) + __int128_t(y.val64));
-      return SafeInteger(result);
-    } else {
-      __int128_t result;
-      bool overflow = __builtin_add_overflow(x.val64, y.val128, &result);
-      overflowErrorIf(overflow);
-      return SafeInteger(result);
-    }
-  } else {
-    if (y.state == 64) {
-      __int128_t result;
-      bool overflow = __builtin_add_overflow(x.val128, y.val64, &result);
-      overflowErrorIf(overflow);
-      return SafeInteger(result);
-    } else {
-      __int128_t result;
-      bool overflow = __builtin_add_overflow(x.val128, y.val128, &result);
-      overflowErrorIf(overflow);
-      return SafeInteger(result);
-    }
-  }
+  __int128_t result;
+  bool overflow = __builtin_add_overflow(x.val, y.val, &result);
+  overflowErrorIf(overflow);
+  return SafeInteger(result);
 }
 
-
 inline SafeInteger operator-(const SafeInteger &x, const SafeInteger &y) {
-  if (x.state == 64) {
-    if (y.state == 64) {
-      int64_t result;
-      bool overflow = __builtin_sub_overflow(x.val64, y.val64, &result);
-      if (overflow)
-        return SafeInteger::make128(__int128_t(x.val64) - __int128_t(y.val64));
-      return SafeInteger(result);
-    } else {
-      __int128_t result;
-      bool overflow = __builtin_sub_overflow(x.val64, y.val128, &result);
-      overflowErrorIf(overflow);
-      return SafeInteger(result);
-    }
-  } else {
-    if (y.state == 64) {
-      __int128_t result;
-      bool overflow = __builtin_sub_overflow(x.val128, y.val64, &result);
-      overflowErrorIf(overflow);
-      return SafeInteger(result);
-    } else {
-      __int128_t result;
-      bool overflow = __builtin_sub_overflow(x.val128, y.val128, &result);
-      overflowErrorIf(overflow);
-      return SafeInteger(result);
-    }
-  }
+  __int128_t result;
+  bool overflow = __builtin_sub_overflow(x.val, y.val, &result);
+  overflowErrorIf(overflow);
+  return SafeInteger(result);
 }
 
 inline SafeInteger operator-(const SafeInteger &x) {
@@ -158,73 +86,21 @@ inline SafeInteger operator-(const SafeInteger &x) {
 }
 
 inline SafeInteger operator*(const SafeInteger &x, const SafeInteger &y) {
-  if (x.state == 64) {
-    if (y.state == 64) {
-      int64_t result;
-      bool overflow = __builtin_mul_overflow(x.val64, y.val64, &result);
-      if (overflow)
-        return SafeInteger::make128(__int128_t(x.val64) * __int128_t(y.val64));
-      return SafeInteger(result);
-    } else {
-      __int128_t result;
-      bool overflow = __builtin_mul_overflow(x.val64, y.val128, &result);
-      overflowErrorIf(overflow);
-      return SafeInteger(result);
-    }
-  } else {
-    if (y.state == 64) {
-      __int128_t result;
-      bool overflow = __builtin_mul_overflow(x.val128, y.val64, &result);
-      overflowErrorIf(overflow);
-      return SafeInteger(result);
-    } else {
-      __int128_t result;
-      bool overflow = __builtin_mul_overflow(x.val128, y.val128, &result);
-      overflowErrorIf(overflow);
-      return SafeInteger(result);
-    }
-  }
+  __int128_t result;
+  bool overflow = __builtin_mul_overflow(x.val, y.val, &result);
+  overflowErrorIf(overflow);
+  return SafeInteger(result);
 }
 
 inline SafeInteger operator/(const SafeInteger &x, const SafeInteger &y) {
   // overflow only possible if y == -1
-  if (x.state == 64) {
-    if (y.state == 64) {
-      if (y.val64 == -1)
-        return -x;
-      return x.val64 % y.val64;
-    } else {
-      if (y.val128 == -1)
-        return -x;
-      return x.val64 % y.val128;
-    }
-  } else {
-    if (y.state == 64) {
-      if (y.val64 == -1)
-        return -x;
-      return x.val128 % y.val64;
-    } else {
-      if (y.val128 == -1)
-        return -x;
-      return x.val128 % y.val128;
-    }
-  }
+  if (y == SafeInteger(-1))
+    return -x;
+  return x.val / y.val;
 }
 
 inline SafeInteger operator%(const SafeInteger &x, const SafeInteger &y) {
-  if (x.state == 64) {
-    if (y.state == 64) {
-      return x.val64 % y.val64;
-    } else {
-      return x.val64 % y.val128;
-    }
-  } else {
-    if (y.state == 64) {
-      return x.val128 % y.val64;
-    } else {
-      return x.val128 % y.val128;
-    }
-  }
+  return x.val % y.val;
 }
 
 inline void operator+=(SafeInteger &x, const SafeInteger &y) {
@@ -252,7 +128,6 @@ inline SafeInteger lcm(SafeInteger a, SafeInteger b) {
   SafeInteger lcm = (x * y) / llvm::greatestCommonDivisor(x, y);
   return lcm;
 }
-
 /// Returns MLIR's mod operation on constants. MLIR's mod operation yields the
 /// remainder of the Euclidean division of 'lhs' by 'rhs', and is therefore not
 /// C's % operator.  The RHS is always expected to be positive, and the result
@@ -275,7 +150,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
     copy = -copy;
   }
   while (copy > 0) {
-    out.push_back('0' + int(copy.state == 64 ? copy.val64 % 10 : copy.val128 % 10));
+    out.push_back('0' + int(copy.val % 10));
     copy /= 10;
   }
   std::reverse(out.begin(), out.end());

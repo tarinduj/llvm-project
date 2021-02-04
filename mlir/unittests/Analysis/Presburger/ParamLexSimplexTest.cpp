@@ -287,7 +287,7 @@ TEST(ParamLexSimplexTest, ParamLexMinTest) {
   //   simplex.findParamLexmin().dump();
   // }
 
-  // CRASHES.
+  // // CRASHES.
   // { // [x] -> {[y, z] : x = y + 3z and x >= y and z >= 0 and y >= 0}
   //   ParamLexSimplex simplex(3, 1);
   //   simplex.addInequality({1, -1, 0, 0});  // x >= y
@@ -297,22 +297,12 @@ TEST(ParamLexSimplexTest, ParamLexMinTest) {
   //   simplex.findParamLexmin().dump();
   // }
 
-  // { // [x] -> {[y, z] : x = y + 3z and x >= y and z >= 0 and y >= 0}
-  //   ParamLexSimplex simplex(3, 1);
-  //   simplex.addInequality({1, -1, 0, 0});  // x >= y
-  //   simplex.addInequality({0, 1, 0, -0});  // y >= 0
-  //   simplex.addEquality({1, -1, -3, 0});  // x == y + 3z
-  //   simplex.findParamLexmin().dump();
-  // }
-
-  { // [x] -> {[a, b, c] : x = 4a + 6b + 15c and a >= 0 and b >= 0 and c >= 0}
-    ParamLexSimplex simplex(4, 1);
-    simplex.addInequality({0, 1, 0, 0, 0}); // a >= 0
-    simplex.addInequality({0, 0, 1, 0, 0}); // b >= 0
-    simplex.addInequality({0, 0, 0, 1, 0}); // c >= 0
-    simplex.addEquality({1, -4, -6, -15, 0});  // x == 4a + 6b + 15c
+  { // [x] -> {[y, z] : x = y + 3z and x >= y and z >= 0 and y >= 0}
+    ParamLexSimplex simplex(3, 1);
+    simplex.addInequality({1, -1, 0, 0});  // x >= y
+    simplex.addInequality({0, 1, 0, -0});  // y >= 0
+    simplex.addEquality({1, -1, -3, 0});  // x == y + 3z
     simplex.findParamLexmin().dump();
-
   }
 }
 

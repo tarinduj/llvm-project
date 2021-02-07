@@ -377,13 +377,12 @@ void ParamLexSimplex::findParamLexminRecursively(Simplex &domainSimplex,
       domainSet.appendDivisionVariable(domainDivCoeffs, denom);
 
       SmallVector<SafeInteger, 8> ineqCoeffs;
-      for (unsigned col = nCol - nParam; col < nCol; ++col)
-        ineqCoeffs.push_back(-tableau(row, col));
-      ineqCoeffs.push_back(denom);
-      ineqCoeffs.push_back(-tableau(row, 1));
+      for (auto x : domainDivCoeffs)
+        ineqCoeffs.push_back(-x);
+      ineqCoeffs.back() = denom;
+      ineqCoeffs.push_back(-domainDivCoeffs.back());
       domainSimplex.addInequality(ineqCoeffs);
       domainSet.addInequality(ineqCoeffs);
-
 
       // This has to be after we extract the coeffs above!
       addVariable();

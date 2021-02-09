@@ -23,9 +23,11 @@ static SetOp unionSets(PatternRewriter &rewriter, Operation *op,
   PresburgerSet ps(attr1.getValue());
 
   if (printPresburgerRuntimes()) {
+    PresburgerSet set1(attr1.getValue());
+    PresburgerSet set2(attr2.getValue());
     unsigned int dummy;
     unsigned long long start = __rdtscp(&dummy);
-    ps.unionSet(attr2.getValue());
+    set1.unionSet(std::move(set2));
     unsigned long long end = __rdtscp(&dummy);
     llvm::errs() << end - start << '\n';
   } else {
@@ -123,9 +125,10 @@ static SetOp eliminateExistentialsSet(PatternRewriter &rewriter, Operation *op,
 
   PresburgerSet ps;
   if (printPresburgerRuntimes()) {
+    PresburgerSet in2 = attr.getValue();
     unsigned int dummy;
     unsigned long long start = __rdtscp(&dummy);
-    ps = PresburgerSet::eliminateExistentials(in);
+    ps = PresburgerSet::eliminateExistentials(std::move(in2));
     unsigned long long end = __rdtscp(&dummy);
     llvm::errs() << end - start << '\n';
   } else {

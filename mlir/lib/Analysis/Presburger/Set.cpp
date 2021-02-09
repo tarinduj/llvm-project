@@ -53,17 +53,32 @@ static void assertDimensionsCompatible(PresburgerSet set1, PresburgerSet set2) {
          "Dimensionalities of PresburgerSets do not match");
 }
 
-void PresburgerSet::addBasicSet(PresburgerBasicSet cs) {
+void PresburgerSet::addBasicSet(const PresburgerBasicSet &cs) {
   assertDimensionsCompatible(cs, *this);
 
   markedEmpty = false;
   basicSets.push_back(cs);
 }
 
+void PresburgerSet::addBasicSet(PresburgerBasicSet &&cs) {
+  assertDimensionsCompatible(cs, *this);
+
+  markedEmpty = false;
+  basicSets.push_back(std::move(cs));
+}
+
 void PresburgerSet::unionSet(const PresburgerSet &set) {
   assertDimensionsCompatible(set, *this);
 
   for (const PresburgerBasicSet &cs : set.basicSets)
+    addBasicSet(std::move(cs));
+}
+
+void PresburgerSet::unionSet(PresburgerSet &&set) {
+  assertDimensionsCompatible(set, *this);
+
+  basicSets.reserve(basicSets.size() + set.basicSets.size());
+  for (PresburgerBasicSet &cs : set.basicSets)
     addBasicSet(std::move(cs));
 }
 
@@ -268,7 +283,7 @@ PresburgerSet::eliminateExistentials(const PresburgerBasicSet &bs) {
   for (auto &b : paramLexSimplex.findParamLexmin().domain) {
     b.nParam = bs.nParam;
     b.nDim = bs.nDim;
-    result.addBasicSet(b);
+    result.addBasicSet(std::move(b));
   }
   return result;
 }
@@ -278,6 +293,28 @@ PresburgerSet PresburgerSet::eliminateExistentials(const PresburgerSet &set) {
   for (const auto &bs : set.getBasicSets()) {
     if (bs.getNumExists() == 0) {
       unquantifiedSet.addBasicSet(bs);
+    } else {
+      unquantifiedSet.unionSet(PresburgerSet::eliminateExistentials(bs));
+    }
+  }
+  return unquantifiedSet;
+}
+
+PresburgerSet PresburgerSet::eliminateExistentials(PresburgerSet &&set) {
+  PresburgerSet unquantifiedSet(set.getNumDims(), set.getNumSyms());
+  bool clean = true;
+  for (auto &bs : set.basicSets) {
+    if (bs.getNumExists() != 0) {
+      clean = false;
+      break;
+    }
+  }
+  if (clean)
+    return std::move(set);
+
+  for (auto &bs : set.basicSets) {
+    if (bs.getNumExists() == 0) {
+      unquantifiedSet.addBasicSet(std::move(bs));
     } else {
       unquantifiedSet.unionSet(PresburgerSet::eliminateExistentials(bs));
     }

@@ -18,9 +18,12 @@ public:
   unsigned getNumSyms() const;
   static PresburgerSet eliminateExistentials(const PresburgerBasicSet &bs);
   static PresburgerSet eliminateExistentials(const PresburgerSet &set);
+  static PresburgerSet eliminateExistentials(PresburgerSet &&set);
   const SmallVector<PresburgerBasicSet, 4> &getBasicSets() const;
-  void addBasicSet(PresburgerBasicSet cs);
+  void addBasicSet(const PresburgerBasicSet &cs);
+  void addBasicSet(PresburgerBasicSet &&cs);
   void unionSet(const PresburgerSet &set);
+  void unionSet(PresburgerSet &&set);
   void intersectSet(const PresburgerSet &set);
   static bool equal(const PresburgerSet &s, const PresburgerSet &t);
   void print(raw_ostream &os) const;

@@ -68,7 +68,7 @@ PresburgerBasicSet PresburgerBasicSet::makePlainBasicSet() const {
 }
 
 Optional<SmallVector<SafeInteger, 8>>
-PresburgerBasicSet::findIntegerSample() const {
+PresburgerBasicSet::findIntegerSample() {
   if (!isPlainBasicSet())
     return makePlainBasicSet().findIntegerSample();
 
@@ -76,7 +76,7 @@ PresburgerBasicSet::findIntegerSample() const {
   if (cone.getNumEqualities() < getNumTotalDims())
     return findSampleUnbounded(cone, false);
   else
-    return findSampleBounded();
+    return findSampleBounded(false);
 }
 
 bool PresburgerBasicSet::isIntegerEmpty() {
@@ -90,7 +90,7 @@ bool PresburgerBasicSet::isIntegerEmpty() {
   if (cone.getNumEqualities() < getNumTotalDims())
     return !findSampleUnbounded(cone, true).hasValue();
   else
-    return !findSampleBounded().hasValue();
+    return !findSampleBounded(true).hasValue();
 }
 
 Optional<std::pair<SafeInteger, SmallVector<SafeInteger, 8>>>
@@ -157,13 +157,13 @@ void PresburgerBasicSet::substitute(ArrayRef<SafeInteger> values) {
 // Ux is a sample that satisfies M.
 llvm::Optional<SmallVector<SafeInteger, 8>>
 PresburgerBasicSet::findSampleUnbounded(PresburgerBasicSet &cone,
-                                        bool onlyEmptiness) const {
+                                        bool onlyEmptiness) {
   auto coeffMatrix = cone.coefficientMatrixFromEqs();
   LinearTransform U =
       LinearTransform::makeTransformToColumnEchelon(std::move(coeffMatrix));
   PresburgerBasicSet transformedSet = U.postMultiplyBasicSet(*this);
 
-  auto maybeBoundedSample = transformedSet.findBoundedDimensionsSample(cone);
+  auto maybeBoundedSample = transformedSet.findBoundedDimensionsSample(cone, onlyEmptiness);
   if (!maybeBoundedSample)
     return {};
   if (onlyEmptiness)
@@ -285,16 +285,16 @@ void PresburgerBasicSet::projectOutUnboundedDimensions(unsigned unboundedDims) {
 
 Optional<SmallVector<SafeInteger, 8>>
 PresburgerBasicSet::findBoundedDimensionsSample(
-    const PresburgerBasicSet &cone) const {
+    const PresburgerBasicSet &cone, bool onlyEmptiness) const {
   assert(cone.isPlainBasicSet());
   PresburgerBasicSet boundedSet = *this;
   boundedSet.projectOutUnboundedDimensions(getNumTotalDims() -
                                            cone.getNumEqualities());
-  return boundedSet.findSampleBounded();
+  return boundedSet.findSampleBounded(onlyEmptiness);
 }
 
 Optional<SmallVector<SafeInteger, 8>>
-PresburgerBasicSet::findSampleBounded() const {
+PresburgerBasicSet::findSampleBounded(bool onlyEmptiness) {
   if (getNumTotalDims() == 0)
     return SmallVector<SafeInteger, 8>();
 
@@ -302,11 +302,45 @@ PresburgerBasicSet::findSampleBounded() const {
   if (simplex.isEmpty())
     return {};
 
-  // NOTE possible optimization for equalities. We could transform the basis
-  // into one where the equalities appear as the first directions, so that
-  // in the basis search recursion these immediately get assigned their
-  // values.
-  return simplex.findIntegerSample();
+  simplex.detectImplicitEqualities();
+  updateFromSimplex(simplex);
+  simplex.detectImplicitEqualities();
+  updateFromSimplex(simplex);
+  auto coeffMatrix = coefficientMatrixFromEqs();
+  LinearTransform U =
+      LinearTransform::makeTransformToColumnEchelon(std::move(coeffMatrix));
+  PresburgerBasicSet T = U.postMultiplyBasicSet(*this);
+  T.dump();
+  SmallVector<SafeInteger, 8> vals;
+  vals.reserve(T.getNumTotalDims());
+  unsigned col = 0;
+  for (auto &eq : T.eqs) {
+    if (col == T.getNumTotalDims())
+      break;
+    const auto &coeffs = eq.getCoeffs();
+    if (coeffs[col] == 0)
+      continue;
+    SafeInteger val = coeffs.back();
+    for (unsigned c = 0; c < col; ++c) {
+      val += vals[c] * coeffs[c];
+    }
+    if (val % coeffs[col] != 0)
+      return {};
+    vals.push_back(-val / coeffs[col]);
+    col++;
+  }
+  T.eqs.clear();
+  T.substitute(vals);
+  T.dump();
+  Simplex simplT(T);
+
+  if (auto opt = simplT.findIntegerSample()) {
+    if (onlyEmptiness)
+      return opt;
+    vals.append(opt->begin(), opt->end());
+    return U.preMultiplyColumn(vals);
+  }
+  return {};
 }
 
 // We shift all the constraints to the origin, then construct a simplex and

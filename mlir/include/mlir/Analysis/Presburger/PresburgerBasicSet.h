@@ -74,7 +74,7 @@ public:
   /// the set is bounded. This should not be called for unbounded sets.
   ///
   /// Returns such a point if one exists, or an empty Optional otherwise.
-  Optional<SmallVector<SafeInteger, 8>> findIntegerSample() const;
+  Optional<SmallVector<SafeInteger, 8>> findIntegerSample();
 
   bool isIntegerEmpty();
 
@@ -100,7 +100,7 @@ private:
   /// set has no unbounded directions.
   ///
   /// \returns the sample point or an empty llvm::Optional if the set is empty.
-  Optional<SmallVector<SafeInteger, 8>> findSampleBounded() const;
+  Optional<SmallVector<SafeInteger, 8>> findSampleBounded(bool onlyEmptiness);
 
   /// Find a sample for only the bounded dimensions of this basic set.
   ///
@@ -108,7 +108,7 @@ private:
   ///
   /// \returns the sample or an empty std::optional if no sample exists.
   Optional<SmallVector<SafeInteger, 8>>
-  findBoundedDimensionsSample(const PresburgerBasicSet &cone) const;
+  findBoundedDimensionsSample(const PresburgerBasicSet &cone, bool onlyEmptiness) const;
 
   /// Find a sample for this basic set, which is known to be a full-dimensional
   /// cone.
@@ -127,7 +127,7 @@ private:
   /// \returns the sample point or an empty llvm::Optional if the set
   /// is empty.
   Optional<SmallVector<SafeInteger, 8>>
-  findSampleUnbounded(PresburgerBasicSet &cone, bool onlyEmptiness) const;
+  findSampleUnbounded(PresburgerBasicSet &cone, bool onlyEmptiness);
 
   Matrix coefficientMatrixFromEqs() const;
 

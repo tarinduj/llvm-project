@@ -18,7 +18,7 @@ static void subtractColumns(LinearTransform::MatrixType &m, unsigned row,
                             unsigned sourceCol, unsigned targetCol,
                             LinearTransform::MatrixType &otherMatrix) {
   assert(m(row, sourceCol) != 0 && "cannot divide by zero");
-  auto ratio = m(row, targetCol) / m(row, sourceCol);
+  auto ratio = floorDiv(m(row, targetCol), m(row, sourceCol));
   m.addToColumn(sourceCol, targetCol, -ratio);
   otherMatrix.addToColumn(sourceCol, targetCol, -ratio);
 }
@@ -47,9 +47,9 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType m) {
         m.swapColumns(i, col);
         resultMatrix.swapColumns(i, col);
       }
-      if (m(row, i) < 0) {
-        m.negateColumn(i);
-        resultMatrix.negateColumn(i);
+      if (m(row, col) < 0) {
+        m.negateColumn(col);
+        resultMatrix.negateColumn(col);
       }
       break;
     }
@@ -68,6 +68,10 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType m) {
       // NOTE on isl: in isl the whole columns are swapped each time instead
       // of just swapping the indices. It is unclear if there is a special
       // reason for this.
+      if (m(row, i) < 0) {
+        m.negateColumn(i);
+        resultMatrix.negateColumn(i);
+      }
       for (unsigned targetCol = i, sourceCol = col;
            m(row, targetCol) != 0 && m(row, sourceCol) != 0;
            std::swap(targetCol, sourceCol)) {
@@ -83,7 +87,7 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType m) {
     for (unsigned targetCol = 0; targetCol < col; targetCol++) {
       if (m(row, targetCol) == 0)
         continue;
-      subtractColumns(m, row, targetCol, col, resultMatrix);
+      subtractColumns(m, row, col, targetCol, resultMatrix);
     }
 
     ++col;

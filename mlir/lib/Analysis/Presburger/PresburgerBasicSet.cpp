@@ -310,7 +310,6 @@ PresburgerBasicSet::findSampleBounded(bool onlyEmptiness) {
   LinearTransform U =
       LinearTransform::makeTransformToColumnEchelon(std::move(coeffMatrix));
   PresburgerBasicSet T = U.postMultiplyBasicSet(*this);
-  T.dump();
   SmallVector<SafeInteger, 8> vals;
   vals.reserve(T.getNumTotalDims());
   unsigned col = 0;
@@ -331,7 +330,6 @@ PresburgerBasicSet::findSampleBounded(bool onlyEmptiness) {
   }
   T.eqs.clear();
   T.substitute(vals);
-  T.dump();
   Simplex simplT(T);
 
   if (auto opt = simplT.findIntegerSample()) {

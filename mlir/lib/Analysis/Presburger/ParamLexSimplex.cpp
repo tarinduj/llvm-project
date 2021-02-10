@@ -337,7 +337,8 @@ void ParamLexSimplex::findParamLexminRecursively(Simplex &domainSimplex,
     return true;
   };
 
-  for (const auto &u : var) {
+  for (unsigned var_i = 1 + nParam - nDiv; var_i < var.size() - nDiv; ++var_i) {
+    const auto &u = var[var_i];
     if (u.orientation == Orientation::Column)
       continue;
 

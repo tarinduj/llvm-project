@@ -303,10 +303,10 @@ PresburgerBasicSet::findSampleBounded(bool onlyEmptiness) {
     return {};
 
   simplex.detectImplicitEqualities();
-  updateFromSimplex(simplex);
-  simplex.detectImplicitEqualities();
-  updateFromSimplex(simplex);
-  auto coeffMatrix = coefficientMatrixFromEqs();
+  auto copy = *this;
+  copy.updateFromSimplex(simplex);
+
+  auto coeffMatrix = copy.coefficientMatrixFromEqs();
   LinearTransform U =
       LinearTransform::makeTransformToColumnEchelon(std::move(coeffMatrix));
   PresburgerBasicSet T = U.postMultiplyBasicSet(*this);

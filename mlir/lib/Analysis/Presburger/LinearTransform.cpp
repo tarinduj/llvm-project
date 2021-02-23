@@ -29,7 +29,7 @@ static void subtractColumns(LinearTransform::MatrixType &m, unsigned row,
 //
 // But at some point we need the pre-multiply version as well, so optimisation
 // doesn't help in that case or only helps 1/3rd of the time (when we need both)
-LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType &m) {
+LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType m) {
   // Padding of one is required by the LinearTransform constructor.
   MatrixType resultMatrix = MatrixType::identity(m.getNumColumns());
 

@@ -22,7 +22,7 @@ public:
   using MatrixType = Matrix;
   // Return a unimodular transform which, when postmultiplied to M, brings M to
   // column echelon form.
-  static LinearTransform makeTransformToColumnEchelon(MatrixType M);
+  static LinearTransform makeTransformToColumnEchelon(MatrixType &M);
 
   FlatAffineConstraints postMultiplyBasicSet(const FlatAffineConstraints &bs);
   PresburgerBasicSet postMultiplyBasicSet(const PresburgerBasicSet &bs);

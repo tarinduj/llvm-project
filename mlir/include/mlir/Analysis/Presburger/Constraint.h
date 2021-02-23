@@ -46,6 +46,7 @@ public:
     coeffs.erase(coeffs.begin() + pos, coeffs.begin() + pos + count);
   }
 
+  SafeInteger getConstant() const { return coeffs.back(); }
   ArrayRef<SafeInteger> getCoeffs() const { return coeffs; }
 
   void shiftToOrigin() { coeffs.back() = 0; }

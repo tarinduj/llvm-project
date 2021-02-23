@@ -1109,8 +1109,7 @@ Matrix FlatAffineConstraints::coefficientMatrixFromEqs() const {
 llvm::Optional<SmallVector<int64_t, 8>>
 FlatAffineConstraints::findSampleUnbounded(FlatAffineConstraints &cone) const {
   auto coeffMatrix = cone.coefficientMatrixFromEqs();
-  auto U =
-      LinearTransform::makeTransformToColumnEchelon(std::move(coeffMatrix));
+  auto U = LinearTransform::makeTransformToColumnEchelon(coeffMatrix);
   FlatAffineConstraints transformedSet = U.postMultiplyBasicSet(*this);
 
   auto maybeBoundedSample = transformedSet.findBoundedDimensionsSample(cone);

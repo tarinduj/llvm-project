@@ -76,6 +76,7 @@ public:
   /// Returns such a point if one exists, or an empty Optional otherwise.
   Optional<SmallVector<SafeInteger, 8>> findIntegerSample();
 
+  bool isIntegerEmptyOnlyEqualities();
   bool isIntegerEmpty();
 
   /// Get a {denominator, sample} pair representing a rational sample point in
@@ -108,7 +109,8 @@ private:
   ///
   /// \returns the sample or an empty std::optional if no sample exists.
   Optional<SmallVector<SafeInteger, 8>>
-  findBoundedDimensionsSample(const PresburgerBasicSet &cone, bool onlyEmptiness) const;
+  findBoundedDimensionsSample(const PresburgerBasicSet &cone,
+                              bool onlyEmptiness) const;
 
   /// Find a sample for this basic set, which is known to be a full-dimensional
   /// cone.

@@ -66,31 +66,69 @@ PresburgerBasicSet PresburgerBasicSet::makePlainBasicSet() const {
   }
   return plainBasicSet;
 }
+Optional<SmallVector<SafeInteger, 8>>
+PresburgerBasicSet::findIntegerSampleRemoveEqs(bool onlyEmptiness) {
+  auto copy = *this;
+  if (!ineqs.empty()) {
+    Simplex simplex(copy);
+    simplex.detectImplicitEqualities();
+    copy.updateFromSimplex(simplex);
+  }
+
+  auto coeffMatrix = copy.coefficientMatrixFromEqs();
+  LinearTransform U =
+      LinearTransform::makeTransformToColumnEchelon(coeffMatrix);
+  SmallVector<SafeInteger, 8> vals;
+  vals.reserve(copy.getNumTotalDims());
+  unsigned col = 0;
+  for (auto &eq : copy.eqs) {
+    if (col == copy.getNumTotalDims())
+      break;
+    const auto &coeffs = eq.getCoeffs();
+    if (coeffs[col] == 0)
+      continue;
+    SafeInteger val = coeffs.back();
+    for (unsigned c = 0; c < col; ++c) {
+      val += vals[c] * coeffs[c];
+    }
+    if (val % coeffs[col] != 0)
+      return {};
+    vals.push_back(-val / coeffs[col]);
+    col++;
+  }
+
+  if (copy.ineqs.empty()) {
+    if (onlyEmptiness)
+      return vals;
+    // Pad with zeros.
+    vals.resize(copy.getNumTotalDims());
+    return U.preMultiplyColumn(vals);
+  }
+
+  copy.eqs.clear();
+  PresburgerBasicSet T = U.postMultiplyBasicSet(copy);
+  T.substitute(vals);
+  return T.findIntegerSample(onlyEmptiness);
+}
 
 Optional<SmallVector<SafeInteger, 8>>
-PresburgerBasicSet::findIntegerSample() {
+PresburgerBasicSet::findIntegerSample(bool onlyEmptiness) {
   if (!isPlainBasicSet())
     return makePlainBasicSet().findIntegerSample();
-
+  if (!eqs.empty())
+    return findIntegerSampleRemoveEqs(onlyEmptiness);
   PresburgerBasicSet cone = makeRecessionCone();
   if (cone.getNumEqualities() < getNumTotalDims())
-    return findSampleUnbounded(cone, false);
+    return findSampleUnbounded(cone, onlyEmptiness);
   else
-    return findSampleBounded(false);
+    return findSampleBounded(onlyEmptiness);
 }
 
 bool PresburgerBasicSet::isIntegerEmpty() {
   // dumpISL();
   if (ineqs.empty() && eqs.empty())
     return false;
-  if (!isPlainBasicSet())
-    return makePlainBasicSet().isIntegerEmpty();
-
-  PresburgerBasicSet cone = makeRecessionCone();
-  if (cone.getNumEqualities() < getNumTotalDims())
-    return !findSampleUnbounded(cone, true).hasValue();
-  else
-    return !findSampleBounded(true).hasValue();
+  return !findIntegerSample(true);
 }
 
 Optional<std::pair<SafeInteger, SmallVector<SafeInteger, 8>>>
@@ -163,7 +201,8 @@ PresburgerBasicSet::findSampleUnbounded(PresburgerBasicSet &cone,
       LinearTransform::makeTransformToColumnEchelon(std::move(coeffMatrix));
   PresburgerBasicSet transformedSet = U.postMultiplyBasicSet(*this);
 
-  auto maybeBoundedSample = transformedSet.findBoundedDimensionsSample(cone, onlyEmptiness);
+  auto maybeBoundedSample =
+      transformedSet.findBoundedDimensionsSample(cone, onlyEmptiness);
   if (!maybeBoundedSample)
     return {};
   if (onlyEmptiness)
@@ -284,8 +323,8 @@ void PresburgerBasicSet::projectOutUnboundedDimensions(unsigned unboundedDims) {
 }
 
 Optional<SmallVector<SafeInteger, 8>>
-PresburgerBasicSet::findBoundedDimensionsSample(
-    const PresburgerBasicSet &cone, bool onlyEmptiness) const {
+PresburgerBasicSet::findBoundedDimensionsSample(const PresburgerBasicSet &cone,
+                                                bool onlyEmptiness) const {
   assert(cone.isPlainBasicSet());
   PresburgerBasicSet boundedSet = *this;
   boundedSet.projectOutUnboundedDimensions(getNumTotalDims() -

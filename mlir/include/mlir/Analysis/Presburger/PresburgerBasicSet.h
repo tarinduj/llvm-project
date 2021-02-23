@@ -69,12 +69,16 @@ public:
   void removeInequality(unsigned i);
   void removeEquality(unsigned i);
 
+  Optional<SmallVector<SafeInteger, 8>>
+  findIntegerSampleRemoveEqs(bool onlyEmptiness = false);
+
   /// Find a sample point satisfying the constraints. This uses a branch and
   /// bound algorithm with generalized basis reduction, which always works if
   /// the set is bounded. This should not be called for unbounded sets.
   ///
   /// Returns such a point if one exists, or an empty Optional otherwise.
-  Optional<SmallVector<SafeInteger, 8>> findIntegerSample();
+  Optional<SmallVector<SafeInteger, 8>>
+  findIntegerSample(bool onlyEmptiness = false);
 
   bool isIntegerEmpty();
 
@@ -108,7 +112,8 @@ private:
   ///
   /// \returns the sample or an empty std::optional if no sample exists.
   Optional<SmallVector<SafeInteger, 8>>
-  findBoundedDimensionsSample(const PresburgerBasicSet &cone, bool onlyEmptiness) const;
+  findBoundedDimensionsSample(const PresburgerBasicSet &cone,
+                              bool onlyEmptiness) const;
 
   /// Find a sample for this basic set, which is known to be a full-dimensional
   /// cone.

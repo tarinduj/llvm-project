@@ -336,48 +336,7 @@ Optional<SmallVector<SafeInteger, 8>>
 PresburgerBasicSet::findSampleBounded(bool onlyEmptiness) {
   if (getNumTotalDims() == 0)
     return SmallVector<SafeInteger, 8>();
-
-  Simplex simplex(*this);
-  if (simplex.isEmpty())
-    return {};
-
-  simplex.detectImplicitEqualities();
-  auto copy = *this;
-  copy.updateFromSimplex(simplex);
-
-  auto coeffMatrix = copy.coefficientMatrixFromEqs();
-  LinearTransform U =
-      LinearTransform::makeTransformToColumnEchelon(std::move(coeffMatrix));
-  PresburgerBasicSet T = U.postMultiplyBasicSet(*this);
-  SmallVector<SafeInteger, 8> vals;
-  vals.reserve(T.getNumTotalDims());
-  unsigned col = 0;
-  for (auto &eq : T.eqs) {
-    if (col == T.getNumTotalDims())
-      break;
-    const auto &coeffs = eq.getCoeffs();
-    if (coeffs[col] == 0)
-      continue;
-    SafeInteger val = coeffs.back();
-    for (unsigned c = 0; c < col; ++c) {
-      val += vals[c] * coeffs[c];
-    }
-    if (val % coeffs[col] != 0)
-      return {};
-    vals.push_back(-val / coeffs[col]);
-    col++;
-  }
-  T.eqs.clear();
-  T.substitute(vals);
-  Simplex simplT(T);
-
-  if (auto opt = simplT.findIntegerSample()) {
-    if (onlyEmptiness)
-      return opt;
-    vals.append(opt->begin(), opt->end());
-    return U.preMultiplyColumn(vals);
-  }
-  return {};
+  return Simplex(*this).findIntegerSample();
 }
 
 // We shift all the constraints to the origin, then construct a simplex and

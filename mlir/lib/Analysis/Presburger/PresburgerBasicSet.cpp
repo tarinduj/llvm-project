@@ -118,6 +118,8 @@ PresburgerBasicSet::findIntegerSample(bool onlyEmptiness) {
   if (!eqs.empty())
     return findIntegerSampleRemoveEqs(onlyEmptiness);
   PresburgerBasicSet cone = makeRecessionCone();
+  if (cone.getNumEqualities() == 0 && onlyEmptiness)
+    return SmallVector<SafeInteger, 8>();
   if (cone.getNumEqualities() < getNumTotalDims())
     return findSampleUnbounded(cone, onlyEmptiness);
   else

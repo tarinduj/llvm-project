@@ -24,13 +24,14 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 using llvm::APInt;
+using Int = __int128_t;
 
 /// A class to overflow-aware 64-bit integers.
 ///
 /// Overflows are asserted to not occur.
 struct SafeInteger {
   /// Construct a SafeInteger from a numerator and denominator.
-  SafeInteger(__int128_t oVal) : val(oVal) {}
+  SafeInteger(Int oVal) : val(oVal) {}
 
   /// Default constructor initializes the number to zero.
   SafeInteger() : SafeInteger(0) {}
@@ -38,7 +39,7 @@ struct SafeInteger {
   inline explicit operator bool();
 
   /// The stored value. This is always 64-bit.
-  __int128_t val;
+  Int val;
 };
 
 inline void overflowErrorIf(bool overflow) {
@@ -68,14 +69,14 @@ inline bool operator>=(const SafeInteger &x, const SafeInteger &y) {
 }
 
 inline SafeInteger operator+(const SafeInteger &x, const SafeInteger &y) {
-  __int128_t result;
+  Int result;
   bool overflow = __builtin_add_overflow(x.val, y.val, &result);
   overflowErrorIf(overflow);
   return SafeInteger(result);
 }
 
 inline SafeInteger operator-(const SafeInteger &x, const SafeInteger &y) {
-  __int128_t result;
+  Int result;
   bool overflow = __builtin_sub_overflow(x.val, y.val, &result);
   overflowErrorIf(overflow);
   return SafeInteger(result);
@@ -86,7 +87,7 @@ inline SafeInteger operator-(const SafeInteger &x) {
 }
 
 inline SafeInteger operator*(const SafeInteger &x, const SafeInteger &y) {
-  __int128_t result;
+  Int result;
   bool overflow = __builtin_mul_overflow(x.val, y.val, &result);
   overflowErrorIf(overflow);
   return SafeInteger(result);

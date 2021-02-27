@@ -102,6 +102,14 @@ void Matrix::addToRow(unsigned sourceRow, unsigned targetRow,
   return;
 }
 
+void Matrix::scaleColumn(unsigned column, SafeInteger scale) {
+  if (scale == 0)
+    return;
+  for (unsigned row = 0, e = getNumRows(); row < e; ++row)
+    at(row, column) *= scale;
+  return;
+}
+
 void Matrix::addToColumn(unsigned sourceColumn, unsigned targetColumn,
                          SafeInteger scale) {
   if (scale == 0)

@@ -23,6 +23,19 @@ static void subtractColumns(LinearTransform::MatrixType &m, unsigned row,
   otherMatrix.addToColumn(sourceCol, targetCol, -ratio);
 }
 
+template <typename T>
+T extendedEuclid(T a, T b, T &x, T &y) {
+  x = 1, y = 0;
+  T x1 = 0, y1 = 1, a1 = a, b1 = b;
+  while (b1) {
+    T q = a1 / b1;
+    std::tie(x, x1) = std::make_tuple(x1, x - q * x1);
+    std::tie(y, y1) = std::make_tuple(y1, y - q * y1);
+    std::tie(a1, b1) = std::make_tuple(b1, a1 - q * b1);
+  }
+  return a1;
+}
+
 // TODO possible optimization: would it be better to take transpose and convert
 // to row echelon form, and then transpose back? Then we have row ops instead of
 // column ops and we can vectorize.
@@ -72,16 +85,15 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType m) {
         m.negateColumn(i);
         resultMatrix.negateColumn(i);
       }
-      for (unsigned targetCol = i, sourceCol = col;
-           m(row, targetCol) != 0 && m(row, sourceCol) != 0;
-           std::swap(targetCol, sourceCol)) {
-        subtractColumns(m, row, sourceCol, targetCol, resultMatrix);
-      }
+      auto m_i = m(row, i), m_col = m(row, col);
+      SafeInteger a_i, a_col;
+      extendedEuclid(m_i, m_col, a_i, a_col);
 
-      if (m(row, col) == 0) {
-        m.swapColumns(i, col);
-        resultMatrix.swapColumns(i, col);
-      }
+      m.scaleColumn(col, a_col);
+      resultMatrix.scaleColumn(col, a_col);
+      m.addToColumn(i, col, a_i);
+      resultMatrix.addToColumn(i, col, a_i);
+      subtractColumns(m, row, col, i, resultMatrix);
     }
 
     for (unsigned targetCol = 0; targetCol < col; targetCol++) {

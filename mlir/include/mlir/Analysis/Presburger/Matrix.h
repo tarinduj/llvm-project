@@ -66,6 +66,8 @@ public:
   /// Add `scale` multiples of the source row to the target row.
   void addToRow(unsigned sourceRow, unsigned targetRow, SafeInteger scale);
 
+  void scaleColumn(unsigned column, SafeInteger scale);
+
   void addToColumn(unsigned sourceColumn, unsigned targetColumn,
                    SafeInteger scale);
 

@@ -103,21 +103,15 @@ inline SafeInteger operator%(const SafeInteger &x, const SafeInteger &y) {
   return x.val % y.val;
 }
 
-inline void operator+=(SafeInteger &x, const SafeInteger &y) {
-  x = x + y;
-}
-inline void operator-=(SafeInteger &x, const SafeInteger &y) {
-  x = x - y;
-}
-inline void operator*=(SafeInteger &x, const SafeInteger &y) {
-  x = x * y;
-}
-inline void operator/=(SafeInteger &x, const SafeInteger &y) {
-  x = x / y;
-}
-inline void operator%=(SafeInteger &x, const SafeInteger &y) {
-  x = x % y;
-}
+inline void operator+=(SafeInteger &x, const SafeInteger &y) { x = x + y; }
+
+inline void operator-=(SafeInteger &x, const SafeInteger &y) { x = x - y; }
+
+inline void operator*=(SafeInteger &x, const SafeInteger &y) { x = x * y; }
+
+inline void operator/=(SafeInteger &x, const SafeInteger &y) { x = x / y; }
+
+inline void operator%=(SafeInteger &x, const SafeInteger &y) { x = x % y; }
 
 inline SafeInteger abs(const SafeInteger &x) { return x < 0 ? -x : x; }
 

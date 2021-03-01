@@ -25,15 +25,19 @@ static void subtractColumns(LinearTransform::MatrixType &m, unsigned row,
 
 template <typename T>
 T extendedEuclid(T a, T b, T &x, T &y) {
-  x = 1, y = 0;
-  T x1 = 0, y1 = 1, a1 = a, b1 = b;
-  while (b1) {
-    T q = a1 / b1;
-    std::tie(x, x1) = std::make_tuple(x1, x - q * x1);
-    std::tie(y, y1) = std::make_tuple(y1, y - q * y1);
-    std::tie(a1, b1) = std::make_tuple(b1, a1 - q * b1);
+  if (b == 0) {
+    x = 1;
+    y = 0;
+    return a;
   }
-  return a1;
+  T x1, y1;
+  T d = extendedEuclid(b, a % b, x1, y1);
+  // x1 * b + y1 * (a % b) = d
+  // x1 * b + y1 * (a - (a/b)*b) = d
+  // (x1 - y1 * (a/b)) *b + y1 * a = d
+  x = y1;
+  y = x1 - y1 * (a / b);
+  return d;
 }
 
 // TODO possible optimization: would it be better to take transpose and convert
@@ -42,7 +46,7 @@ T extendedEuclid(T a, T b, T &x, T &y) {
 //
 // But at some point we need the pre-multiply version as well, so optimisation
 // doesn't help in that case or only helps 1/3rd of the time (when we need both)
-LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType m) {
+LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType &m) {
   // Padding of one is required by the LinearTransform constructor.
   MatrixType resultMatrix = MatrixType::identity(m.getNumColumns());
 
@@ -86,14 +90,31 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType m) {
         resultMatrix.negateColumn(i);
       }
       auto m_i = m(row, i), m_col = m(row, col);
-      SafeInteger a_i, a_col;
-      extendedEuclid(m_i, m_col, a_i, a_col);
+      if (m_i % m_col == 0) {
+        // If m_col divides m we directly subtract.
+        subtractColumns(m, row, col, i, resultMatrix);
+      } else if (m_col % m_i == 0) {
+        m.swapColumns(i, col);
+        subtractColumns(m, row, col, i, resultMatrix);
+      } else {
+        SafeInteger a_i, a_col;
+        extendedEuclid(m_i, m_col, a_i, a_col);
 
-      m.scaleColumn(col, a_col);
-      resultMatrix.scaleColumn(col, a_col);
-      m.addToColumn(i, col, a_i);
-      resultMatrix.addToColumn(i, col, a_i);
-      subtractColumns(m, row, col, i, resultMatrix);
+        // a_i m_i + a_col m_col = g
+        // This sclaing is not valid if a_col is zero, but that only occurs if
+        // m_i is the gcd, i.e., if m_i divides m_col, which will be caught by
+        // the above case.
+        assert(a_col != 0);
+        m.scaleColumn(col, a_col);
+        resultMatrix.scaleColumn(col, a_col);
+
+        // m_col = g - a_i m_i
+        m.addToColumn(i, col, a_i);
+        resultMatrix.addToColumn(i, col, a_i);
+
+        // m_col = g; make m_i zero
+        subtractColumns(m, row, col, i, resultMatrix);
+      }
     }
 
     for (unsigned targetCol = 0; targetCol < col; targetCol++) {

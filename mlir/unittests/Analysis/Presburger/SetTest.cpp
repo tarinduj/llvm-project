@@ -20,7 +20,8 @@ using namespace mlir::presburger;
 static PresburgerSet setFromString(StringRef string) {
   ErrorCallback callback = [](SMLoc loc, const Twine &message) {
     // This is a hack to make the Parser compile
-    llvm::errs() << "Parsing error " << message << " at " << loc.getPointer() << '\n';
+    llvm::errs() << "Parsing error " << message << " at " << loc.getPointer()
+                 << '\n';
     llvm_unreachable("PARSING ERROR!!");
     MLIRContext context;
     return mlir::emitError(UnknownLoc::get(&context), message);
@@ -39,16 +40,18 @@ void expectEqual(StringRef sDesc, StringRef tDesc) {
 }
 
 TEST(PresburgerSetTest, Equality) {
-  expectEqual("(x) : (exists y, z : x = y + 3z and x >= y and z >= 0 and y >= 0)",
-              "(x) : (x >= 0)");
-  expectEqual("(x) : (exists y, z : x = y + 3z and x >= y and z >= 0 and y >= 0)",
-              "(x) : (exists y, z : x = y + 3z and x >= y and z >= 0 and y >= 0)");
+  expectEqual(
+      "(x) : (exists y, z : x = y + 3z and x >= y and z >= 0 and y >= 0)",
+      "(x) : (x >= 0)");
+  expectEqual(
+      "(x) : (exists y, z : x = y + 3z and x >= y and z >= 0 and y >= 0)",
+      "(x) : (exists y, z : x = y + 3z and x >= y and z >= 0 and y >= 0)");
   expectEqual("(x) : (exists q = [(x)/2] : x = 2q)",
               "(x) : (exists q = [(x)/2] : x = 2q)");
-  expectEqual("(x) : (exists q = [(x)/2] : x = 2q) or (exists q = [(x)/3] : x = 3q)",
-              "(x) : (exists q = [(x)/2] : x = 2q) or (exists q = [(x)/3] : x = 3q)");
-  expectEqual("(x) : (exists q : x = q and q <= -1)",
-              "(x) : (x <= -1)");
+  expectEqual(
+      "(x) : (exists q = [(x)/2] : x = 2q) or (exists q = [(x)/3] : x = 3q)",
+      "(x) : (exists q = [(x)/2] : x = 2q) or (exists q = [(x)/3] : x = 3q)");
+  expectEqual("(x) : (exists q : x = q and q <= -1)", "(x) : (x <= -1)");
 }
 
 TEST(PresburgerSetTest, Empty) {

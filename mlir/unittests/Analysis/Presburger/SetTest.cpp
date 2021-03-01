@@ -50,3 +50,12 @@ TEST(PresburgerSetTest, Equality) {
   expectEqual("(x) : (exists q : x = q and q <= -1)",
               "(x) : (x <= -1)");
 }
+
+TEST(PresburgerSetTest, Empty) {
+  EXPECT_TRUE(
+      setFromString(
+          "(d0) : (exists q0 = [(2d0)/3], q1 = [(2d0)/3], q2 = [(q1)/2], q3 = "
+          "[(2d0)/3], q4 = [(q3)/2] : d0 >= 0 and d0 - 1 >= 0 and 2d0 - 3q0 - "
+          "1 >= 0 and -2d0 + 3q1 >= 0 and -2d0 + 3q3 >= 0)")
+          .isIntegerEmpty());
+}

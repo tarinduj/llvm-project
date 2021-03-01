@@ -81,15 +81,15 @@ PresburgerBasicSet::findIntegerSampleRemoveEqs(bool onlyEmptiness) {
   SmallVector<SafeInteger, 8> vals;
   vals.reserve(copy.getNumTotalDims());
   unsigned col = 0;
-  for (auto &eq : copy.eqs) {
+  for (unsigned row = 0, e = copy.eqs.size(); row < e; ++row) {
     if (col == copy.getNumTotalDims())
       break;
-    const auto &coeffs = eq.getCoeffs();
+    const auto &coeffs = coeffMatrix.getRow(row);
     if (coeffs[col] == 0)
       continue;
-    SafeInteger val = coeffs.back();
+    SafeInteger val = copy.eqs[row].getCoeffs().back();
     for (unsigned c = 0; c < col; ++c) {
-      val += vals[c] * coeffs[c];
+      val -= vals[c] * coeffs[c];
     }
     if (val % coeffs[col] != 0)
       return {};
@@ -200,7 +200,7 @@ PresburgerBasicSet::findSampleUnbounded(PresburgerBasicSet &cone,
                                         bool onlyEmptiness) {
   auto coeffMatrix = cone.coefficientMatrixFromEqs();
   LinearTransform U =
-      LinearTransform::makeTransformToColumnEchelon(std::move(coeffMatrix));
+      LinearTransform::makeTransformToColumnEchelon(coeffMatrix);
   PresburgerBasicSet transformedSet = U.postMultiplyBasicSet(*this);
 
   auto maybeBoundedSample =

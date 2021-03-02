@@ -95,6 +95,7 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType &m) {
         subtractColumns(m, row, col, i, resultMatrix);
       } else if (m_col % m_i == 0) {
         m.swapColumns(i, col);
+        resultMatrix.swapColumns(i, col);
         subtractColumns(m, row, col, i, resultMatrix);
       } else {
         SafeInteger a_i, a_col;

@@ -1398,7 +1398,7 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
           auto min = minRoundedUp, max = maxRoundedDown;
           for (unsigned i = level; i < basis.getNumRows(); ++i) {
             SmallVector<SafeInteger, 8> basisCoeffs(basis.getRow(i).begin(),
-                                                basis.getRow(i).end());
+                                                    basis.getRow(i).end());
             basisCoeffs.push_back(0);
             if (i != level) {
               if (Optional<Fraction> maybeMin =
@@ -1423,7 +1423,7 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
                 return *maybeSample;
             }
 
-            auto mid = (min + max)/2;
+            auto mid = (min + max) / 2;
             basisCoeffs.back() = -mid;
             addEquality(basisCoeffs);
             if (empty)

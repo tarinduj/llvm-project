@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
-        res.dump();
+        res.dumpISL();
     }
   } else if (op == "complement") {
     PresburgerSet setA = getSetFromInput();
@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
-        res.dump();
+        res.dumpISL();
     }
   } else if (op == "eliminate") {
     PresburgerSet setA = getSetFromInput();
@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
-        a.dump();
+        a.dumpISL();
     }
   } else {
     std::cout << "Unsupported operation " << op << "!\n";

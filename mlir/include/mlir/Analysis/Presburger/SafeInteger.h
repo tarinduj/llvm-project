@@ -19,6 +19,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 
 namespace mlir {
 namespace analysis {
@@ -26,12 +27,23 @@ namespace presburger {
 using llvm::APInt;
 using Int = __int128_t;
 
+inline void overflowErrorIf(bool overflow) {
+  if (overflow) {
+    llvm::errs() << "Overflow!\n";
+    abort();
+  }
+}
+
 /// A class to overflow-aware 64-bit integers.
 ///
 /// Overflows are asserted to not occur.
 struct SafeInteger {
   /// Construct a SafeInteger from a numerator and denominator.
-  SafeInteger(Int oVal) : val(oVal) {}
+  SafeInteger(int64_t oVal) {
+    overflowErrorIf(!(std::numeric_limits<Int>::min() <= oVal &&
+                      oVal <= std::numeric_limits<Int>::max()));
+    val = oVal;
+  }
 
   /// Default constructor initializes the number to zero.
   SafeInteger() : SafeInteger(0) {}
@@ -41,13 +53,6 @@ struct SafeInteger {
   /// The stored value. This is always 64-bit.
   Int val;
 };
-
-inline void overflowErrorIf(bool overflow) {
-  if (overflow) {
-    llvm::errs() << "Overflow!\n";
-    abort();
-  }
-}
 
 inline bool operator<(const SafeInteger &x, const SafeInteger &y) {
   return x.val < y.val;

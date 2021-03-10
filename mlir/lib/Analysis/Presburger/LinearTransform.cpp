@@ -31,7 +31,7 @@ T extendedEuclid(T a, T b, T &x, T &y) {
     return a;
   }
   T x1, y1;
-  T d = extendedEuclid(b, a % b, x1, y1);
+  T d = extendedEuclid(b, T(a % b), x1, y1);
   // x1 * b + y1 * (a % b) = d
   // x1 * b + y1 * (a - (a/b)*b) = d
   // (x1 - y1 * (a/b)) *b + y1 * a = d

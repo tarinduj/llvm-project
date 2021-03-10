@@ -132,7 +132,7 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
     // rows potentially having different denominators. The new denominator is
     // the lcm of the two.
     SafeInteger lcm =
-        mlir::analysis::presburger::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
+        std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
     SafeInteger nRowCoeff = lcm / tableau(nRow - 1, 0);
     SafeInteger idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
     tableau(nRow - 1, 0) = lcm;
@@ -152,7 +152,7 @@ void Simplex::normalizeRow(unsigned row) {
   for (unsigned col = 0; col < nCol; ++col) {
     if (gcd == 1)
       break;
-    gcd = llvm::greatestCommonDivisor(gcd, abs(tableau(row, col)));
+    gcd = llvm::greatestCommonDivisor(gcd, std::abs(tableau(row, col)));
   }
   if (gcd == 0 || gcd == 1)
     return;
@@ -1499,7 +1499,7 @@ Simplex::findRationalSample() const {
   SafeInteger denom = 1;
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Row)
-      denom = lcm(denom, tableau(u.pos, 0));
+      denom = std::lcm(denom, tableau(u.pos, 0));
   }
   SmallVector<SafeInteger, 8> sample;
   SafeInteger gcd = denom;
@@ -1508,7 +1508,7 @@ Simplex::findRationalSample() const {
       sample.push_back(0);
     else {
       sample.push_back((tableau(u.pos, 1) * denom) / tableau(u.pos, 0));
-      gcd = llvm::greatestCommonDivisor(abs(gcd), abs(sample.back()));
+      gcd = llvm::greatestCommonDivisor(std::abs(gcd), std::abs(sample.back()));
     }
   }
   if (gcd != 0) {

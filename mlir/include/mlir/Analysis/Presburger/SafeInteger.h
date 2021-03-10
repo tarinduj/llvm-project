@@ -24,7 +24,6 @@
 namespace mlir {
 namespace analysis {
 namespace presburger {
-using llvm::APInt;
 using Int = __int128_t;
 
 inline void overflowErrorIf(bool overflow) {
@@ -119,15 +118,6 @@ inline void operator/=(SafeInteger &x, const SafeInteger &y) { x = x / y; }
 
 inline void operator%=(SafeInteger &x, const SafeInteger &y) { x = x % y; }
 
-inline SafeInteger abs(const SafeInteger &x) { return x < 0 ? -x : x; }
-
-/// Returns the least common multiple of 'a' and 'b'.
-inline SafeInteger lcm(SafeInteger a, SafeInteger b) {
-  SafeInteger x = abs(a);
-  SafeInteger y = abs(b);
-  SafeInteger lcm = (x * y) / llvm::greatestCommonDivisor(x, y);
-  return lcm;
-}
 /// Returns MLIR's mod operation on constants. MLIR's mod operation yields the
 /// remainder of the Euclidean division of 'lhs' by 'rhs', and is therefore not
 /// C's % operator.  The RHS is always expected to be positive, and the result
@@ -180,5 +170,18 @@ inline SafeInteger::operator bool() { return *this != 0; }
 } // namespace presburger
 } // namespace analysis
 } // namespace mlir
+
+namespace std {
+using SafeInteger = mlir::analysis::presburger::SafeInteger;
+inline SafeInteger abs(SafeInteger x) { return x < 0 ? -x : x; }
+
+/// Returns the least common multiple of 'a' and 'b'.
+inline SafeInteger lcm(SafeInteger a, SafeInteger b) {
+  SafeInteger x = abs(a);
+  SafeInteger y = abs(b);
+  SafeInteger lcm = (x * y) / llvm::greatestCommonDivisor(x, y);
+  return lcm;
+}
+}
 
 #endif // MLIR_ANALYSIS_PRESBURGER_SAFE_INTEGER_H

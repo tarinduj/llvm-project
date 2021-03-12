@@ -24,8 +24,11 @@
 namespace mlir {
 namespace analysis {
 namespace presburger {
-using Int = __int128_t;
+using Int = int16_t;
 
+#ifndef SAFE_INTEGER
+using SafeInteger = Int;
+#else
 inline void overflowErrorIf(bool overflow) {
   if (overflow) {
     llvm::errs() << "Overflow!\n";
@@ -167,6 +170,8 @@ inline SafeInteger floorDiv(SafeInteger lhs, SafeInteger rhs) {
 
 inline SafeInteger::operator bool() { return *this != 0; }
 
+#endif
+
 } // namespace presburger
 } // namespace analysis
 } // namespace mlir
@@ -182,6 +187,6 @@ inline SafeInteger lcm(SafeInteger a, SafeInteger b) {
   SafeInteger lcm = (x * y) / llvm::greatestCommonDivisor(x, y);
   return lcm;
 }
-}
+} // namespace std
 
 #endif // MLIR_ANALYSIS_PRESBURGER_SAFE_INTEGER_H

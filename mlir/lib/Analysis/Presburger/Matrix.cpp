@@ -12,7 +12,7 @@ using namespace mlir;
 using namespace analysis::presburger;
 
 Matrix::Matrix(unsigned rows, unsigned columns)
-    : nRows(rows), nColumns(columns), data(nRows * nColumns) {}
+    : nRows(rows), nColumns(columns), data(nRows * 32) {}
 
 Matrix Matrix::identity(unsigned dimension) {
   Matrix matrix(dimension, dimension);
@@ -24,13 +24,13 @@ Matrix Matrix::identity(unsigned dimension) {
 SafeInteger &Matrix::at(unsigned row, unsigned column) {
   assert(row < getNumRows() && "Row outside of range");
   assert(column < getNumColumns() && "Column outside of range");
-  return data[row * nColumns + column];
+  return data[row * 32 + column];
 }
 
 SafeInteger Matrix::at(unsigned row, unsigned column) const {
   assert(row < getNumRows() && "Row outside of range");
   assert(column < getNumColumns() && "Column outside of range");
-  return data[row * nColumns + column];
+  return data[row * 32 + column];
 }
 
 SafeInteger &Matrix::operator()(unsigned row, unsigned column) {
@@ -45,22 +45,21 @@ unsigned Matrix::getNumRows() const { return nRows; }
 
 unsigned Matrix::getNumColumns() const { return nColumns; }
 
+Vector &Matrix::getRowVector(unsigned row) {
+  return *(Vector *)&data[row * 32];
+}
+
 void Matrix::resize(unsigned newNRows, unsigned newNColumns) {
-  if (newNColumns == nColumns) {
-    nRows = newNRows;
-    data.resize(nRows * nColumns);
-  } else {
-    SmallVector<SafeInteger, 8> newData;
-    newData.reserve(newNRows * newNColumns);
-    for (unsigned row = 0; row < newNRows; row++) {
-      for (unsigned col = 0; col < newNColumns; col++) {
-        newData.push_back(row < nRows && col < nColumns ? at(row, col) : 0);
+  nRows = newNRows;
+  data.resize(nRows * 32);
+  if (newNColumns < nColumns) {
+    for (unsigned row = 0; row < nRows; ++row) {
+      for (unsigned col = newNColumns; col < nColumns; ++col) {
+        at(row, col) = 0;
       }
     }
-    data = std::move(newData);
-    nRows = newNRows;
-    nColumns = newNColumns;
   }
+  nColumns = newNColumns;
 }
 
 void Matrix::swapRows(unsigned row, unsigned otherRow) {
@@ -90,7 +89,7 @@ void Matrix::negateColumn(unsigned column) {
 }
 
 ArrayRef<SafeInteger> Matrix::getRow(unsigned row) const {
-  return {&data[row * nColumns], nColumns};
+  return {&data[row * 32], nColumns};
 }
 
 void Matrix::addToRow(unsigned sourceRow, unsigned targetRow,

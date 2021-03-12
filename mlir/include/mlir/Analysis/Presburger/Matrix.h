@@ -25,6 +25,8 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
+typedef int16_t Vector __attribute__((ext_vector_type(32)));
+
 /// This is a simple class to represent a resizable matrix.
 ///
 /// The data is stored in the form of a vector of vectors.
@@ -59,6 +61,8 @@ public:
   unsigned getNumRows() const;
 
   unsigned getNumColumns() const;
+
+  Vector &getRowVector(unsigned row);
 
   /// Get an ArrayRef corresponding to the specified row.
   ArrayRef<SafeInteger> getRow(unsigned row) const;

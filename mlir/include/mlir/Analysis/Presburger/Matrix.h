@@ -27,7 +27,9 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
-typedef int16_t Vector __attribute__((ext_vector_type(32)));
+#define MATRIX_COLUMN_COUNT 32
+
+typedef int16_t Vector __attribute__((ext_vector_type(MATRIX_COLUMN_COUNT)));
 
 /// This is a simple class to represent a resizable matrix.
 ///
@@ -49,14 +51,14 @@ public:
   SafeInteger &at(unsigned row, unsigned column) {
     assert(row < getNumRows() && "Row outside of range");
     assert(column < getNumColumns() && "Column outside of range");
-    return data[row * 32 + column];
+    return data[row * MATRIX_COLUMN_COUNT + column];
   }
 
   __attribute__((always_inline))
   SafeInteger at(unsigned row, unsigned column) const {
     assert(row < getNumRows() && "Row outside of range");
     assert(column < getNumColumns() && "Column outside of range");
-    return data[row * 32 + column];
+    return data[row * MATRIX_COLUMN_COUNT + column];
   }
 
   __attribute__((always_inline))
@@ -86,7 +88,7 @@ public:
 
   __attribute__((always_inline))
   Vector &getRowVector(unsigned row) {
-    return *(Vector *)&data[row * 32];
+    return *(Vector *)&data[row * MATRIX_COLUMN_COUNT];
   }
 
 

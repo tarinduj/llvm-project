@@ -12,7 +12,7 @@ using namespace mlir;
 using namespace analysis::presburger;
 
 Matrix::Matrix(unsigned rows, unsigned columns)
-    : nRows(rows), nColumns(columns), data(nRows * 32) {}
+    : nRows(rows), nColumns(columns), data(nRows * MATRIX_COLUMN_COUNT) {}
 
 Matrix Matrix::identity(unsigned dimension) {
   Matrix matrix(dimension, dimension);
@@ -27,7 +27,7 @@ unsigned Matrix::getNumColumns() const { return nColumns; }
 
 void Matrix::resize(unsigned newNRows, unsigned newNColumns) {
   nRows = newNRows;
-  data.resize(nRows * 32);
+  data.resize(nRows * MATRIX_COLUMN_COUNT);
   if (newNColumns < nColumns) {
     for (unsigned row = 0; row < nRows; ++row) {
       for (unsigned col = newNColumns; col < nColumns; ++col) {
@@ -65,7 +65,7 @@ void Matrix::negateColumn(unsigned column) {
 }
 
 ArrayRef<SafeInteger> Matrix::getRow(unsigned row) const {
-  return {&data[row * 32], nColumns};
+  return {&data[row * MATRIX_COLUMN_COUNT], nColumns};
 }
 
 void Matrix::addToRow(unsigned sourceRow, unsigned targetRow,

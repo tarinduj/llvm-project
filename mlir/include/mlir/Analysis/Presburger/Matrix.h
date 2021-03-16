@@ -14,12 +14,14 @@
 #ifndef MLIR_ANALYSIS_PRESBURGER_MATRIX_H
 #define MLIR_ANALYSIS_PRESBURGER_MATRIX_H
 
+#include "mlir/Analysis/Presburger/AlignedAllocator.h"
 #include "mlir/Analysis/Presburger/SafeInteger.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
+#include <vector>
 
 namespace mlir {
 namespace analysis {
@@ -88,7 +90,7 @@ private:
   unsigned nRows, nColumns;
 
   /// Stores the data. data.size() is equal to nRows * nColumns.
-  SmallVector<SafeInteger, 64> data;
+  std::vector<SafeInteger, AlignedAllocator<SafeInteger, 64>> data;
 };
 
 } // namespace presburger

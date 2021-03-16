@@ -121,7 +121,7 @@ void Matrix::addToColumn(unsigned sourceColumn, unsigned targetColumn,
 void Matrix::print(raw_ostream &os) const {
   for (unsigned row = 0; row < nRows; ++row) {
     for (unsigned column = 0; column < nColumns; ++column)
-      os << at(row, column) << ' ';
+      os << at(row, column) << '\t';
     os << '\n';
   }
 }

@@ -131,8 +131,7 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
     // row, scaled by the coefficient for the variable, accounting for the two
     // rows potentially having different denominators. The new denominator is
     // the lcm of the two.
-    SafeInteger lcm =
-        std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
+    SafeInteger lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
     SafeInteger nRowCoeff = lcm / tableau(nRow - 1, 0);
     SafeInteger idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
     tableau(nRow - 1, 0) = lcm;
@@ -158,6 +157,21 @@ void Simplex::normalizeRow(unsigned row) {
     return;
   for (unsigned col = 0; col < nCol; ++col)
     tableau(row, col) /= gcd;
+  assert(tableau(row, 0) != 0);
+}
+
+void normalizeMatRow(Matrix &mat, unsigned row) {
+  SafeInteger gcd = 0;
+  for (unsigned col = 0; col < mat.getNumColumns(); ++col) {
+    if (gcd == 1)
+      break;
+    gcd = llvm::greatestCommonDivisor(gcd, std::abs(mat(row, col)));
+  }
+  if (gcd == 0 || gcd == 1)
+    return;
+  for (unsigned col = 0; col < mat.getNumColumns(); ++col)
+    mat(row, col) /= gcd;
+  assert(mat(row, 0) != 0);
 }
 
 namespace {
@@ -384,38 +398,83 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
          "Refusing to pivot redundant row or invalid column");
 
   swapRowWithCol(pivotRow, pivotCol);
-  std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
+
+  // auto copy = tableau;
+
+  // std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
+  // // We need to negate the whole pivot row except for the pivot column.
+  // if (tableau(pivotRow, 0) < 0) {
+  //   // If the denominator is negative, we negate the row by simply negating
+  //   the
+  //   // denominator.
+  //   tableau(pivotRow, 0) = -tableau(pivotRow, 0);
+  //   tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
+  // } else {
+  //   for (unsigned col = 1; col < nCol; ++col) {
+  //     if (col == pivotCol)
+  //       continue;
+  //     tableau(pivotRow, col) = -tableau(pivotRow, col);
+  //   }
+  // }
+  // normalizeRow(pivotRow);
+
+  // for (unsigned row = 0; row < nRow; ++row) {
+  //   if (row == pivotRow)
+  //     continue;
+  //   if (tableau(row, pivotCol) == 0) // Nothing to do.
+  //     continue;
+  //   tableau(row, 0) *= tableau(pivotRow, 0);
+  //   for (unsigned j = 1; j < nCol; ++j) {
+  //     if (j == pivotCol)
+  //       continue;
+  //     // Add rather than subtract because the pivot row has been negated.
+  //     tableau(row, j) = tableau(row, j) * tableau(pivotRow, 0) +
+  //                       tableau(row, pivotCol) * tableau(pivotRow, j);
+  //   }
+  //   tableau(row, pivotCol) *= tableau(pivotRow, pivotCol);
+  //   normalizeRow(row);
+  // }
+
+  Vector &pivotRowVec = tableau.getRowVector(pivotRow);
+  // swap pivotRowVec[0], pivotRowVec[pivotCol]
+  auto tmp = pivotRowVec[0];
+  pivotRowVec[0] = pivotRowVec[pivotCol];
+  pivotRowVec[pivotCol] = tmp;
   // We need to negate the whole pivot row except for the pivot column.
-  if (tableau(pivotRow, 0) < 0) {
+  if (pivotRowVec[0] < 0) {
     // If the denominator is negative, we negate the row by simply negating the
     // denominator.
-    tableau(pivotRow, 0) = -tableau(pivotRow, 0);
-    tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
+    pivotRowVec[0] = -pivotRowVec[0];
+    pivotRowVec[pivotCol] = -pivotRowVec[pivotCol];
   } else {
-    for (unsigned col = 1; col < nCol; ++col) {
-      if (col == pivotCol)
-        continue;
-      tableau(pivotRow, col) = -tableau(pivotRow, col);
-    }
+    Vector &vec = tableau.getRowVector(pivotRow);
+    vec = -vec;
+    vec[0] = -vec[0];
+    vec[pivotCol] = -vec[pivotCol];
   }
   normalizeRow(pivotRow);
 
+  Int a = pivotRowVec[0];
   for (unsigned row = 0; row < nRow; ++row) {
     if (row == pivotRow)
       continue;
-    if (tableau(row, pivotCol) == 0) // Nothing to do.
+    Vector &vec = tableau.getRowVector(row);
+    if (vec[pivotCol] == 0) // Nothing to do.
       continue;
-    tableau(row, 0) *= tableau(pivotRow, 0);
-    for (unsigned j = 1; j < nCol; ++j) {
-      if (j == pivotCol)
-        continue;
-      // Add rather than subtract because the pivot row has been negated.
-      tableau(row, j) = tableau(row, j) * tableau(pivotRow, 0) +
-                        tableau(row, pivotCol) * tableau(pivotRow, j);
-    }
-    tableau(row, pivotCol) *= tableau(pivotRow, pivotCol);
+    Int c = vec[pivotCol];
+    // c/q, d/q
+    vec *= a;
+    // ca/aq, da/aq
+    Int den = vec[0];
+    vec += c * pivotRowVec;
+    vec[0] = den;
+    vec[pivotCol] = c * pivotRowVec[pivotCol];
     normalizeRow(row);
   }
+
+  // for (unsigned row = 0; row < nRow; ++row)
+  //   for (unsigned col = 0; col < nCol; ++col)
+  //     assert(copy(row, col) == tableau(row, col));
 }
 
 /// Perform pivots until the unknown has a non-negative sample value or until

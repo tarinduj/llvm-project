@@ -44,10 +44,30 @@ public:
   static Matrix identity(unsigned dimension);
 
   /// Access the element at the specified row and column.
-  SafeInteger &at(unsigned row, unsigned column);
-  SafeInteger at(unsigned row, unsigned column) const;
-  SafeInteger &operator()(unsigned row, unsigned column);
-  SafeInteger operator()(unsigned row, unsigned column) const;
+
+  __attribute__((always_inline))
+  SafeInteger &at(unsigned row, unsigned column) {
+    assert(row < getNumRows() && "Row outside of range");
+    assert(column < getNumColumns() && "Column outside of range");
+    return data[row * 32 + column];
+  }
+
+  __attribute__((always_inline))
+  SafeInteger at(unsigned row, unsigned column) const {
+    assert(row < getNumRows() && "Row outside of range");
+    assert(column < getNumColumns() && "Column outside of range");
+    return data[row * 32 + column];
+  }
+
+  __attribute__((always_inline))
+  SafeInteger &operator()(unsigned row, unsigned column) {
+    return at(row, column);
+  }
+
+  __attribute__((always_inline))
+  SafeInteger operator()(unsigned row, unsigned column) const {
+    return at(row, column);
+  }
 
   /// Swap the given columns.
   void swapColumns(unsigned column, unsigned otherColumn);
@@ -64,7 +84,11 @@ public:
 
   unsigned getNumColumns() const;
 
-  Vector &getRowVector(unsigned row);
+  __attribute__((always_inline))
+  Vector &getRowVector(unsigned row) {
+    return *(Vector *)&data[row * 32];
+  }
+
 
   /// Get an ArrayRef corresponding to the specified row.
   ArrayRef<SafeInteger> getRow(unsigned row) const;

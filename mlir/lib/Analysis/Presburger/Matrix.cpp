@@ -21,33 +21,9 @@ Matrix Matrix::identity(unsigned dimension) {
   return matrix;
 }
 
-SafeInteger &Matrix::at(unsigned row, unsigned column) {
-  assert(row < getNumRows() && "Row outside of range");
-  assert(column < getNumColumns() && "Column outside of range");
-  return data[row * 32 + column];
-}
-
-SafeInteger Matrix::at(unsigned row, unsigned column) const {
-  assert(row < getNumRows() && "Row outside of range");
-  assert(column < getNumColumns() && "Column outside of range");
-  return data[row * 32 + column];
-}
-
-SafeInteger &Matrix::operator()(unsigned row, unsigned column) {
-  return at(row, column);
-}
-
-SafeInteger Matrix::operator()(unsigned row, unsigned column) const {
-  return at(row, column);
-}
-
 unsigned Matrix::getNumRows() const { return nRows; }
 
 unsigned Matrix::getNumColumns() const { return nColumns; }
-
-Vector &Matrix::getRowVector(unsigned row) {
-  return *(Vector *)&data[row * 32];
-}
 
 void Matrix::resize(unsigned newNRows, unsigned newNColumns) {
   nRows = newNRows;

@@ -468,6 +468,11 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
   // multiplication, which just does not change column '0'.
   pivotRowVecTerm[0] = 0;
 
+  // In the pivotColumn, we overwrite the value from vac, which we implement
+  // by multiplying with a zeroValue in the a vector.
+  Vector aVector = a;
+  aVector[pivotCol] = 0;
+
   for (unsigned row = 0; row < nRow; ++row) {
     if (row == pivotRow)
       continue;
@@ -478,10 +483,9 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
       continue;
 
     // c/q, d/q
-    vec *= a;
+    vec *= aVector;
     // ca/aq, da/aq
     vec += c * pivotRowVecTerm;
-    vec[pivotCol] = c * pivotRowVecTerm[pivotCol];
     normalizeRow(row);
   }
 

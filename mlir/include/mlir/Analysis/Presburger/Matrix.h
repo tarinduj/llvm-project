@@ -108,6 +108,9 @@ public:
   /// initialized.
   void resize(unsigned newNRows, unsigned newNColumns);
 
+  // Reserve space for newNRows in total. This number must be greater than the current number of rows.
+  void reserveRows(unsigned newNRows);
+
   /// Print the matrix.
   void print(raw_ostream &os) const;
   void dump() const;

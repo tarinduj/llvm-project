@@ -71,9 +71,7 @@ Simplex::Unknown &Simplex::unknownFromRow(unsigned row) {
 
 void Simplex::addZeroConstraint() {
   ++nRow;
-  // If the tableau is not big enough to accomodate the extra row, we extend it.
-  if (nRow >= tableau.getNumRows())
-    tableau.resize(nRow, nCol);
+  tableau.resize(nRow, nCol);
   rowUnknown.push_back(~con.size());
   con.emplace_back(Orientation::Row, false, nRow - 1);
 
@@ -1063,6 +1061,11 @@ void Simplex::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
 void Simplex::addBasicSet(const PresburgerBasicSet &bs) {
   assert(bs.getNumTotalDims() == numVariables() &&
          "BasicSet must have same dimensionality as simplex");
+  unsigned totNewCons = bs.getNumInequalities() + bs.getNumEqualities() + 2*bs.getNumDivs();
+  tableau.reserveRows(nRow + totNewCons);
+  con.reserve(con.size() + totNewCons);
+  rowUnknown.reserve(nRow + totNewCons);
+  undoLog.reserve(undoLog.size() + totNewCons);
   for (const InequalityConstraint &ineq : bs.getInequalities())
     addInequality(ineq.getCoeffs());
   for (const EqualityConstraint &eq : bs.getEqualities())

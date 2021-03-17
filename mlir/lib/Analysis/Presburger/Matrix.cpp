@@ -38,6 +38,11 @@ void Matrix::resize(unsigned newNRows, unsigned newNColumns) {
   nColumns = newNColumns;
 }
 
+void Matrix::reserveRows(unsigned newNRows) {
+  assert(newNRows >= nRows);
+  data.reserve(newNRows * MATRIX_COLUMN_COUNT);
+}
+
 void Matrix::swapRows(unsigned row, unsigned otherRow) {
   assert((row < getNumRows() && otherRow < getNumRows()) &&
          "Given row out of bounds");

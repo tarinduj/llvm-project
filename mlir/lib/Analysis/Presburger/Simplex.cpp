@@ -78,10 +78,6 @@ void Simplex::addZeroConstraint() {
   con.emplace_back(Orientation::Row, false, nRow - 1);
 
   tableau(nRow - 1, 0) = 1;
-  tableau(nRow - 1, 1) = 0;
-  // TODO: Should this start at 2 and not liveColBegin?
-  for (unsigned col = liveColBegin; col < nCol; ++col)
-    tableau(nRow - 1, col) = 0;
 
   // Push to undo log along with the index of the new constraint.
   undoLog.emplace_back(UndoLogEntry::RemoveLastConstraint, Optional<int>());
@@ -809,8 +805,7 @@ void Simplex::undo(UndoLogEntry entry, Optional<int> index) {
     // Move this unknown to the last row and remove the last row from the
     // tableau.
     swapRows(constraint.pos, nRow - 1);
-    // It is not strictly necessary to shrink the tableau, but for now we
-    // maintain the invariant that the tableau has exactly nRow rows.
+    // If we do not shrink here, we will need to zero out the new row in addZeroConstraint.
     tableau.resize(nRow - 1, nCol);
     nRow--;
     rowUnknown.pop_back();

@@ -462,6 +462,12 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
   // affecting the pivot row, which will enable further optimizations.
   Vector pivotRowVecTerm = pivotRowVec;
 
+  // The first column is not multiplied by pivotRowVec. Instead of spending
+  // instructions within the loop on preserving the first column, just set
+  // pivotRowVecTerm[0] to zero, such that we can perform a uniform
+  // multiplication, which just does not change column '0'.
+  pivotRowVecTerm[0] = 0;
+
   for (unsigned row = 0; row < nRow; ++row) {
     if (row == pivotRow)
       continue;
@@ -474,9 +480,7 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
     // c/q, d/q
     vec *= a;
     // ca/aq, da/aq
-    Int den = vec[0];
     vec += c * pivotRowVecTerm;
-    vec[0] = den;
     vec[pivotCol] = c * pivotRowVecTerm[pivotCol];
     normalizeRow(row);
   }

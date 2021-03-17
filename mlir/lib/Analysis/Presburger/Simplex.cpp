@@ -459,9 +459,11 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
     if (row == pivotRow)
       continue;
     Vector &vec = tableau.getRowVector(row);
-    if (vec[pivotCol] == 0) // Nothing to do.
-      continue;
     Int c = vec[pivotCol];
+
+    if (c == 0) // Nothing to do.
+      continue;
+
     // c/q, d/q
     vec *= a;
     // ca/aq, da/aq

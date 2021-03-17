@@ -455,6 +455,13 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
   normalizeRow(pivotRow);
 
   Int a = pivotRowVec[0];
+
+  // Load into register to avoid memory loads from within the loop.
+  // The compiler likely can perform this optimization itself, but
+  // by doing it manually we can modify the register value without
+  // affecting the pivot row, which will enable further optimizations.
+  Vector pivotRowVecTerm = pivotRowVec;
+
   for (unsigned row = 0; row < nRow; ++row) {
     if (row == pivotRow)
       continue;
@@ -468,9 +475,9 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
     vec *= a;
     // ca/aq, da/aq
     Int den = vec[0];
-    vec += c * pivotRowVec;
+    vec += c * pivotRowVecTerm;
     vec[0] = den;
-    vec[pivotCol] = c * pivotRowVec[pivotCol];
+    vec[pivotCol] = c * pivotRowVecTerm[pivotCol];
     normalizeRow(row);
   }
 

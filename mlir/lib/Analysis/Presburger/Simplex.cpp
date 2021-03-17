@@ -107,10 +107,10 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
          "Incorrect number of coefficients!");
 
   addZeroConstraint();
-
-  tableau(nRow - 1, 1) = coeffs.back();
+  Vector &vec = tableau.getRowVector(nRow - 1);
+  vec[1] = coeffs.back();
   // Process each given variable coefficient.
-  for (unsigned i = 0; i < var.size(); ++i) {
+  for (unsigned i = 0, e = var.size(); i < e; ++i) {
     unsigned pos = var[i].pos;
     if (coeffs[i] == 0)
       continue;
@@ -119,7 +119,7 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
       // If a variable is in column position at column col, then we just add the
       // coefficient for that variable (scaled by the common row denominator) to
       // the corresponding entry in the new row.
-      tableau(nRow - 1, pos) += coeffs[i] * tableau(nRow - 1, 0);
+      vec[pos] += coeffs[i] * vec[0];
       continue;
     }
 
@@ -127,13 +127,12 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
     // row, scaled by the coefficient for the variable, accounting for the two
     // rows potentially having different denominators. The new denominator is
     // the lcm of the two.
-    SafeInteger lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
-    SafeInteger nRowCoeff = lcm / tableau(nRow - 1, 0);
-    SafeInteger idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
-    tableau(nRow - 1, 0) = lcm;
-    for (unsigned col = 1; col < nCol; ++col)
-      tableau(nRow - 1, col) =
-          nRowCoeff * tableau(nRow - 1, col) + idxRowCoeff * tableau(pos, col);
+    Vector &varRowVec = tableau.getRowVector(pos);
+    SafeInteger lcm = std::lcm(vec[0], varRowVec[0]);
+    SafeInteger nRowCoeff = lcm / vec[0];
+    SafeInteger idxRowCoeff = coeffs[i] * (lcm / varRowVec[0]);
+    vec = vec * nRowCoeff + idxRowCoeff * varRowVec;
+    vec[0] = lcm;
   }
 
   normalizeRow(nRow - 1);

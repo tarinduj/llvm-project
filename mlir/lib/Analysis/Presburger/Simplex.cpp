@@ -478,12 +478,12 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
   aVector[pivotCol] = 0;
 
   for (unsigned row = 0; row < pivotRow; ++row) {
-    Vector &vec = tableau.getRowVector(row);
     Int c = tableau(row, pivotCol);
 
     if (c == 0) // Nothing to do.
       continue;
 
+    Vector &vec = tableau.getRowVector(row);
     // c/q, d/q
     vec *= aVector;
     // ca/aq, da/aq
@@ -492,12 +492,12 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
   }
 
   for (unsigned row = pivotRow+1; row < nRow; ++row) {
-    Vector &vec = tableau.getRowVector(row);
     Int c = tableau(row, pivotCol);
 
     if (c == 0) // Nothing to do.
       continue;
 
+    Vector &vec = tableau.getRowVector(row);
     // c/q, d/q
     vec *= aVector;
     // ca/aq, da/aq

@@ -11,3 +11,4 @@ add_mlir_library(MLIRPresburger
   Coalesce.cpp
   )
 
+target_compile_options(obj.MLIRPresburger PRIVATE -march=native)

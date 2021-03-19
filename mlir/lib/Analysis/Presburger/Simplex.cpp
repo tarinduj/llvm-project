@@ -15,6 +15,44 @@
 using namespace mlir;
 using namespace analysis::presburger;
 
+__mmask32 equalMask(Vector x, Vector y) {
+  return _mm512_cmp_epi16_mask(x, y, _MM_CMPINT_EQ);
+}
+
+Vector add(Vector x, Vector y) {
+  Vector z = _mm512_adds_epi16(x, y);
+  bool overflow = equalMask(z, std::numeric_limits<int16_t>::min()) ||
+                  equalMask(z, std::numeric_limits<int16_t>::max());
+  overflowErrorIf(overflow);
+  return z;
+}
+
+__mmask32 negs(Vector x) {
+  return _mm512_cmp_epi16_mask(x, Vector(0), _MM_CMPINT_LT);
+}
+
+Vector mul(Vector x, Vector y) {
+  Vector lo = _mm512_mullo_epi16(x, y);
+  __mmask32 xnegs = negs(x);
+  __mmask32 ynegs = negs(y);
+  __mmask32 lonegs = negs(lo);
+
+  __mmask32 xzeros = equalMask(x, 0);
+  __mmask32 yzeros = equalMask(y, 0);
+  overflowErrorIf(lonegs != ((xnegs ^ ynegs) & ~(xzeros | yzeros)));
+
+  Vector hi = _mm512_mulhi_epi16(x, y);
+  __mmask32 zeroOrNegOneMask = equalMask(hi, 0) | equalMask(hi, -1);
+  overflowErrorIf(~zeroOrNegOneMask);
+  return lo;
+}
+
+Vector negate(Vector x) {
+  bool overflow = equalMask(x, std::numeric_limits<int16_t>::min());
+  overflowErrorIf(overflow);
+  return -x;
+}
+
 using Direction = Simplex::Direction;
 const int nullIndex = std::numeric_limits<int>::max();
 
@@ -130,17 +168,12 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
     SafeInteger lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
     SafeInteger nRowCoeff = lcm / tableau(nRow - 1, 0);
     SafeInteger idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
-    vec = vec * nRowCoeff + idxRowCoeff * varRowVec;
-    tableau(nRow - 1, 0) = lcm;
+    vec = add(mul(vec, nRowCoeff.val), mul(idxRowCoeff.val, varRowVec));
+    tableau(nRow - 1, 0) = lcm.val;
   }
 
   normalizeRow(nRow - 1, vec);
   return con.size() - 1;
-}
-
-bool hasOne(const Vector &x) {
-  Vector ones = 1;
-  return _mm512_cmp_epi16_mask(x, ones, _MM_CMPINT_EQ);
 }
 
 /// Normalize the row by removing factors that are common between the
@@ -150,7 +183,7 @@ void Simplex::normalizeRow(unsigned row) {
 }
 
 void Simplex::normalizeRow(unsigned row, Vector &rowVec) {
-  if (hasOne(rowVec))
+  if (equalMask(rowVec, 1))
     return;
 
   SafeInteger gcd = 0;
@@ -454,11 +487,10 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
 
     // If the denominator is negative, we canonicalize the row.
   if (tableau(pivotRow, 0) < 0)
-    pivotRowVec = -pivotRowVec;
+    pivotRowVec = negate(pivotRowVec);
 
   normalizeRow(pivotRow, pivotRowVec);
 
-  Int a = tableau(pivotRow, 0);
 
   // Load into register to avoid memory loads from within the loop.
   // The compiler likely can perform this optimization itself, but
@@ -474,34 +506,35 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   // In the pivotColumn, we overwrite the value from vac, which we implement
   // by multiplying with a zeroValue in the a vector.
+  Int a = tableau(pivotRow, 0).val;
   Vector aVector = a;
   aVector[pivotCol] = 0;
 
   for (unsigned row = 0; row < pivotRow; ++row) {
-    Int c = tableau(row, pivotCol);
+    Int c = tableau(row, pivotCol).val;
 
     if (c == 0) // Nothing to do.
       continue;
 
     Vector &vec = tableau.getRowVector(row);
     // c/q, d/q
-    vec *= aVector;
+    vec = mul(vec, aVector);
     // ca/aq, da/aq
-    vec += c * pivotRowVecTerm;
+    vec = add(vec, mul(c, pivotRowVecTerm));
     normalizeRow(row, vec);
   }
 
   for (unsigned row = pivotRow+1; row < nRow; ++row) {
-    Int c = tableau(row, pivotCol);
+    Int c = tableau(row, pivotCol).val;
 
     if (c == 0) // Nothing to do.
       continue;
 
     Vector &vec = tableau.getRowVector(row);
     // c/q, d/q
-    vec *= aVector;
+    vec = mul(vec, aVector);
     // ca/aq, da/aq
-    vec += c * pivotRowVecTerm;
+    vec = add(vec, mul(c, pivotRowVecTerm));
     normalizeRow(row, vec);
   }
 

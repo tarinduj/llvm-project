@@ -27,8 +27,8 @@ namespace presburger {
 using Int = int16_t;
 
 #ifndef SAFE_INTEGER
-using SafeInteger = Int;
-#else
+// using SafeInteger = Int;
+// #else
 inline void overflowErrorIf(bool overflow) {
   if (overflow) {
     llvm::errs() << "Overflow!\n";

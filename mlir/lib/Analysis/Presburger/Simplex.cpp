@@ -107,7 +107,7 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
 
   addZeroConstraint();
   Vector &vec = tableau.getRowVector(nRow - 1);
-  vec[1] = coeffs.back();
+  tableau(nRow - 1, 1) = coeffs.back();
   // Process each given variable coefficient.
   for (unsigned i = 0, e = var.size(); i < e; ++i) {
     unsigned pos = var[i].pos;
@@ -118,7 +118,7 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
       // If a variable is in column position at column col, then we just add the
       // coefficient for that variable (scaled by the common row denominator) to
       // the corresponding entry in the new row.
-      vec[pos] += coeffs[i] * vec[0];
+      tableau(nRow - 1, pos) += coeffs[i] * tableau(nRow - 1, 0);
       continue;
     }
 
@@ -127,11 +127,11 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
     // rows potentially having different denominators. The new denominator is
     // the lcm of the two.
     Vector &varRowVec = tableau.getRowVector(pos);
-    SafeInteger lcm = std::lcm(vec[0], varRowVec[0]);
-    SafeInteger nRowCoeff = lcm / vec[0];
-    SafeInteger idxRowCoeff = coeffs[i] * (lcm / varRowVec[0]);
+    SafeInteger lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
+    SafeInteger nRowCoeff = lcm / tableau(nRow - 1, 0);
+    SafeInteger idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
     vec = vec * nRowCoeff + idxRowCoeff * varRowVec;
-    vec[0] = lcm;
+    tableau(nRow - 1, 0) = lcm;
   }
 
   normalizeRow(nRow - 1, vec);
@@ -448,17 +448,17 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
   // and negate the whole pivot row except for the pivot column.
   // (implemented as only flipping the pivot coloum and the denominator)
   // We merge sign flipping into the swap for improved performance.
-  auto tmp = pivotRowVec[0];
-  pivotRowVec[0] = -pivotRowVec[pivotCol];
-  pivotRowVec[pivotCol] = -tmp;
+  auto tmp = tableau(pivotRow, 0);
+  tableau(pivotRow, 0) = -tableau(pivotRow, pivotCol);
+  tableau(pivotRow, pivotCol) = -tmp;
 
     // If the denominator is negative, we canonicalize the row.
-  if (pivotRowVec[0] < 0)
+  if (tableau(pivotRow, 0) < 0)
     pivotRowVec = -pivotRowVec;
 
   normalizeRow(pivotRow, pivotRowVec);
 
-  Int a = pivotRowVec[0];
+  Int a = tableau(pivotRow, 0);
 
   // Load into register to avoid memory loads from within the loop.
   // The compiler likely can perform this optimization itself, but
@@ -479,7 +479,7 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   for (unsigned row = 0; row < pivotRow; ++row) {
     Vector &vec = tableau.getRowVector(row);
-    Int c = vec[pivotCol];
+    Int c = tableau(row, pivotCol);
 
     if (c == 0) // Nothing to do.
       continue;
@@ -493,7 +493,7 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   for (unsigned row = pivotRow+1; row < nRow; ++row) {
     Vector &vec = tableau.getRowVector(row);
-    Int c = vec[pivotCol];
+    Int c = tableau(row, pivotCol);
 
     if (c == 0) // Nothing to do.
       continue;

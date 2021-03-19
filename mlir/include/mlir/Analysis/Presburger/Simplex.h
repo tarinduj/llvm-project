@@ -405,6 +405,7 @@ protected:
 
   /// Normalize the given row by removing common factors between the numerator
   /// and the denominator.
+  void normalizeRow(unsigned row, Vector &rowVec);
   void normalizeRow(unsigned row);
 
   /// Mark the column as zero.

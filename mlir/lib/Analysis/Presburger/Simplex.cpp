@@ -10,6 +10,7 @@
 #include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/Analysis/Presburger/PresburgerBasicSet.h"
 #include "mlir/Support/MathExtras.h"
+#include <immintrin.h>
 
 using namespace mlir;
 using namespace analysis::presburger;
@@ -133,19 +134,32 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
     vec[0] = lcm;
   }
 
-  normalizeRow(nRow - 1);
+  normalizeRow(nRow - 1, vec);
   return con.size() - 1;
+}
+
+bool hasOne(const Vector &x) {
+  Vector ones = 1;
+  return _mm512_cmp_epi16_mask(x, ones, _MM_CMPINT_EQ);
 }
 
 /// Normalize the row by removing factors that are common between the
 /// denominator and all the numerator coefficients.
 void Simplex::normalizeRow(unsigned row) {
+  normalizeRow(row, tableau.getRowVector(row));
+}
+
+void Simplex::normalizeRow(unsigned row, Vector &rowVec) {
+  if (hasOne(rowVec))
+    return;
+
   SafeInteger gcd = 0;
   for (unsigned col = 0; col < nCol; ++col) {
     if (gcd == 1)
       break;
     gcd = llvm::greatestCommonDivisor(gcd, std::abs(tableau(row, col)));
   }
+
   if (gcd == 0 || gcd == 1)
     return;
   for (unsigned col = 0; col < nCol; ++col)
@@ -445,7 +459,7 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
     vec[0] = -vec[0];
     vec[pivotCol] = -vec[pivotCol];
   }
-  normalizeRow(pivotRow);
+  normalizeRow(pivotRow, pivotRowVec);
 
   Int a = pivotRowVec[0];
 
@@ -477,7 +491,7 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
     vec *= aVector;
     // ca/aq, da/aq
     vec += c * pivotRowVecTerm;
-    normalizeRow(row);
+    normalizeRow(row, vec);
   }
 
   for (unsigned row = pivotRow+1; row < nRow; ++row) {
@@ -491,7 +505,7 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
     vec *= aVector;
     // ca/aq, da/aq
     vec += c * pivotRowVecTerm;
-    normalizeRow(row);
+    normalizeRow(row, vec);
   }
 
   // for (unsigned row = 0; row < nRow; ++row)

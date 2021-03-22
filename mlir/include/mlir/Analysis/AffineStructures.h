@@ -33,6 +33,8 @@ struct MutableAffineMap;
 
 namespace analysis {
 namespace presburger {
+
+template <typename Int>
 class Simplex;
 }
 } // namespace analysis
@@ -607,7 +609,7 @@ private:
   Optional<SmallVector<int64_t, 8>>
   findSampleUnbounded(FlatAffineConstraints &cone) const;
 
-  Matrix coefficientMatrixFromEqs() const;
+  Matrix<int64_t> coefficientMatrixFromEqs() const;
 
   /// Returns the constant lower bound bound if isLower is true, and the upper
   /// bound if isLower is false.
@@ -656,7 +658,7 @@ private:
   /// inequalities may have been detected to be equalities and some constraints
   /// may have been detected to be redundant. Update this basic set to reflect
   /// this.
-  void updateFromSimplex(const Simplex &simplex);
+  void updateFromSimplex(const Simplex<int64_t> &simplex);
 
   /// Coefficients of affine equalities (in == 0 form).
   SmallVector<int64_t, 64> equalities;

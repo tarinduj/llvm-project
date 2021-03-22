@@ -20,8 +20,10 @@
 #include "llvm/Support/raw_ostream.h"
 
 namespace mlir {
+
 using analysis::presburger::SafeInteger;
 
+template <typename Int>
 class Constraint {
 public:
   Constraint() = delete;
@@ -46,20 +48,20 @@ public:
     coeffs.erase(coeffs.begin() + pos, coeffs.begin() + pos + count);
   }
 
-  ArrayRef<SafeInteger> getCoeffs() const { return coeffs; }
+  ArrayRef<SafeInteger<Int>> getCoeffs() const { return coeffs; }
 
   void shiftToOrigin() { coeffs.back() = 0; }
 
-  void substitute(ArrayRef<SafeInteger> values) {
+  void substitute(ArrayRef<SafeInteger<Int>> values) {
     assert(values.size() <= getNumDims() && "Too many values to substitute!");
     for (size_t i = 0; i < values.size(); i++)
       coeffs.back() += values[i] * coeffs[i];
 
-    coeffs = SmallVector<SafeInteger, 8>(coeffs.begin() + values.size(),
+    coeffs = SmallVector<SafeInteger<Int>, 8>(coeffs.begin() + values.size(),
                                          coeffs.end());
   }
 
-  void shift(SafeInteger x) { coeffs.back() += x; }
+  void shift(SafeInteger<Int> x) { coeffs.back() += x; }
 
   void appendDimension() { insertDimensions(getNumDims(), 1); }
 
@@ -106,80 +108,84 @@ public:
   }
 
 protected:
-  Constraint(ArrayRef<SafeInteger> oCoeffs)
+  Constraint(ArrayRef<SafeInteger<Int>> oCoeffs)
       : coeffs(oCoeffs.begin(), oCoeffs.end()) {}
-  SmallVector<SafeInteger, 8> coeffs;
+  SmallVector<SafeInteger<Int>, 8> coeffs;
 };
 
-class InequalityConstraint : public Constraint {
+template <typename Int>
+class InequalityConstraint : public Constraint<Int> {
 public:
-  InequalityConstraint(ArrayRef<SafeInteger> oCoeffs) : Constraint(oCoeffs) {}
+  InequalityConstraint(ArrayRef<SafeInteger<Int>> oCoeffs) : Constraint<Int>(oCoeffs) {}
   void print(raw_ostream &os) const {
-    Constraint::print(os);
+    Constraint<Int>::print(os);
     os << " >= 0";
   }
   void dump() const { print(llvm::errs()); }
 };
 
-class EqualityConstraint : public Constraint {
+template <typename Int>
+class EqualityConstraint : public Constraint<Int> {
 public:
-  EqualityConstraint(ArrayRef<SafeInteger> oCoeffs) : Constraint(oCoeffs) {}
+  EqualityConstraint(ArrayRef<SafeInteger<Int>> oCoeffs) : Constraint<Int>(oCoeffs) {}
   void print(raw_ostream &os) const {
-    Constraint::print(os);
+    Constraint<Int>::print(os);
     os << " = 0";
   }
   void dump() const { print(llvm::errs()); }
 };
 
-class DivisionConstraint : public Constraint {
+template <typename Int>
+class DivisionConstraint : public Constraint<Int> {
+using Constraint<Int>::coeffs;
 public:
-  DivisionConstraint(ArrayRef<SafeInteger> oCoeffs, SafeInteger oDenom,
+  DivisionConstraint(ArrayRef<SafeInteger<Int>> oCoeffs, SafeInteger<Int> oDenom,
                      unsigned oVariable)
-      : Constraint(oCoeffs), denom(oDenom), variable(oVariable) {}
+      : Constraint<Int>(oCoeffs), denom(oDenom), variable(oVariable) {}
   void print(raw_ostream &os) const {
     os << "x" << variable << " = floor((";
-    Constraint::print(os);
+    Constraint<Int>::print(os);
     os << ")/" << denom << ')';
   }
 
-  SafeInteger getDenominator() const { return denom; }
+  SafeInteger<Int> getDenominator() const { return denom; }
 
-  InequalityConstraint getInequalityLowerBound() const {
-    SmallVector<SafeInteger, 8> ineqCoeffs = coeffs;
+  InequalityConstraint<Int> getInequalityLowerBound() const {
+    SmallVector<SafeInteger<Int>, 8> ineqCoeffs = coeffs;
     ineqCoeffs[variable] -= denom;
-    return InequalityConstraint(ineqCoeffs);
+    return InequalityConstraint<Int>(ineqCoeffs);
   }
 
-  InequalityConstraint getInequalityUpperBound() const {
-    SmallVector<SafeInteger, 8> ineqCoeffs;
+  InequalityConstraint<Int> getInequalityUpperBound() const {
+    SmallVector<SafeInteger<Int>, 8> ineqCoeffs;
     ineqCoeffs.reserve(coeffs.size());
-    for (SafeInteger coeff : coeffs)
+    for (SafeInteger<Int> coeff : coeffs)
       ineqCoeffs.push_back(-coeff);
     ineqCoeffs[variable] += denom;
     ineqCoeffs.back() += denom - 1;
-    return InequalityConstraint(ineqCoeffs);
+    return InequalityConstraint<Int>(ineqCoeffs);
   }
 
   void insertDimensions(unsigned pos, unsigned count) {
     if (pos <= variable)
       variable += count;
-    Constraint::insertDimensions(pos, count);
+    Constraint<Int>::insertDimensions(pos, count);
   }
 
   void eraseDimensions(unsigned pos, unsigned count) {
     assert(!(pos <= variable && variable < pos + count) &&
            "cannot erase division variable!");
-    Constraint::eraseDimensions(pos, count);
+    Constraint<Int>::eraseDimensions(pos, count);
   }
 
-  void substitute(ArrayRef<SafeInteger> values) {
+  void substitute(ArrayRef<SafeInteger<Int>> values) {
     assert(variable >= values.size() && "Not yet implemented");
   }
 
   void dump() const { print(llvm::errs()); }
 
 private:
-  SafeInteger denom;
+  SafeInteger<Int> denom;
   unsigned variable;
 };
 } // namespace mlir

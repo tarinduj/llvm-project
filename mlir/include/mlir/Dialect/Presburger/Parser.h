@@ -175,17 +175,18 @@ public:
   virtual ~Expr() = default;
 };
 
+template <typename Int>
 class IntegerExpr : public Expr {
 public:
-  explicit IntegerExpr(SafeInteger value) : value(value) {}
+  explicit IntegerExpr(SafeInteger<Int> value) : value(value) {}
 
-  SafeInteger getValue() { return value; }
+  SafeInteger<Int> getValue() { return value; }
 
   static Type getStaticType() { return Type::Integer; }
   virtual Type getType() { return Type::Integer; }
 
 private:
-  SafeInteger value;
+  SafeInteger<Int> value;
 };
 
 class VariableExpr : public Expr {
@@ -201,38 +202,41 @@ private:
   StringRef name;
 };
 
+template <typename Int>
 class TermExpr : public Expr {
 public:
-  TermExpr(std::unique_ptr<IntegerExpr> oCoeff,
+  TermExpr(std::unique_ptr<IntegerExpr<Int>> oCoeff,
            std::unique_ptr<VariableExpr> oVar)
       : coeff(std::move(oCoeff)), var(std::move(oVar)) {}
 
-  IntegerExpr *getCoeff() { return coeff.get(); }
+  IntegerExpr<Int> *getCoeff() { return coeff.get(); }
   VariableExpr *getVar() { return var.get(); }
 
   static Type getStaticType() { return Type::Term; }
   virtual Type getType() { return Type::Term; }
 
 private:
-  std::unique_ptr<IntegerExpr> coeff;
+  std::unique_ptr<IntegerExpr<Int>> coeff;
   std::unique_ptr<VariableExpr> var;
 };
 
+template <typename Int>
 class SumExpr : public Expr {
 public:
-  explicit SumExpr(SmallVector<std::unique_ptr<TermExpr>, 8> oTerms)
+  explicit SumExpr(SmallVector<std::unique_ptr<TermExpr<Int>>, 8> oTerms)
       : terms(std::move(oTerms)) {}
 
-  TermExpr &getTerm(size_t position) { return *terms[position]; }
-  SmallVector<std::unique_ptr<TermExpr>, 8> &getTerms() { return terms; }
+  TermExpr<Int> &getTerm(size_t position) { return *terms[position]; }
+  SmallVector<std::unique_ptr<TermExpr<Int>>, 8> &getTerms() { return terms; }
 
   static Type getStaticType() { return Type::Sum; }
   virtual Type getType() { return Type::Sum; }
 
 private:
-  SmallVector<std::unique_ptr<TermExpr>, 8> terms;
+  SmallVector<std::unique_ptr<TermExpr<Int>>, 8> terms;
 };
 
+template <typename Int>
 class ConstraintExpr : public Expr {
 public:
   enum class Kind { LT, LE, GT, GE, EQ };
@@ -256,44 +260,47 @@ private:
   std::unique_ptr<Expr> rightSum;
 };
 
+template <typename Int>
 struct DivExpr {
   explicit DivExpr(std::unique_ptr<Expr> oNum,
-                   std::unique_ptr<IntegerExpr> oDen)
+                   std::unique_ptr<IntegerExpr<Int>> oDen)
       : num(std::move(oNum)), den(std::move(oDen)) {}
   std::unique_ptr<Expr> num;
-  std::unique_ptr<IntegerExpr> den;
+  std::unique_ptr<IntegerExpr<Int>> den;
 };
 
+template <typename Int>
 class AndExpr : public Expr {
 public:
-  explicit AndExpr(SmallVector<std::unique_ptr<ConstraintExpr>, 8> oConstraints,
+  explicit AndExpr(SmallVector<std::unique_ptr<ConstraintExpr<Int>>, 8> oConstraints,
                    SmallVector<StringRef, 8> oExists,
                    SmallVector<StringRef, 8> oDivNames,
-                   SmallVector<std::unique_ptr<DivExpr>, 8> oDivs)
+                   SmallVector<std::unique_ptr<DivExpr<Int>>, 8> oDivs)
       : constraints(std::move(oConstraints)), exists(std::move(oExists)),
         divNames(std::move(oDivNames)), divs(std::move(oDivs)) {}
 
   size_t getNumConstraints() { return constraints.size(); }
-  ConstraintExpr &getConstraint(size_t position) {
+  ConstraintExpr<Int> &getConstraint(size_t position) {
     return *constraints[position];
   }
-  SmallVector<std::unique_ptr<ConstraintExpr>, 8> &getConstraints() {
+  SmallVector<std::unique_ptr<ConstraintExpr<Int>>, 8> &getConstraints() {
     return constraints;
   }
   SmallVector<StringRef, 8> &getExists() { return exists; }
-  SmallVector<std::unique_ptr<DivExpr>, 8> &getDivs() { return divs; }
+  SmallVector<std::unique_ptr<DivExpr<Int>>, 8> &getDivs() { return divs; }
   SmallVector<StringRef, 8> &getDivNames() { return divNames; }
 
   static Type getStaticType() { return Type::And; }
   virtual Type getType() { return Type::And; }
 
 private:
-  SmallVector<std::unique_ptr<ConstraintExpr>, 8> constraints;
+  SmallVector<std::unique_ptr<ConstraintExpr<Int>>, 8> constraints;
   SmallVector<StringRef, 8> exists;
   SmallVector<StringRef, 8> divNames;
-  SmallVector<std::unique_ptr<DivExpr>, 8> divs;
+  SmallVector<std::unique_ptr<DivExpr<Int>>, 8> divs;
 };
 
+template <typename Int>
 class OrExpr : public Expr {
 public:
   explicit OrExpr(SmallVector<std::unique_ptr<Expr>, 8> oExprs)
@@ -310,6 +317,7 @@ private:
   SmallVector<std::unique_ptr<Expr>, 8> exprs;
 };
 
+template <typename Int>
 class SetExpr : public Expr {
 public:
   SetExpr(SmallVector<StringRef, 8> dims, SmallVector<StringRef, 8> syms,
@@ -370,12 +378,13 @@ private:
 
 /// Uses the Lexer to transform a token stream into an AST representing
 /// different Presburger constructs.
+template <typename Int>
 class Parser {
 public:
   Parser(StringRef buffer, ErrorCallback callback) : lexer(buffer, callback) {}
 
   /// Parse a Presburger set and returns an AST corresponding to it.
-  LogicalResult parseSet(std::unique_ptr<SetExpr> &setExpr);
+  LogicalResult parseSet(std::unique_ptr<SetExpr<Int>> &setExpr);
 
   /// Parse a Presburger expression and returns an AST corresponding
   /// to it.
@@ -406,12 +415,12 @@ private:
   LogicalResult parseOr(std::unique_ptr<Expr> &expr);
   LogicalResult parseAnd(std::unique_ptr<Expr> &expr);
 
-  LogicalResult parseConstraint(std::unique_ptr<ConstraintExpr> &constraint);
+  LogicalResult parseConstraint(std::unique_ptr<ConstraintExpr<Int>> &constraint);
   LogicalResult parsePiece(std::unique_ptr<PieceExpr> &piece);
   LogicalResult parseSum(std::unique_ptr<Expr> &expr);
-  LogicalResult parseTerm(std::unique_ptr<TermExpr> &term,
+  LogicalResult parseTerm(std::unique_ptr<TermExpr<Int>> &term,
                           bool is_negated = false);
-  LogicalResult parseInteger(std::unique_ptr<IntegerExpr> &iExpr,
+  LogicalResult parseInteger(std::unique_ptr<IntegerExpr<Int>> &iExpr,
                              bool is_negated = false);
   LogicalResult parseVariable(std::unique_ptr<VariableExpr> &vExpr);
 
@@ -424,33 +433,34 @@ private:
 ///
 /// At the moment it expects a Parser instance as this parser is already used to
 /// determine the kind of object to parse. TODO change this
+template <typename Int>
 class PresburgerParser {
 public:
   enum class Kind { Equality, Inequality };
-  using Constraint = std::pair<SmallVector<SafeInteger, 8>, Kind>;
+  using Constraint = std::pair<SmallVector<SafeInteger<Int>, 8>, Kind>;
 
-  PresburgerParser(Parser parser);
+  PresburgerParser(Parser<Int> parser);
 
   /// Parse a Presburger expression into expr
   LogicalResult parsePresburgerExpr(PresburgerExpr &expr);
 
   /// Parse a Presburger set into set
-  LogicalResult parsePresburgerSet(PresburgerSet &set);
+  LogicalResult parsePresburgerSet(PresburgerSet<Int> &set);
 
 private:
   // parsing helpers
-  LogicalResult parsePresburgerSet(Expr *constraints, PresburgerSet &set);
+  LogicalResult parsePresburgerSet(Expr *constraints, PresburgerSet<Int> &set);
   LogicalResult parseAndAddPiece(PieceExpr *piece, PresburgerExpr &expr);
   LogicalResult parsePresburgerBasicSet(Expr *constraints,
-                                        PresburgerBasicSet &bs);
+                                        PresburgerBasicSet<Int> &bs);
   LogicalResult initVariables(const SmallVector<StringRef, 8> &vars,
                               StringMap<size_t> &map);
-  LogicalResult parseConstraint(ConstraintExpr *constraint, Constraint &c);
+  LogicalResult parseConstraint(ConstraintExpr<Int> *constraint, Constraint &c);
   LogicalResult
-  parseSum(Expr *expr, std::pair<SafeInteger, SmallVector<SafeInteger, 8>> &r);
-  LogicalResult parseAndAddTerm(TermExpr *term, SafeInteger &constant,
-                                SmallVector<SafeInteger, 8> &coeffs);
-  void addConstraint(PresburgerBasicSet &bs, Constraint &constraint);
+  parseSum(Expr *expr, std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> &r);
+  LogicalResult parseAndAddTerm(TermExpr<Int> *term, SafeInteger<Int> &constant,
+                                SmallVector<SafeInteger<Int>, 8> &coeffs);
+  void addConstraint(PresburgerBasicSet<Int> &bs, Constraint &constraint);
   InFlightDiagnostic emitError(SMLoc loc, const Twine &message = {});
   InFlightDiagnostic emitError(const Twine &message = {});
 
@@ -458,8 +468,11 @@ private:
   StringMap<size_t> symNameToIndex;
   StringMap<size_t> existNameToIndex;
   StringMap<size_t> divNameToIndex;
-  Parser parser;
+  Parser<Int> parser;
 };
+
+using TransprecParser = Parser<int16_t>;
+using TransprecPresburgerParser = PresburgerParser<int16_t>;
 
 } // namespace presburger
 } // namespace mlir

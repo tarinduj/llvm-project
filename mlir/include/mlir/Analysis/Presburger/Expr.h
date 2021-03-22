@@ -28,10 +28,10 @@ public:
   unsigned getNumSyms() const;
 
   const SmallVector<ExprType, 2> &getExprs() const;
-  const SmallVector<PresburgerSet, 2> &getDomains() const;
+  const SmallVector<PresburgerSet<int64_t>, 2> &getDomains() const;
 
   /// Adds a piece that applies expr on the speciefied domain.
-  void addPiece(const ExprType &expr, const PresburgerSet &domain);
+  void addPiece(const ExprType &expr, const PresburgerSet<int64_t> &domain);
 
   void print(raw_ostream &os) const;
   void dump() const;
@@ -39,7 +39,7 @@ public:
 
 private:
   SmallVector<ExprType, 2> exprs;
-  SmallVector<PresburgerSet, 2> domains;
+  SmallVector<PresburgerSet<int64_t>, 2> domains;
 
   unsigned nDim, nSym;
 };

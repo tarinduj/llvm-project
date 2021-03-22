@@ -10,6 +10,7 @@ namespace mlir {
 
 namespace presburger {
 
+
 namespace detail {
 struct PresburgerSetAttributeStorage;
 struct PresburgerExprAttributeStorage;
@@ -17,7 +18,7 @@ struct PresburgerExprAttributeStorage;
 
 namespace PresburgerAttributes {
 enum Kind {
-  PresburgerSet = Attribute::FIRST_PRIVATE_EXPERIMENTAL_3_ATTR,
+  TransprecSet = Attribute::FIRST_PRIVATE_EXPERIMENTAL_3_ATTR,
   PresburgerExpr
 };
 
@@ -28,16 +29,16 @@ class PresburgerSetAttr
                                  detail::PresburgerSetAttributeStorage> {
 public:
   using Base::Base;
-  using ValueType = PresburgerSet;
+  using ValueType = TransprecSet;
 
-  static PresburgerSetAttr get(PresburgerSetType t, PresburgerSet value);
+  static PresburgerSetAttr get(PresburgerSetType t, TransprecSet value);
 
-  PresburgerSet getValue() const;
+  TransprecSet getValue() const;
 
   static StringRef getKindName();
 
   static bool kindof(unsigned kind) {
-    return kind == PresburgerAttributes::PresburgerSet;
+    return kind == PresburgerAttributes::TransprecSet;
   }
 };
 

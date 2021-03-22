@@ -17,22 +17,23 @@ namespace presburger {
 // TODO this is called LinearTransform but we really just use it like a matrix,
 // e.g. we talk about post-multiplying with a row rather than in linear
 // algebraic terms
+
+template <typename Int>
 class LinearTransform {
 public:
-  using MatrixType = Matrix;
   // Return a unimodular transform which, when postmultiplied to M, brings M to
   // column echelon form.
-  static LinearTransform makeTransformToColumnEchelon(MatrixType &M);
+  static LinearTransform makeTransformToColumnEchelon(Matrix<Int> &M);
 
   FlatAffineConstraints postMultiplyBasicSet(const FlatAffineConstraints &bs);
-  PresburgerBasicSet postMultiplyBasicSet(const PresburgerBasicSet &bs);
-  SmallVector<SafeInteger, 8> postMultiplyRow(ArrayRef<SafeInteger> row);
-  SmallVector<SafeInteger, 8> preMultiplyColumn(ArrayRef<SafeInteger> col);
+  PresburgerBasicSet<Int> postMultiplyBasicSet(const PresburgerBasicSet<Int> &bs);
+  SmallVector<SafeInteger<Int>, 8> postMultiplyRow(ArrayRef<SafeInteger<Int>> row);
+  SmallVector<SafeInteger<Int>, 8> preMultiplyColumn(ArrayRef<SafeInteger<Int>> col);
 
 private:
-  explicit LinearTransform(MatrixType oMatrix);
+  explicit LinearTransform(Matrix<Int> oMatrix);
 
-  MatrixType matrix;
+  Matrix<Int> matrix;
 };
 
 } // namespace presburger

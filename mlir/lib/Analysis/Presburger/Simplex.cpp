@@ -23,7 +23,7 @@ Vector add(Vector x, Vector y) {
   Vector z = _mm512_adds_epi16(x, y);
   bool overflow = equalMask(z, std::numeric_limits<int16_t>::min()) ||
                   equalMask(z, std::numeric_limits<int16_t>::max());
-  overflowErrorIf(overflow);
+  SafeInteger<int16_t>::overflow |= overflow;
   return z;
 }
 
@@ -43,25 +43,27 @@ Vector mul(Vector x, Vector y) {
 
   __mmask32 xzeros = equalMask(x, 0);
   __mmask32 yzeros = equalMask(y, 0);
-  overflowErrorIf(lonegs != ((xnegs ^ ynegs) & ~(xzeros | yzeros)));
+  SafeInteger<int16_t>::overflow |= (lonegs != ((xnegs ^ ynegs) & ~(xzeros | yzeros)));
 
   Vector hi = _mm512_mulhi_epi16(x, y);
   __mmask32 zeroOrNegOneMask = equalMask(hi, 0) | equalMask(hi, -1);
-  overflowErrorIf(~zeroOrNegOneMask);
+  SafeInteger<int16_t>::overflow |= bool(~zeroOrNegOneMask);
   return lo;
 }
 
 Vector negate(Vector x) {
   bool overflow = equalMask(x, std::numeric_limits<int16_t>::min());
-  overflowErrorIf(overflow);
+  SafeInteger<int16_t>::overflow |= overflow;
   return -x;
 }
 
-using Direction = Simplex::Direction;
+template <typename Int>
+using Direction = typename Simplex<Int>::Direction;
 const int nullIndex = std::numeric_limits<int>::max();
 
 /// Construct a Simplex object with `nVar` variables.
-Simplex::Simplex(unsigned nVar)
+template <typename Int>
+Simplex<Int>::Simplex(unsigned nVar)
     : nRow(0), nCol(2), nRedundant(0), liveColBegin(2), tableau(0, 2 + nVar),
       empty(false) {
   colUnknown.push_back(nullIndex);
@@ -73,46 +75,55 @@ Simplex::Simplex(unsigned nVar)
   }
 }
 
-Simplex::Simplex(const FlatAffineConstraints &constraints)
+template <typename Int>
+Simplex<Int>::Simplex(const FlatAffineConstraints &constraints)
     : Simplex(constraints.getNumIds()) {
   addFlatAffineConstraints(constraints);
 }
 
-Simplex::Simplex(const PresburgerBasicSet &bs) : Simplex(bs.getNumTotalDims()) {
+template <typename Int>
+Simplex<Int>::Simplex(const PresburgerBasicSet<Int> &bs) : Simplex(bs.getNumTotalDims()) {
   addBasicSet(bs);
 }
 
-const Simplex::Unknown &Simplex::unknownFromIndex(int index) const {
+template <typename Int>
+const typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromIndex(int index) const {
   assert(index != nullIndex && "nullIndex passed to unknownFromIndex");
   return index >= 0 ? var[index] : con[~index];
 }
 
-const Simplex::Unknown &Simplex::unknownFromColumn(unsigned col) const {
+template <typename Int>
+const typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromColumn(unsigned col) const {
   assert(col < nCol && "Invalid column");
   return unknownFromIndex(colUnknown[col]);
 }
 
-const Simplex::Unknown &Simplex::unknownFromRow(unsigned row) const {
+template <typename Int>
+const typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromRow(unsigned row) const {
   assert(row < nRow && "Invalid row");
   return unknownFromIndex(rowUnknown[row]);
 }
 
-Simplex::Unknown &Simplex::unknownFromIndex(int index) {
+template <typename Int>
+typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromIndex(int index) {
   assert(index != nullIndex && "nullIndex passed to unknownFromIndex");
   return index >= 0 ? var[index] : con[~index];
 }
 
-Simplex::Unknown &Simplex::unknownFromColumn(unsigned col) {
+template <typename Int>
+typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromColumn(unsigned col) {
   assert(col < nCol && "Invalid column");
   return unknownFromIndex(colUnknown[col]);
 }
 
-Simplex::Unknown &Simplex::unknownFromRow(unsigned row) {
+template <typename Int>
+typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromRow(unsigned row) {
   assert(row < nRow && "Invalid row");
   return unknownFromIndex(rowUnknown[row]);
 }
 
-void Simplex::addZeroConstraint() {
+template <typename Int>
+void Simplex<Int>::addZeroConstraint() {
   ++nRow;
   tableau.resize(nRow, nCol);
   rowUnknown.push_back(~con.size());
@@ -124,17 +135,18 @@ void Simplex::addZeroConstraint() {
   undoLog.emplace_back(UndoLogEntry::RemoveLastConstraint, Optional<int>());
 }
 
-void Simplex::addDivisionVariable(ArrayRef<SafeInteger> coeffs,
-                                  SafeInteger denom) {
+template <typename Int>
+void Simplex<Int>::addDivisionVariable(ArrayRef<SafeInteger<Int>> coeffs,
+                                  SafeInteger<Int> denom) {
   addVariable();
 
-  SmallVector<SafeInteger, 8> ineq(coeffs.begin(), coeffs.end());
-  SafeInteger constTerm = ineq.back();
+  SmallVector<SafeInteger<Int>, 8> ineq(coeffs.begin(), coeffs.end());
+  SafeInteger<Int> constTerm = ineq.back();
   ineq.back() = -denom;
   ineq.push_back(constTerm);
   addInequality(ineq);
 
-  for (SafeInteger &coeff : ineq)
+  for (SafeInteger<Int> &coeff : ineq)
     coeff = -coeff;
   ineq.back() += denom - 1;
   addInequality(ineq);
@@ -143,7 +155,8 @@ void Simplex::addDivisionVariable(ArrayRef<SafeInteger> coeffs,
 /// Add a new row to the tableau corresponding to the given constant term and
 /// list of coefficients. The coefficients are specified as a vector of
 /// (variable index, coefficient) pairs.
-unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
+template <typename Int>
+unsigned Simplex<Int>::addRow(ArrayRef<SafeInteger<Int>> coeffs) {
   assert(coeffs.size() == 1 + var.size() &&
          "Incorrect number of coefficients!");
 
@@ -169,9 +182,9 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
     // rows potentially having different denominators. The new denominator is
     // the lcm of the two.
     Vector &varRowVec = tableau.getRowVector(pos);
-    SafeInteger lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
-    SafeInteger nRowCoeff = lcm / tableau(nRow - 1, 0);
-    SafeInteger idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
+    SafeInteger<Int> lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
+    SafeInteger<Int> nRowCoeff = lcm / tableau(nRow - 1, 0);
+    SafeInteger<Int> idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
     vec = add(mul(vec, nRowCoeff.val), mul(idxRowCoeff.val, varRowVec));
     tableau(nRow - 1, 0) = lcm.val;
   }
@@ -182,15 +195,17 @@ unsigned Simplex::addRow(ArrayRef<SafeInteger> coeffs) {
 
 /// Normalize the row by removing factors that are common between the
 /// denominator and all the numerator coefficients.
-void Simplex::normalizeRow(unsigned row) {
+template <typename Int>
+void Simplex<Int>::normalizeRow(unsigned row) {
   normalizeRow(row, tableau.getRowVector(row));
 }
 
-void Simplex::normalizeRow(unsigned row, Vector &rowVec) {
+template <typename Int>
+void Simplex<Int>::normalizeRow(unsigned row, Vector &rowVec) {
   if (equalMask(rowVec, 1))
     return;
 
-  SafeInteger gcd = 0;
+  SafeInteger<Int> gcd = 0;
   for (unsigned col = 0; col < nCol; ++col) {
     if (gcd == 1)
       break;
@@ -204,28 +219,16 @@ void Simplex::normalizeRow(unsigned row, Vector &rowVec) {
   assert(tableau(row, 0) != 0);
 }
 
-void normalizeMatRow(Matrix &mat, unsigned row) {
-  SafeInteger gcd = 0;
-  for (unsigned col = 0; col < mat.getNumColumns(); ++col) {
-    if (gcd == 1)
-      break;
-    gcd = llvm::greatestCommonDivisor(gcd, std::abs(mat(row, col)));
-  }
-  if (gcd == 0 || gcd == 1)
-    return;
-  for (unsigned col = 0; col < mat.getNumColumns(); ++col)
-    mat(row, col) /= gcd;
-  assert(mat(row, 0) != 0);
-}
-
 namespace {
-bool signMatchesDirection(SafeInteger elem, Direction direction) {
+template <typename Int>
+bool signMatchesDirection(SafeInteger<Int> elem, Direction<Int> direction) {
   assert(elem != 0 && "elem should not be 0");
-  return direction == Direction::Up ? elem > 0 : elem < 0;
+  return direction == Direction<Int>::Up ? elem > 0 : elem < 0;
 }
 
-Direction flippedDirection(Direction direction) {
-  return direction == Direction::Up ? Direction::Down : Direction::Up;
+template <typename Int>
+Direction<Int> flippedDirection(Direction<Int> direction) {
+  return direction == Direction<Int>::Up ? Direction<Int>::Down : Direction<Int>::Up;
 }
 } // anonymous namespace
 
@@ -249,7 +252,8 @@ Direction flippedDirection(Direction direction) {
 /// this is type AdjEq.
 ///
 /// Otherwise, none of the heuristics match so the type is Separate.
-inline Simplex::IneqType Simplex::separationType(unsigned row) {
+template <typename Int>
+inline typename Simplex<Int>::IneqType Simplex<Int>::separationType(unsigned row) {
   // TODO this can be removed, if below we compare tableau(row, 1) with the
   // negated denominator instead of -1.
   normalizeRow(row);
@@ -271,7 +275,7 @@ inline Simplex::IneqType Simplex::separationType(unsigned row) {
 
   if (tableau(row, 1) == -1) {
     auto min = computeRowOptimum(Direction::Down, row);
-    if (min && *min == Fraction(-1, 1))
+    if (min && *min == Fraction<Int>(-1, 1))
       return IneqType::AdjEq;
   }
 
@@ -310,7 +314,8 @@ inline Simplex::IneqType Simplex::separationType(unsigned row) {
 ///
 /// If the tableau is empty the behaviour is exactly that of isl, and is left
 /// unspecified for isl-parity.
-Simplex::IneqType Simplex::ineqType(ArrayRef<SafeInteger> coeffs) {
+template <typename Int>
+typename Simplex<Int>::IneqType Simplex<Int>::ineqType(ArrayRef<SafeInteger<Int>> coeffs) {
   extendConstraints(1);
   unsigned snap = getSnapshot();
   unsigned con_index = addRow(coeffs);
@@ -321,7 +326,7 @@ Simplex::IneqType Simplex::ineqType(ArrayRef<SafeInteger> coeffs) {
   if (tableau(row, 1) < 0 && !rowIsAtLeastZero(con[con_index]))
     type = separationType(row);
   else {
-    SafeInteger min_sample_value = -tableau(row, 0) + 1;
+    SafeInteger<Int> min_sample_value = -tableau(row, 0) + 1;
     // The constraint may have been marked redundant in signOfMax above.
     if (con[con_index].redundant || (tableau(row, 1) >= min_sample_value &&
                                      constraintIsRedundant(con_index)))
@@ -342,11 +347,12 @@ Simplex::IneqType Simplex::ineqType(ArrayRef<SafeInteger> coeffs) {
 /// negative. If we cannot find any more pivots, the row cannot attain
 /// non-negative values. If the pivot would move the row to a column, then the
 /// row is unbounded above.
-bool Simplex::rowIsAtLeastZero(Unknown &unknown) {
+template <typename Int>
+bool Simplex<Int>::rowIsAtLeastZero(Unknown &unknown) {
   assert(unknown.orientation == Orientation::Row &&
          "Unknown is in column position!");
   while (tableau(unknown.pos, 1) < 0) {
-    auto p = findPivot(unknown.pos, Simplex::Direction::Up);
+    auto p = findPivot(unknown.pos, Simplex<Int>::Direction::Up);
 
     if (!p)
       // The sample value of the row is its maximum value, and it is negative.
@@ -371,12 +377,13 @@ bool Simplex::rowIsAtLeastZero(Unknown &unknown) {
 ///
 /// If multiple columns are valid, we break ties by considering a lexicographic
 /// ordering where we prefer unknowns with lower index.
-Optional<Simplex::Pivot> Simplex::findPivot(int row,
+template <typename Int>
+Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
                                             Direction direction) const {
   Optional<unsigned> col;
 
   for (unsigned j = liveColBegin; j < nCol; ++j) {
-    SafeInteger elem = tableau(row, j);
+    SafeInteger<Int> elem = tableau(row, j);
     if (elem == 0)
       continue;
 
@@ -400,7 +407,8 @@ Optional<Simplex::Pivot> Simplex::findPivot(int row,
 ///
 /// First we swap the index associated with the row and column. Then we update
 /// the unknowns to reflect their new position and orientation.
-void Simplex::swapRowWithCol(unsigned row, unsigned col) {
+template <typename Int>
+void Simplex<Int>::swapRowWithCol(unsigned row, unsigned col) {
   std::swap(rowUnknown[row], colUnknown[col]);
   Unknown &uCol = unknownFromColumn(col);
   Unknown &uRow = unknownFromRow(row);
@@ -410,7 +418,8 @@ void Simplex::swapRowWithCol(unsigned row, unsigned col) {
   uRow.pos = row;
 }
 
-void Simplex::pivot(Pivot pair) { pivot(pair.row, pair.column); }
+template <typename Int>
+void Simplex<Int>::pivot(Pivot pair) { pivot(pair.row, pair.column); }
 
 /// Pivot pivotRow and pivotCol.
 ///
@@ -437,7 +446,8 @@ void Simplex::pivot(Pivot pair) { pivot(pair.row, pair.column); }
 /// The pivot row transform is accomplished be swapping a with the pivot row's
 /// common denominator and negating the pivot row except for the pivot column
 /// element.
-void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
+template <typename Int>
+void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   assert((pivotRow >= nRedundant && pivotCol >= liveColBegin) &&
          "Refusing to pivot redundant row or invalid column");
 
@@ -550,7 +560,8 @@ void Simplex::pivot(unsigned pivotRow, unsigned pivotCol) {
 /// Perform pivots until the unknown has a non-negative sample value or until
 /// no more upward pivots can be performed. Return the sign of the final sample
 /// value.
-LogicalResult Simplex::restoreRow(Unknown &u) {
+template <typename Int>
+LogicalResult Simplex<Int>::restoreRow(Unknown &u) {
   assert(u.orientation == Orientation::Row &&
          "unknown should be in row position");
 
@@ -588,22 +599,23 @@ LogicalResult Simplex::restoreRow(Unknown &u) {
 /// 0 and hence saturates the bound it imposes. We break ties between rows that
 /// impose the same bound by considering a lexicographic ordering where we
 /// prefer unknowns with lower index value.
-Optional<unsigned> Simplex::findPivotRow(Optional<unsigned> skipRow,
+template <typename Int>
+Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
                                          Direction direction,
                                          unsigned col) const {
   Optional<unsigned> retRow;
-  SafeInteger retElem, retConst;
+  SafeInteger<Int> retElem, retConst;
   for (unsigned row = nRedundant; row < nRow; ++row) {
     if (skipRow && row == *skipRow)
       continue;
-    SafeInteger elem = tableau(row, col);
+    SafeInteger<Int> elem = tableau(row, col);
     if (elem == 0)
       continue;
     if (!unknownFromRow(row).restricted)
       continue;
     if (signMatchesDirection(elem, direction))
       continue;
-    SafeInteger constTerm = tableau(row, 1);
+    SafeInteger<Int> constTerm = tableau(row, 1);
 
     if (!retRow) {
       retRow = row;
@@ -612,7 +624,7 @@ Optional<unsigned> Simplex::findPivotRow(Optional<unsigned> skipRow,
       continue;
     }
 
-    SafeInteger diff = retConst * elem - constTerm * retElem;
+    SafeInteger<Int> diff = retConst * elem - constTerm * retElem;
     if ((diff == 0 && rowUnknown[row] < rowUnknown[*retRow]) ||
         (diff != 0 && !signMatchesDirection(diff, direction))) {
       retRow = row;
@@ -623,9 +635,11 @@ Optional<unsigned> Simplex::findPivotRow(Optional<unsigned> skipRow,
   return retRow;
 }
 
-bool Simplex::isEmpty() const { return empty; }
+template <typename Int>
+bool Simplex<Int>::isEmpty() const { return empty; }
 
-void Simplex::swapRows(unsigned i, unsigned j) {
+template <typename Int>
+void Simplex<Int>::swapRows(unsigned i, unsigned j) {
   if (i == j)
     return;
   tableau.swapRows(i, j);
@@ -635,7 +649,8 @@ void Simplex::swapRows(unsigned i, unsigned j) {
 }
 
 /// Mark this tableau empty and push an entry to the undo stack.
-void Simplex::markEmpty() {
+template <typename Int>
+void Simplex<Int>::markEmpty() {
   // If the set is already empty, then we shouldn't add another UnmarkEmpty log
   // entry, since in that case the Simplex will be erroneously marked as
   // non-empty when rolling back past this point.
@@ -664,7 +679,8 @@ void Simplex::markEmpty() {
 ///
 /// Otherwise, if the unknown has a negative sample value, then it is
 /// not redundant, so we restore the row to a non-negative value and return.
-bool Simplex::constraintIsRedundant(unsigned conIndex) {
+template <typename Int>
+bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
   if (con[conIndex].redundant)
     return true;
 
@@ -695,7 +711,8 @@ bool Simplex::constraintIsRedundant(unsigned conIndex) {
   return false;
 }
 
-bool Simplex::isMarkedRedundant(int conIndex) const {
+template <typename Int>
+bool Simplex<Int>::isMarkedRedundant(int conIndex) const {
   return con[conIndex].redundant;
 }
 
@@ -703,7 +720,8 @@ bool Simplex::isMarkedRedundant(int conIndex) const {
 ///
 /// The constraint is an equality if it has been marked zero, if it is a dead
 /// column, or if the row is obviously equal to zero.
-bool Simplex::constraintIsEquality(int conIndex) const {
+template <typename Int>
+bool Simplex<Int>::constraintIsEquality(int conIndex) const {
   const Unknown &u = con[conIndex];
   if (u.zero)
     return true;
@@ -721,7 +739,8 @@ bool Simplex::constraintIsEquality(int conIndex) const {
 /// We add the inequality and mark it as restricted. We then try to make its
 /// sample value non-negative. If this is not possible, the tableau has become
 /// empty and we mark it as such.
-void Simplex::addInequality(ArrayRef<SafeInteger> coeffs) {
+template <typename Int>
+void Simplex<Int>::addInequality(ArrayRef<SafeInteger<Int>> coeffs) {
   unsigned conIndex = addRow(coeffs);
   Unknown &u = con[conIndex];
   u.restricted = true;
@@ -736,10 +755,11 @@ void Simplex::addInequality(ArrayRef<SafeInteger> coeffs) {
 ///
 /// We simply add two opposing inequalities, which force the expression to
 /// be zero.
-void Simplex::addEquality(ArrayRef<SafeInteger> coeffs) {
+template <typename Int>
+void Simplex<Int>::addEquality(ArrayRef<SafeInteger<Int>> coeffs) {
   addInequality(coeffs);
-  SmallVector<SafeInteger, 8> negatedCoeffs;
-  for (SafeInteger coeff : coeffs)
+  SmallVector<SafeInteger<Int>, 8> negatedCoeffs;
+  for (SafeInteger<Int> coeff : coeffs)
     negatedCoeffs.emplace_back(-coeff);
   addInequality(negatedCoeffs);
 }
@@ -748,7 +768,8 @@ void Simplex::addEquality(ArrayRef<SafeInteger> coeffs) {
 ///
 /// Since all the rows are stored contiguously as the first nRedundant rows,
 /// we move our row to the row at position nRedundant.
-bool Simplex::markRedundant(unsigned row) {
+template <typename Int>
+bool Simplex<Int>::markRedundant(unsigned row) {
   assert(!unknownFromRow(row).redundant && "Row is already marked redundant");
   assert(row >= nRedundant &&
          "Row is not marked redundant but row < nRedundant");
@@ -768,7 +789,8 @@ bool Simplex::markRedundant(unsigned row) {
 ///
 /// Now for each constraint that hasn't already been marked redundant, we check
 /// if it is redundant via constraintIsRedundant, and if it is, mark it as such.
-void Simplex::detectRedundant() {
+template <typename Int>
+void Simplex<Int>::detectRedundant() {
   if (empty)
     return;
   for (int i = con.size() - 1; i >= 0; i--) {
@@ -784,7 +806,8 @@ void Simplex::detectRedundant() {
   }
 }
 
-void Simplex::addVariable() {
+template <typename Int>
+void Simplex<Int>::addVariable() {
   undoLog.emplace_back(UndoLogEntry::RemoveLastVariable, Optional<int>());
   nCol++;
   tableau.resize(nRow, nCol);
@@ -792,13 +815,17 @@ void Simplex::addVariable() {
   colUnknown.push_back(var.size() - 1);
 }
 
-unsigned Simplex::numVariables() const { return var.size(); }
-unsigned Simplex::numConstraints() const { return con.size(); }
+template <typename Int>
+unsigned Simplex<Int>::numVariables() const { return var.size(); }
+template <typename Int>
+unsigned Simplex<Int>::numConstraints() const { return con.size(); }
 
 /// Return a snapshot of the curent state. This is just the current size of the
 /// undo log.
-unsigned Simplex::getSnapshot() const { return undoLog.size(); }
-unsigned Simplex::getSnapshotBasis() {
+template <typename Int>
+unsigned Simplex<Int>::getSnapshot() const { return undoLog.size(); }
+template <typename Int>
+unsigned Simplex<Int>::getSnapshotBasis() {
   SmallVector<int, 8> basis;
   for (int index : colUnknown) {
     if (index != nullIndex)
@@ -810,7 +837,8 @@ unsigned Simplex::getSnapshotBasis() {
   return undoLog.size() - 1;
 }
 
-void Simplex::undo(UndoLogEntry entry, Optional<int> index) {
+template <typename Int>
+void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
   if (entry == UndoLogEntry::RemoveLastConstraint) {
     Unknown &constraint = con.back();
     if (constraint.orientation == Orientation::Column) {
@@ -915,7 +943,8 @@ void Simplex::undo(UndoLogEntry entry, Optional<int> index) {
 ///
 /// We undo all the log entries until the log size when the snapshot was taken
 /// is reached.
-void Simplex::rollback(unsigned snapshot) {
+template <typename Int>
+void Simplex<Int>::rollback(unsigned snapshot) {
   while (undoLog.size() > snapshot) {
     auto entry = undoLog.back();
     undoLog.pop_back();
@@ -923,7 +952,8 @@ void Simplex::rollback(unsigned snapshot) {
   }
 }
 
-Optional<Fraction> Simplex::computeRowOptimum(Direction direction,
+template <typename Int>
+Optional<Fraction<Int>> Simplex<Int>::computeRowOptimum(Direction direction,
                                               unsigned row) {
   // Keep trying to find a pivot for the row in the specified direction.
   while (Optional<Pivot> maybePivot = findPivot(row, direction)) {
@@ -937,36 +967,38 @@ Optional<Fraction> Simplex::computeRowOptimum(Direction direction,
   // The row has reached its optimal sample value, which we return.
   // The sample value is the entry in the constant column divided by the common
   // denominator for this row.
-  return Fraction(tableau(row, 1), tableau(row, 0));
+  return Fraction<Int>(tableau(row, 1), tableau(row, 0));
 }
 
 /// Compute the optimum of the specified expression in the specified direction,
 /// or None if it is unbounded.
-Optional<Fraction> Simplex::computeOptimum(Direction direction,
-                                           ArrayRef<SafeInteger> coeffs) {
+template <typename Int>
+Optional<Fraction<Int>> Simplex<Int>::computeOptimum(Direction direction,
+                                           ArrayRef<SafeInteger<Int>> coeffs) {
   assert(!empty && "Tableau should not be empty");
 
   unsigned snapshot = getSnapshot();
   unsigned conIndex = addRow(coeffs);
   unsigned row = con[conIndex].pos;
-  Optional<Fraction> optimum = computeRowOptimum(direction, row);
+  Optional<Fraction<Int>> optimum = computeRowOptimum(direction, row);
   rollback(snapshot);
   return optimum;
 }
 
-bool Simplex::isUnbounded() {
+template <typename Int>
+bool Simplex<Int>::isUnbounded() {
   if (empty)
     return false;
 
-  SmallVector<SafeInteger, 8> dir(var.size() + 1);
+  SmallVector<SafeInteger<Int>, 8> dir(var.size() + 1);
   for (unsigned i = 0; i < var.size(); ++i) {
     dir[i] = 1;
 
-    Optional<Fraction> maybeMax = computeOptimum(Direction::Up, dir);
+    Optional<Fraction<Int>> maybeMax = computeOptimum(Direction::Up, dir);
     if (!maybeMax)
       return true;
 
-    Optional<Fraction> maybeMin = computeOptimum(Direction::Down, dir);
+    Optional<Fraction<Int>> maybeMin = computeOptimum(Direction::Down, dir);
     if (!maybeMin)
       return true;
 
@@ -989,7 +1021,8 @@ bool Simplex::isUnbounded() {
 /// only cares about duals of the new constraints that are added after returning
 /// from this function, so we can safely drop redundant constraints from the
 /// original simplex.
-Simplex Simplex::makeProduct(const Simplex &a, const Simplex &b) {
+template <typename Int>
+Simplex<Int> Simplex<Int>::makeProduct(const Simplex &a, const Simplex &b) {
   unsigned numVar = a.numVariables() + b.numVariables();
   unsigned numCon = a.numConstraints() + b.numConstraints();
   Simplex result(numVar);
@@ -1076,11 +1109,12 @@ Simplex Simplex::makeProduct(const Simplex &a, const Simplex &b) {
   return result;
 }
 
-SmallVector<Fraction, 8> Simplex::getSamplePoint() const {
+template <typename Int>
+SmallVector<Fraction<Int>, 8> Simplex<Int>::getSamplePoint() const {
   // The tableau is empty, so no sample point exists.
   assert(!empty && "Simplex should not be empty!");
 
-  SmallVector<Fraction, 8> sample;
+  SmallVector<Fraction<Int>, 8> sample;
   // Push the sample value for each variable into the vector.
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Column) {
@@ -1096,7 +1130,8 @@ SmallVector<Fraction, 8> Simplex::getSamplePoint() const {
   return sample;
 }
 
-void Simplex::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
+template <typename Int>
+void Simplex<Int>::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
   assert(cs.getNumIds() == numVariables() &&
          "FlatAffineConstraints must have same dimensionality as simplex");
   llvm_unreachable("not yet implemented!");
@@ -1106,7 +1141,8 @@ void Simplex::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
   //   addEquality(cs.getEquality(i));
 }
 
-void Simplex::addBasicSet(const PresburgerBasicSet &bs) {
+template <typename Int>
+void Simplex<Int>::addBasicSet(const PresburgerBasicSet<Int> &bs) {
   assert(bs.getNumTotalDims() == numVariables() &&
          "BasicSet must have same dimensionality as simplex");
   unsigned totNewCons = bs.getNumInequalities() + bs.getNumEqualities() + 2*bs.getNumDivs();
@@ -1114,22 +1150,23 @@ void Simplex::addBasicSet(const PresburgerBasicSet &bs) {
   con.reserve(con.size() + totNewCons);
   rowUnknown.reserve(nRow + totNewCons);
   undoLog.reserve(undoLog.size() + totNewCons);
-  for (const InequalityConstraint &ineq : bs.getInequalities())
+  for (const InequalityConstraint<Int> &ineq : bs.getInequalities())
     addInequality(ineq.getCoeffs());
-  for (const EqualityConstraint &eq : bs.getEqualities())
+  for (const EqualityConstraint<Int> &eq : bs.getEqualities())
     addEquality(eq.getCoeffs());
 }
 
-Optional<SmallVector<SafeInteger, 8>>
-Simplex::getSamplePointIfIntegral() const {
+template <typename Int>
+Optional<SmallVector<SafeInteger<Int>, 8>>
+Simplex<Int>::getSamplePointIfIntegral() const {
   // The tableau is empty, so no sample point exists.
   if (empty)
     return {};
 
-  SmallVector<Fraction, 8> sample = getSamplePoint();
+  SmallVector<Fraction<Int>, 8> sample = getSamplePoint();
 
-  SmallVector<SafeInteger, 8> integralSample;
-  for (Fraction f : sample) {
+  SmallVector<SafeInteger<Int>, 8> integralSample;
+  for (Fraction<Int> f : sample) {
     if (f.num % f.den != 0)
       return {};
     integralSample.push_back(f.num / f.den);
@@ -1151,20 +1188,21 @@ namespace presburger {
 /// also supports rolling back this addition, by maintaining a snapshot stack
 /// that contains a snapshot of the Simplex's state for each equality, just
 /// before that equality was added.
+template <typename Int>
 class GBRSimplex {
-  using Orientation = Simplex::Orientation;
+  using Orientation = typename Simplex<Int>::Orientation;
 
 public:
-  GBRSimplex(const Simplex &originalSimplex)
-      : simplex(Simplex::makeProduct(originalSimplex, originalSimplex)),
+  GBRSimplex(const Simplex<Int> &originalSimplex)
+      : simplex(Simplex<Int>::makeProduct(originalSimplex, originalSimplex)),
         simplexConstraintOffset(simplex.numConstraints()) {}
 
   /// Add an equality dotProduct(dir, x - y) == 0.
   /// First pushes a snapshot for the current simplex state to the stack so
   /// that this can be rolled back later.
-  void addEqualityForDirection(ArrayRef<SafeInteger> dir) {
+  void addEqualityForDirection(ArrayRef<SafeInteger<Int>> dir) {
     assert(std::any_of(dir.begin(), dir.end(),
-                       [](SafeInteger x) { return x != 0; }) &&
+                       [](SafeInteger<Int> x) { return x != 0; }) &&
            "Direction passed is the zero vector!");
     snapshotStack.push_back(simplex.getSnapshot());
     simplex.addEquality(getCoeffsForDirection(dir));
@@ -1172,14 +1210,14 @@ public:
 
   /// Compute max(dotProduct(dir, x - y)) and save the dual variables for only
   /// the direction equalities to `dual`.
-  Fraction computeWidthAndDuals(ArrayRef<SafeInteger> dir,
-                                SmallVectorImpl<SafeInteger> &dual,
-                                SafeInteger &dualDenom) {
+  Fraction<Int> computeWidthAndDuals(ArrayRef<SafeInteger<Int>> dir,
+                                SmallVectorImpl<SafeInteger<Int>> &dual,
+                                SafeInteger<Int> &dualDenom) {
     unsigned snap = simplex.getSnapshot();
     unsigned conIndex = simplex.addRow(getCoeffsForDirection(dir));
     unsigned row = simplex.con[conIndex].pos;
-    Optional<Fraction> maybeWidth =
-        simplex.computeRowOptimum(Simplex::Direction::Up, row);
+    Optional<Fraction<Int>> maybeWidth =
+        simplex.computeRowOptimum(Simplex<Int>::Direction::Up, row);
     assert(maybeWidth.hasValue() && "Width should not be unbounded!");
     dualDenom = simplex.tableau(row, 0);
     dual.clear();
@@ -1188,7 +1226,7 @@ public:
     // If the inequality is in row position, the dual variable is zero.
     // If it is in column position, the numerator is the value at the row being
     // maximized.
-    auto getDualForInequality = [this, &row](unsigned i) -> SafeInteger {
+    auto getDualForInequality = [this, &row](unsigned i) -> SafeInteger<Int> {
       if (simplex.con[i].orientation == Orientation::Row)
         return 0;
       return -simplex.tableau(row, simplex.con[i].pos);
@@ -1219,18 +1257,18 @@ private:
   /// i.e.,   dir_1 * x_1 + dir_2 * x_2 + ... + dir_n * x_n
   ///       - dir_1 * y_1 - dir_2 * y_2 - ... - dir_n * y_n,
   /// where n is the dimension of the original polytope.
-  SmallVector<SafeInteger, 8> getCoeffsForDirection(ArrayRef<SafeInteger> dir) {
+  SmallVector<SafeInteger<Int>, 8> getCoeffsForDirection(ArrayRef<SafeInteger<Int>> dir) {
     assert(2 * dir.size() == simplex.numVariables() &&
            "Direction vector has wrong dimensionality");
-    SmallVector<SafeInteger, 8> coeffs(dir.begin(), dir.end());
+    SmallVector<SafeInteger<Int>, 8> coeffs(dir.begin(), dir.end());
     coeffs.reserve(2 * dir.size());
-    for (SafeInteger coeff : dir)
+    for (SafeInteger<Int> coeff : dir)
       coeffs.push_back(-coeff);
     coeffs.push_back(0); // constant term
     return coeffs;
   }
 
-  Simplex simplex;
+  Simplex<Int> simplex;
   /// The first index of the equality constraints, the index immediately after
   /// the last constraint in the initial product simplex.
   unsigned simplexConstraintOffset;
@@ -1298,16 +1336,17 @@ private:
 /// When incrementing i, no cached f values get invalidated. However, the
 /// cached duals do get invalidated as the duals for the higher levels are
 /// different.
-void Simplex::reduceBasis(Matrix &basis, unsigned level) {
-  const Fraction epsilon(3, 4);
+template <typename Int>
+void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
+  const Fraction<Int> epsilon(3, 4);
 
   if (level == basis.getNumRows() - 1)
     return;
 
-  GBRSimplex gbrSimplex(*this);
-  SmallVector<Fraction, 8> width;
-  SmallVector<SafeInteger, 8> dual;
-  SafeInteger dualDenom;
+  GBRSimplex<Int> gbrSimplex(*this);
+  SmallVector<Fraction<Int>, 8> width;
+  SmallVector<SafeInteger<Int>, 8> dual;
+  SafeInteger<Int> dualDenom;
 
   // Finds the value of u that minimizes width_i(b_{i+1} + u*b_i), caches the
   // duals from this computation, sets b_{i+1} to b_{i+1} + u*b_i, and returns
@@ -1327,15 +1366,15 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
   //   b_i), which
   //      one can show is equal to width_{i+1}(b_{i+1}). The latter value must
   //      be in the cache, so we get it from there and return it.
-  auto updateBasisWithUAndGetFCandidate = [&](unsigned i) -> Fraction {
+  auto updateBasisWithUAndGetFCandidate = [&](unsigned i) -> Fraction<Int> {
     assert(i < level + dual.size() && "dual_i is not known!");
 
-    SafeInteger u = floorDiv(dual[i - level], dualDenom);
+    SafeInteger<Int> u = floorDiv(dual[i - level], dualDenom);
     basis.addToRow(i, i + 1, u);
     if (dual[i - level] % dualDenom != 0) {
-      SmallVector<SafeInteger, 8> candidateDual[2];
-      SafeInteger candidateDualDenom[2];
-      Fraction widthI[2];
+      SmallVector<SafeInteger<Int>, 8> candidateDual[2];
+      SafeInteger<Int> candidateDualDenom[2];
+      Fraction<Int> widthI[2];
 
       // Initially u is floor(dual) and basis reflects this.
       widthI[0] = gbrSimplex.computeWidthAndDuals(
@@ -1357,9 +1396,9 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
       // Check that this holds by comparing with width_i
 #ifndef NDEBUG
       basis.addToRow(i, i + 1, j == 0 ? -1 : +1);
-      SafeInteger unusedDualDenom;
-      SmallVector<SafeInteger, 8> unusedDuals;
-      Fraction otherWidth = gbrSimplex.computeWidthAndDuals(
+      SafeInteger<Int> unusedDualDenom;
+      SmallVector<SafeInteger<Int>, 8> unusedDuals;
+      Fraction<Int> otherWidth = gbrSimplex.computeWidthAndDuals(
           basis.getRow(i + 1), unusedDuals, unusedDualDenom);
       assert(otherWidth >= widthI[j] &&
              "Computed u value does not correspond to minimum width!");
@@ -1371,9 +1410,9 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
     // When dual minimizes f_i(b_{i+1} + dual*b_i), this is equal to
     // width_{i+1}(b_{i+1}).
 #ifndef NDEBUG
-    SafeInteger unusedDualDenom;
-    SmallVector<SafeInteger, 8> unusedDuals;
-    Fraction otherWidth = gbrSimplex.computeWidthAndDuals(
+    SafeInteger<Int> unusedDualDenom;
+    SmallVector<SafeInteger<Int>, 8> unusedDuals;
+    Fraction<Int> otherWidth = gbrSimplex.computeWidthAndDuals(
         basis.getRow(i + 1), unusedDuals, unusedDualDenom);
     assert(otherWidth == width[i + 1 - level]);
 #endif
@@ -1411,7 +1450,7 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
     }
 
     // This variable stores width_i(b_{i+1} + u*b_i).
-    Fraction widthICandidate = updateBasisWithUAndGetFCandidate(i);
+    Fraction<Int> widthICandidate = updateBasisWithUAndGetFCandidate(i);
     if (widthICandidate < epsilon * width[i - level]) {
       basis.swapRows(i, i + 1);
       width[i - level] = widthICandidate;
@@ -1464,23 +1503,24 @@ void Simplex::reduceBasis(Matrix &basis, unsigned level) {
 ///
 /// To avoid potentially arbitrarily large recursion depths leading to stack
 /// overflows, this algorithm is implemented iteratively.
-Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
+template <typename Int>
+Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
   if (empty)
     return {};
   if (auto maybeSample = getSamplePointIfIntegral())
     return *maybeSample;
 
   unsigned nDims = var.size();
-  Matrix basis = Matrix::identity(nDims);
+  Matrix<Int> basis = Matrix<Int>::identity(nDims);
 
   unsigned level = 0;
   // The snapshot just before constraining a direction to a value at each
   // level.
   SmallVector<unsigned, 8> snapshotStack;
   // The maximum value in the range of the direction for each level.
-  SmallVector<SafeInteger, 8> upperBoundStack;
+  SmallVector<SafeInteger<Int>, 8> upperBoundStack;
   // The next value to try constraining the basis vector to at each level.
-  SmallVector<SafeInteger, 8> nextValueStack;
+  SmallVector<SafeInteger<Int>, 8> nextValueStack;
 
   snapshotStack.reserve(basis.getNumRows());
   upperBoundStack.reserve(basis.getNumRows());
@@ -1500,13 +1540,13 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
       // just come down a level ("recursed"). Find the lower and upper bounds.
       // If there is more than one integer point in the range, perform
       // generalized basis reduction.
-      SmallVector<SafeInteger, 8> basisCoeffs =
+      SmallVector<SafeInteger<Int>, 8> basisCoeffs =
           llvm::to_vector<8>(basis.getRow(level));
       basisCoeffs.push_back(0);
 
-      SafeInteger minRoundedUp, maxRoundedDown;
-      if (Optional<Fraction> maybeMin =
-              computeOptimum(Simplex::Direction::Down, basisCoeffs))
+      SafeInteger<Int> minRoundedUp, maxRoundedDown;
+      if (Optional<Fraction<Int>> maybeMin =
+              computeOptimum(Direction::Down, basisCoeffs))
         minRoundedUp = ceil(*maybeMin);
       else
         llvm_unreachable("Tableau should not be unbounded");
@@ -1514,8 +1554,8 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
       if (auto maybeSample = getSamplePointIfIntegral())
         return *maybeSample;
 
-      if (Optional<Fraction> maybeMax =
-              computeOptimum(Simplex::Direction::Up, basisCoeffs))
+      if (Optional<Fraction<Int>> maybeMax =
+              computeOptimum(Direction::Up, basisCoeffs))
         maxRoundedDown = floor(*maybeMax);
       else
         llvm_unreachable("Tableau should not be unbounded");
@@ -1530,12 +1570,12 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
           auto snap = getSnapshot();
           auto min = minRoundedUp, max = maxRoundedDown;
           for (unsigned i = level; i < basis.getNumRows(); ++i) {
-            SmallVector<SafeInteger, 8> basisCoeffs(basis.getRow(i).begin(),
+            SmallVector<SafeInteger<Int>, 8> basisCoeffs(basis.getRow(i).begin(),
                                                     basis.getRow(i).end());
             basisCoeffs.push_back(0);
             if (i != level) {
-              if (Optional<Fraction> maybeMin =
-                      computeOptimum(Simplex::Direction::Down, basisCoeffs))
+              if (Optional<Fraction<Int>> maybeMin =
+                      computeOptimum(Direction::Down, basisCoeffs))
                 min = ceil(*maybeMin);
               else
                 llvm_unreachable("Tableau should not be unbounded");
@@ -1543,8 +1583,8 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
               if (auto maybeSample = getSamplePointIfIntegral())
                 return *maybeSample;
 
-              if (Optional<Fraction> maybeMax =
-                      computeOptimum(Simplex::Direction::Up, basisCoeffs))
+              if (Optional<Fraction<Int>> maybeMax =
+                      computeOptimum(Direction::Up, basisCoeffs))
                 max = floor(*maybeMax);
               else
                 llvm_unreachable("Tableau should not be unbounded");
@@ -1570,8 +1610,8 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
         reduceBasis(basis, level);
         basisCoeffs = llvm::to_vector<8>(basis.getRow(level));
         basisCoeffs.push_back(0);
-        if (Optional<Fraction> maybeMin =
-                computeOptimum(Simplex::Direction::Down, basisCoeffs))
+        if (Optional<Fraction<Int>> maybeMin =
+                computeOptimum(Direction::Down, basisCoeffs))
           minRoundedUp = ceil(*maybeMin);
         else
           llvm_unreachable("Tableau should not be unbounded");
@@ -1579,8 +1619,8 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
         if (auto maybeSample = getSamplePointIfIntegral())
           return *maybeSample;
 
-        if (Optional<Fraction> maybeMax =
-                computeOptimum(Simplex::Direction::Up, basisCoeffs))
+        if (Optional<Fraction<Int>> maybeMax =
+                computeOptimum(Direction::Up, basisCoeffs))
           maxRoundedDown = floor(*maybeMax);
         else
           llvm_unreachable("Tableau should not be unbounded");
@@ -1604,7 +1644,7 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
     // to the snapshot of the starting state at this level. (in the "recursed"
     // case this has no effect)
     rollback(snapshotStack.back());
-    SafeInteger nextValue = nextValueStack.back();
+    SafeInteger<Int> nextValue = nextValueStack.back();
     nextValueStack.back() += 1;
     if (nextValue > upperBoundStack.back()) {
       // We have exhausted the range and found no solution. Pop the stack and
@@ -1617,7 +1657,7 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
     }
 
     // Try the next value in the range and "recurse" into the next level.
-    SmallVector<SafeInteger, 8> basisCoeffs(basis.getRow(level).begin(),
+    SmallVector<SafeInteger<Int>, 8> basisCoeffs(basis.getRow(level).begin(),
                                             basis.getRow(level).end());
     basisCoeffs.push_back(-nextValue);
     addEquality(basisCoeffs);
@@ -1627,15 +1667,16 @@ Optional<SmallVector<SafeInteger, 8>> Simplex::findIntegerSample() {
   return {};
 }
 
-std::pair<SafeInteger, SmallVector<SafeInteger, 8>>
-Simplex::findRationalSample() const {
-  SafeInteger denom = 1;
+template <typename Int>
+std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>>
+Simplex<Int>::findRationalSample() const {
+  SafeInteger<Int> denom = 1;
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Row)
       denom = std::lcm(denom, tableau(u.pos, 0));
   }
-  SmallVector<SafeInteger, 8> sample;
-  SafeInteger gcd = denom;
+  SmallVector<SafeInteger<Int>, 8> sample;
+  SafeInteger<Int> gcd = denom;
   for (const Unknown &u : var) {
     if (u.orientation == Orientation::Column)
       sample.push_back(0);
@@ -1646,7 +1687,7 @@ Simplex::findRationalSample() const {
   }
   if (gcd != 0) {
     denom /= gcd;
-    for (SafeInteger &elem : sample)
+    for (SafeInteger<Int> &elem : sample)
       elem /= gcd;
   }
 
@@ -1655,18 +1696,19 @@ Simplex::findRationalSample() const {
 
 /// Compute the minimum and maximum integer values the expression can take. We
 /// compute each separately.
-std::pair<SafeInteger, SafeInteger>
-Simplex::computeIntegerBounds(ArrayRef<SafeInteger> coeffs) {
-  SafeInteger minRoundedUp;
-  if (Optional<Fraction> maybeMin =
-          computeOptimum(Simplex::Direction::Down, coeffs))
+template <typename Int>
+std::pair<SafeInteger<Int>, SafeInteger<Int>>
+Simplex<Int>::computeIntegerBounds(ArrayRef<SafeInteger<Int>> coeffs) {
+  SafeInteger<Int> minRoundedUp;
+  if (Optional<Fraction<Int>> maybeMin =
+          computeOptimum(Direction::Down, coeffs))
     minRoundedUp = ceil(*maybeMin);
   else
     llvm_unreachable("Tableau should not be unbounded");
 
-  SafeInteger maxRoundedDown;
-  if (Optional<Fraction> maybeMax =
-          computeOptimum(Simplex::Direction::Up, coeffs))
+  SafeInteger<Int> maxRoundedDown;
+  if (Optional<Fraction<Int>> maybeMax =
+          computeOptimum(Direction::Up, coeffs))
     maxRoundedDown = floor(*maybeMax);
   else
     llvm_unreachable("Tableau should not be unbounded");
@@ -1683,7 +1725,8 @@ Simplex::computeIntegerBounds(ArrayRef<SafeInteger> coeffs) {
 /// A column variable is bounded from below if there a exists a constraint for
 /// which the corresponding column coefficient is strictly positive and the row
 /// variable is non-negative (restricted).
-inline bool Simplex::minIsObviouslyUnbounded(Unknown &unknown) const {
+template <typename Int>
+inline bool Simplex<Int>::minIsObviouslyUnbounded(Unknown &unknown) const {
   // tableau.checkSparsity();
   if (unknown.orientation == Orientation::Row)
     return false;
@@ -1704,7 +1747,8 @@ inline bool Simplex::minIsObviouslyUnbounded(Unknown &unknown) const {
 /// A column variable is surely unbounded from above if there does not exist a
 /// constraint for which the corresponding column coefficient is strictly
 /// negative and the row variable is non-negative (restricted).
-inline bool Simplex::maxIsObviouslyUnbounded(Unknown &unknown) const {
+template <typename Int>
+inline bool Simplex<Int>::maxIsObviouslyUnbounded(Unknown &unknown) const {
   if (unknown.orientation == Orientation::Row)
     return false;
 
@@ -1723,13 +1767,15 @@ inline bool Simplex::maxIsObviouslyUnbounded(Unknown &unknown) const {
 ///
 /// This is because of the invariant that the sample value is always a valid
 /// point in the tableau (assuming the tableau is not empty).
-inline bool Simplex::rowIsObviouslyNotZero(unsigned row) const {
+template <typename Int>
+inline bool Simplex<Int>::rowIsObviouslyNotZero(unsigned row) const {
   return tableau(row, 1) >= tableau(row, 0);
 }
 
 /// A row is equal to zero if its constant term and all coefficients for live
 /// columns are equal to zero.
-inline bool Simplex::rowIsObviouslyZero(unsigned row) const {
+template <typename Int>
+inline bool Simplex<Int>::rowIsObviouslyZero(unsigned row) const {
   if (tableau(row, 1) != 0)
     return false;
   for (unsigned col = liveColBegin; col < nCol; col++) {
@@ -1741,7 +1787,8 @@ inline bool Simplex::rowIsObviouslyZero(unsigned row) const {
 
 /// An unknown is considered to be relevant if it is neither a redundant row nor
 /// a dead column
-inline bool Simplex::unknownIsRelevant(Unknown &unknown) const {
+template <typename Int>
+inline bool Simplex<Int>::unknownIsRelevant(Unknown &unknown) const {
   if (unknown.orientation == Orientation::Row && unknown.pos < nRedundant)
     return false;
   else if (unknown.orientation == Orientation::Column &&
@@ -1756,7 +1803,8 @@ inline bool Simplex::unknownIsRelevant(Unknown &unknown) const {
 ///
 /// If there are non-zero entries then integrality depends on the values of all
 /// referenced column variables.
-inline bool Simplex::rowIsObviouslyNonIntegral(unsigned row) const {
+template <typename Int>
+inline bool Simplex<Int>::rowIsObviouslyNonIntegral(unsigned row) const {
   for (unsigned j = liveColBegin; j < nCol; j++) {
     if (tableau(row, j) != 0)
       return false;
@@ -1772,7 +1820,8 @@ inline bool Simplex::rowIsObviouslyNonIntegral(unsigned row) const {
 /// If the unknown is already in row position we need not do anything.
 /// Otherwise, we find a row to pivot to via findPivotRow and pivot to it.
 /// TODO currently doesn't support an optional direction
-inline void Simplex::toRow(Unknown &unknown, Direction direction) {
+template <typename Int>
+inline void Simplex<Int>::toRow(Unknown &unknown, Direction direction) {
   if (unknown.orientation == Orientation::Row)
     return;
 
@@ -1784,8 +1833,9 @@ inline void Simplex::toRow(Unknown &unknown, Direction direction) {
                      "specified directions.");
 }
 
-inline SafeInteger Simplex::sign(SafeInteger num, SafeInteger den,
-                                 SafeInteger origin) const {
+template <typename Int>
+inline SafeInteger<Int> Simplex<Int>::sign(SafeInteger<Int> num, SafeInteger<Int> den,
+                                 SafeInteger<Int> origin) const {
   if (num > origin * den)
     return +1;
   else if (num < origin * den)
@@ -1805,8 +1855,9 @@ inline SafeInteger Simplex::sign(SafeInteger num, SafeInteger den,
 ///
 /// Otherwise, we move the unknown up to a row and keep trying to find upward
 /// pivots until the unknown becomes unbounded or becomes maximised.
+template <typename Int>
 template <int origin>
-SafeInteger Simplex::signOfMax(Unknown &u) {
+SafeInteger<Int> Simplex<Int>::signOfMax(Unknown &u) {
   static_assert(origin >= 0, "");
   assert(!u.redundant && "signOfMax called for redundant unknown");
 
@@ -1842,7 +1893,8 @@ SafeInteger Simplex::signOfMax(Unknown &u) {
   return 1;
 }
 
-inline void Simplex::swapColumns(unsigned i, unsigned j) {
+template <typename Int>
+inline void Simplex<Int>::swapColumns(unsigned i, unsigned j) {
   tableau.swapColumns(i, j);
   std::swap(colUnknown[i], colUnknown[j]);
   unknownFromColumn(i).pos = i;
@@ -1854,7 +1906,8 @@ inline void Simplex::swapColumns(unsigned i, unsigned j) {
 /// If the row is not already the last one, swap it with the last row.
 /// Then decrement the row count, remove the constraint entry, and remove the
 /// entry in row_var.
-inline void Simplex::dropRow(unsigned row) {
+template <typename Int>
+inline void Simplex<Int>::dropRow(unsigned row) {
   // It is unclear why this restriction exists. Perhaps because bmaps outside
   // keep track of the number of equalities, and hence moving around constraints
   // would require updating them?
@@ -1868,7 +1921,8 @@ inline void Simplex::dropRow(unsigned row) {
   con.pop_back();
 }
 
-inline bool Simplex::killCol(unsigned col) {
+template <typename Int>
+inline bool Simplex<Int>::killCol(unsigned col) {
   Unknown &unknown = unknownFromColumn(col);
   unknown.zero = true;
   undoLog.emplace_back(UndoLogEntry::UnmarkZero, colUnknown[col]);
@@ -1879,7 +1933,8 @@ inline bool Simplex::killCol(unsigned col) {
   return false;
 }
 
-inline int Simplex::indexFromUnknown(const Unknown &u) const {
+template <typename Int>
+inline int Simplex<Int>::indexFromUnknown(const Unknown &u) const {
   if (u.orientation == Orientation::Row)
     return rowUnknown[u.pos];
   return colUnknown[u.pos];
@@ -1887,7 +1942,8 @@ inline int Simplex::indexFromUnknown(const Unknown &u) const {
 
 /// If temp_row is set, the last row is a temporary unknown and undo entries
 /// should not be written for this row.
-inline void Simplex::closeRow(unsigned row, bool tempRow) {
+template <typename Int>
+inline void Simplex<Int>::closeRow(unsigned row, bool tempRow) {
   Unknown *u = &unknownFromRow(row);
   assert(u->restricted && "expected restricted variable\n");
 
@@ -1919,7 +1975,8 @@ inline void Simplex::closeRow(unsigned row, bool tempRow) {
       }
 }
 
-inline void Simplex::extendConstraints(unsigned nNew) {
+template <typename Int>
+inline void Simplex<Int>::extendConstraints(unsigned nNew) {
   if (con.capacity() < con.size() + nNew)
     con.reserve(con.size() + nNew);
   if (tableau.getNumRows() < nRow + nNew) {
@@ -1942,7 +1999,8 @@ inline void Simplex::extendConstraints(unsigned nNew) {
 /// always be zero so we close the row and then drop it. Closing the row results
 /// in some columns being killed, so the effect of fixing it to be zero remains
 /// even after it is dropped.
-inline void Simplex::cutToHyperplane(int conIndex) {
+template <typename Int>
+inline void Simplex<Int>::cutToHyperplane(int conIndex) {
   if (con[conIndex].zero)
     return;
   assert(!con[conIndex].redundant && con[conIndex].restricted &&
@@ -1967,7 +2025,7 @@ inline void Simplex::cutToHyperplane(int conIndex) {
   // tableau.updateRowSparsity(nRow);
   nRow++;
 
-  SafeInteger sgn = signOfMax<0>(tempVar);
+  SafeInteger<Int> sgn = signOfMax<0>(tempVar);
   if (sgn < 0) {
     assert(tempVar.orientation == Orientation::Row &&
            "temp_var is in column position");
@@ -2010,7 +2068,8 @@ inline void Simplex::cutToHyperplane(int conIndex) {
 /// TODO: consider changing the name, something with 'zero' is perhaps more
 /// indicative than equality. And 'detect' sounds more passive than what we're
 /// doing (adding constraints, closing rows).
-void Simplex::detectImplicitEqualities() {
+template <typename Int>
+void Simplex<Int>::detectImplicitEqualities() {
   if (empty)
     return;
   if (liveColBegin == nCol)
@@ -2033,7 +2092,7 @@ void Simplex::detectImplicitEqualities() {
     if (!unknownIsRelevant(con[i]))
       continue;
 
-    SafeInteger sgn = signOfMax<0>(con[i]);
+    SafeInteger<Int> sgn = signOfMax<0>(con[i]);
     if (sgn == 0) {
       closeRow(con[i].pos, false);
     } else if (signOfMax<1>(con[i]) < 0) {
@@ -2050,7 +2109,8 @@ void Simplex::detectImplicitEqualities() {
   }
 }
 
-void Simplex::print(raw_ostream &os) const {
+template <typename Int>
+void Simplex<Int>::print(raw_ostream &os) const {
   os << "rows = " << nRow << ", columns = " << nCol
      << "\nnRedundant = " << nRedundant << "\n";
   if (empty)
@@ -2086,4 +2146,5 @@ void Simplex::print(raw_ostream &os) const {
   os << '\n';
 }
 
-void Simplex::dump() const { print(llvm::errs()); }
+template <typename Int>
+void Simplex<Int>::dump() const { print(llvm::errs()); }

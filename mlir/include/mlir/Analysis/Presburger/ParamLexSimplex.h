@@ -29,9 +29,10 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
+template <typename Int>
 struct pwaFunction {
-  SmallVector<PresburgerBasicSet, 8> domain;
-  SmallVector<SmallVector<SmallVector<SafeInteger, 8>, 8>, 8> value;
+  SmallVector<PresburgerBasicSet<Int>, 8> domain;
+  SmallVector<SmallVector<SmallVector<SafeInteger<Int>, 8>, 8>, 8> value;
 
   void dump() {
     for (unsigned i = 0; i < value.size(); ++i) {
@@ -51,32 +52,58 @@ struct pwaFunction {
   }
 };
 
-class ParamLexSimplex : public Simplex {
+template <typename Int>
+class ParamLexSimplex : public Simplex<Int> {
 public:
+  using Simplex<Int>::nRow;
+  using Simplex<Int>::nCol;
+  using Simplex<Int>::nRedundant;
+  using Simplex<Int>::liveColBegin;
+  using Simplex<Int>::tableau;
+  using Simplex<Int>::empty;
+  using Simplex<Int>::undoLog;
+  using Simplex<Int>::savedBases;
+  using Simplex<Int>::rowUnknown;
+  using Simplex<Int>::colUnknown;
+  using Simplex<Int>::con;
+  using Simplex<Int>::var;
+  using Unknown = typename Simplex<Int>::Unknown;
+  using Direction = typename Simplex<Int>::Direction;
+  using Orientation = typename Simplex<Int>::Orientation;
+  using Simplex<Int>::getSnapshotBasis;
+  using Simplex<Int>::unknownFromRow;
+  using Simplex<Int>::unknownFromColumn;
+  using Simplex<Int>::rollback;
+  using Simplex<Int>::addVariable;
+  using Simplex<Int>::addDivisionVariable;
+  using Simplex<Int>::addZeroConstraint;
+  using Simplex<Int>::pivot;
+  using Simplex<Int>::markEmpty;
+
   ParamLexSimplex() = delete;
   ParamLexSimplex(unsigned nDim, unsigned nParam);
   explicit ParamLexSimplex(const FlatAffineConstraints &constraints);
 
-  void addInequality(ArrayRef<SafeInteger> coeffs);
-  void addEquality(ArrayRef<SafeInteger> coeffs);
-  void addDivisionVariable(ArrayRef<SafeInteger> coeffs, SafeInteger denom);
+  void addInequality(ArrayRef<SafeInteger<Int>> coeffs);
+  void addEquality(ArrayRef<SafeInteger<Int>> coeffs);
+  void addDivisionVariable(ArrayRef<SafeInteger<Int>> coeffs, SafeInteger<Int> denom);
 
-  pwaFunction findParamLexmin();
-  void findParamLexminRecursively(Simplex &domainSimplex,
-                                  PresburgerBasicSet &domainSet,
-                                  pwaFunction &result);
+  pwaFunction<Int> findParamLexmin();
+  void findParamLexminRecursively(Simplex<Int> &domainSimplex,
+                                  PresburgerBasicSet<Int> &domainSet,
+                                  pwaFunction<Int> &result);
 
 private:
-  SmallVector<SafeInteger, 8> getRowParamSample(unsigned row);
+  SmallVector<SafeInteger<Int>, 8> getRowParamSample(unsigned row);
   LogicalResult moveRowUnknownToColumn(unsigned row);
   void restoreConsistency();
   unsigned getSnapshot();
-  // SmallVector<SafeInteger, 8> varCoeffsFromRowCoeffs(ArrayRef<SafeInteger>
+  // SmallVector<SafeInteger<Int>, 8> varCoeffsFromRowCoeffs(ArrayRef<SafeInteger<Int>>
   // rowCoeffs) const;
   Optional<unsigned> findPivot(unsigned row) const;
 
   unsigned nParam, nDiv;
-  SmallVector<SmallVector<SafeInteger, 8>, 8> originalCoeffs;
+  SmallVector<SmallVector<SafeInteger<Int>, 8>, 8> originalCoeffs;
 };
 } // namespace presburger
 } // namespace analysis

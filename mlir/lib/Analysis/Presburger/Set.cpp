@@ -9,76 +9,89 @@
 using namespace mlir;
 using namespace analysis::presburger;
 
-PresburgerSet::PresburgerSet(PresburgerBasicSet cs)
+template <typename Int>
+PresburgerSet<Int>::PresburgerSet(PresburgerBasicSet<Int> cs)
     : nDim(cs.getNumDims()), nSym(cs.getNumParams()), markedEmpty(false) {
   addBasicSet(cs);
 }
 
-unsigned PresburgerSet::getNumBasicSets() const { return basicSets.size(); }
+template <typename Int>
+unsigned PresburgerSet<Int>::getNumBasicSets() const { return basicSets.size(); }
 
-unsigned PresburgerSet::getNumDims() const { return nDim; }
+template <typename Int>
+unsigned PresburgerSet<Int>::getNumDims() const { return nDim; }
 
-unsigned PresburgerSet::getNumSyms() const { return nSym; }
+template <typename Int>
+unsigned PresburgerSet<Int>::getNumSyms() const { return nSym; }
 
-bool PresburgerSet::isMarkedEmpty() const {
+template <typename Int>
+bool PresburgerSet<Int>::isMarkedEmpty() const {
   return markedEmpty || basicSets.empty();
 }
 
-bool PresburgerSet::isUniverse() const {
+template <typename Int>
+bool PresburgerSet<Int>::isUniverse() const {
   if (markedEmpty || basicSets.empty())
     return false;
-  for (const PresburgerBasicSet &bs : basicSets) {
+  for (const PresburgerBasicSet<Int> &bs : basicSets) {
     if (bs.getNumInequalities() == 0 && bs.getNumEqualities() == 0)
       return true;
   }
   return false;
 }
 
-const SmallVector<PresburgerBasicSet, 4> &PresburgerSet::getBasicSets() const {
+template <typename Int>
+const SmallVector<PresburgerBasicSet<Int>, 4> &PresburgerSet<Int>::getBasicSets() const {
   return basicSets;
 }
 
 // This is only used to check assertions
-static void assertDimensionsCompatible(PresburgerBasicSet cs,
-                                       PresburgerSet set) {
+template <typename Int>
+static void assertDimensionsCompatible(PresburgerBasicSet<Int> cs,
+                                       PresburgerSet<Int> set) {
   assert(cs.getNumDims() == set.getNumDims() &&
          cs.getNumParams() == set.getNumSyms() &&
-         "Dimensionalities of PresburgerBasicSet and PresburgerSet do not "
+         "Dimensionalities of PresburgerBasicSet<Int> and PresburgerSet<Int> do not "
          "match");
 }
 
-static void assertDimensionsCompatible(PresburgerSet set1, PresburgerSet set2) {
+template <typename Int>
+static void assertDimensionsCompatible(PresburgerSet<Int> set1, PresburgerSet<Int> set2) {
   assert(set1.getNumDims() == set2.getNumDims() &&
          set1.getNumSyms() == set2.getNumSyms() &&
-         "Dimensionalities of PresburgerSets do not match");
+         "Dimensionalities of PresburgerSet<Int>s do not match");
 }
 
-void PresburgerSet::addBasicSet(const PresburgerBasicSet &cs) {
+template <typename Int>
+void PresburgerSet<Int>::addBasicSet(const PresburgerBasicSet<Int> &cs) {
   assertDimensionsCompatible(cs, *this);
 
   markedEmpty = false;
   basicSets.push_back(cs);
 }
 
-void PresburgerSet::addBasicSet(PresburgerBasicSet &&cs) {
+template <typename Int>
+void PresburgerSet<Int>::addBasicSet(PresburgerBasicSet<Int> &&cs) {
   assertDimensionsCompatible(cs, *this);
 
   markedEmpty = false;
   basicSets.push_back(std::move(cs));
 }
 
-void PresburgerSet::unionSet(const PresburgerSet &set) {
+template <typename Int>
+void PresburgerSet<Int>::unionSet(const PresburgerSet<Int> &set) {
   assertDimensionsCompatible(set, *this);
 
-  for (const PresburgerBasicSet &cs : set.basicSets)
+  for (const PresburgerBasicSet<Int> &cs : set.basicSets)
     addBasicSet(std::move(cs));
 }
 
-void PresburgerSet::unionSet(PresburgerSet &&set) {
+template <typename Int>
+void PresburgerSet<Int>::unionSet(PresburgerSet<Int> &&set) {
   assertDimensionsCompatible(set, *this);
 
   basicSets.reserve(basicSets.size() + set.basicSets.size());
-  for (PresburgerBasicSet &cs : set.basicSets)
+  for (PresburgerBasicSet<Int> &cs : set.basicSets)
     addBasicSet(std::move(cs));
 }
 
@@ -86,7 +99,8 @@ void PresburgerSet::unionSet(PresburgerSet &&set) {
 //
 // We directly compute (S_1 or S_2 ...) and (T_1 or T_2 ...)
 // as (S_1 and T_1) or (S_1 and T_2) or ...
-void PresburgerSet::intersectSet(const PresburgerSet &set) {
+template <typename Int>
+void PresburgerSet<Int>::intersectSet(const PresburgerSet<Int> &set) {
   assertDimensionsCompatible(set, *this);
 
   if (markedEmpty)
@@ -103,10 +117,10 @@ void PresburgerSet::intersectSet(const PresburgerSet &set) {
     return;
   }
 
-  PresburgerSet result(nDim, nSym, true);
-  for (const PresburgerBasicSet &cs1 : basicSets) {
-    for (const PresburgerBasicSet &cs2 : set.basicSets) {
-      PresburgerBasicSet intersection(cs1);
+  PresburgerSet<Int> result(nDim, nSym, true);
+  for (const PresburgerBasicSet<Int> &cs1 : basicSets) {
+    for (const PresburgerBasicSet<Int> &cs2 : set.basicSets) {
+      PresburgerBasicSet<Int> intersection(cs1);
       intersection.intersect(cs2);
       result.addBasicSet(std::move(intersection));
     }
@@ -114,17 +128,19 @@ void PresburgerSet::intersectSet(const PresburgerSet &set) {
   *this = std::move(result);
 }
 
-PresburgerSet PresburgerSet::makeEmptySet(unsigned nDim, unsigned nSym) {
-  PresburgerSet result(nDim, nSym, true);
+template <typename Int>
+PresburgerSet<Int> PresburgerSet<Int>::makeEmptySet(unsigned nDim, unsigned nSym) {
+  PresburgerSet<Int> result(nDim, nSym, true);
   return result;
 }
 
 /// Return `coeffs` with all the elements negated.
-static SmallVector<SafeInteger, 8>
-getNegatedCoeffs(ArrayRef<SafeInteger> coeffs) {
-  SmallVector<SafeInteger, 8> negatedCoeffs;
+template <typename Int>
+static SmallVector<SafeInteger<Int>, 8>
+getNegatedCoeffs(ArrayRef<SafeInteger<Int>> coeffs) {
+  SmallVector<SafeInteger<Int>, 8> negatedCoeffs;
   negatedCoeffs.reserve(coeffs.size());
-  for (SafeInteger coeff : coeffs)
+  for (SafeInteger<Int> coeff : coeffs)
     negatedCoeffs.emplace_back(-coeff);
   return negatedCoeffs;
 }
@@ -133,11 +149,12 @@ getNegatedCoeffs(ArrayRef<SafeInteger> coeffs) {
 ///
 /// The complement of a_1 x_1 + ... + a_n x_ + c >= 0 is
 /// a_1 x_1 + ... + a_n x_ + c < 0, i.e., -a_1 x_1 - ... - a_n x_ - c - 1 >= 0.
-static SmallVector<SafeInteger, 8>
-getComplementIneq(ArrayRef<SafeInteger> ineq) {
-  SmallVector<SafeInteger, 8> coeffs;
+template <typename Int>
+static SmallVector<SafeInteger<Int>, 8>
+getComplementIneq(ArrayRef<SafeInteger<Int>> ineq) {
+  SmallVector<SafeInteger<Int>, 8> coeffs;
   coeffs.reserve(ineq.size());
-  for (SafeInteger coeff : ineq)
+  for (SafeInteger<Int> coeff : ineq)
     coeffs.emplace_back(-coeff);
   coeffs.back() -= 1;
   return coeffs;
@@ -160,27 +177,28 @@ getComplementIneq(ArrayRef<SafeInteger> ineq) {
 // As a heuristic, we try adding all the constraints and check if simplex
 // says that the intersection is empty. Also, in the process we find out that
 // some constraints are redundant, which we then ignore.
-void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
-                         const PresburgerSet &s, unsigned i,
-                         PresburgerSet &result) {
+template <typename Int>
+void subtractRecursively(PresburgerBasicSet<Int> &b, Simplex<Int> &simplex,
+                         const PresburgerSet<Int> &s, unsigned i,
+                         PresburgerSet<Int> &result) {
   if (i == s.getNumBasicSets()) {
-    // PresburgerBasicSet BCopy = B;
+    // PresburgerBasicSet<Int> BCopy = B;
     // BCopy.simplify();
     result.addBasicSet(b);
     return;
   }
-  PresburgerBasicSet oldB = b;
-  PresburgerBasicSet sI = s.getBasicSets()[i];
+  PresburgerBasicSet<Int> oldB = b;
+  PresburgerBasicSet<Int> sI = s.getBasicSets()[i];
 
   auto initialSnapshot = simplex.getSnapshot();
   unsigned numSIDivs = sI.getNumDivs();
-  PresburgerBasicSet::toCommonSpace(b, sI);
+  PresburgerBasicSet<Int>::toCommonSpace(b, sI);
   for (unsigned j = 0; j < numSIDivs; ++j)
     simplex.addVariable();
 
   for (unsigned j = sI.getNumDivs() - numSIDivs, e = sI.getNumDivs(); j < e;
        ++j) {
-    const DivisionConstraint &div = sI.getDivisions()[j];
+    const DivisionConstraint<Int> &div = sI.getDivisions()[j];
     simplex.addInequality(div.getInequalityLowerBound().getCoeffs());
     simplex.addInequality(div.getInequalityUpperBound().getCoeffs());
   }
@@ -209,7 +227,7 @@ void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
   // actually equal to b ^ s_i1 ^ s_i2 ^ ... ^ s_ij, and ineq is the next
   // inequality, s_{i,j+1}. This function recurses into the next level i + 1
   // with the part b ^ s_i1 ^ s_i2 ^ ... ^ s_ij ^ ~s_{i,j+1}.
-  auto recurseWithInequality = [&, i](ArrayRef<SafeInteger> ineq) {
+  auto recurseWithInequality = [&, i](ArrayRef<SafeInteger<Int>> ineq) {
     size_t snapshot = simplex.getSnapshot();
     b.addInequality(ineq);
     simplex.addInequality(ineq);
@@ -221,7 +239,7 @@ void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
   // For each inequality ineq, we first recurse with the part where ineq
   // is not satisfied, and then add the ineq to b and simplex because
   // ineq must be satisfied by all later parts.
-  auto processInequality = [&](ArrayRef<SafeInteger> ineq) {
+  auto processInequality = [&](ArrayRef<SafeInteger<Int>> ineq) {
     recurseWithInequality(getComplementIneq(ineq));
     b.addInequality(ineq);
     simplex.addInequality(ineq);
@@ -242,7 +260,7 @@ void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
 
   offset = sI.getNumInequalities();
   for (unsigned j = 0, e = sI.getNumEqualities(); j < e; ++j) {
-    const ArrayRef<SafeInteger> &coeffs = sI.getEquality(j).getCoeffs();
+    const ArrayRef<SafeInteger<Int>> &coeffs = sI.getEquality(j).getCoeffs();
     // Same as the above loop for inequalities, done once each for the positive
     // and negative inequalities that make up this equality.
     if (!isMarkedRedundant[offset + 2 * j])
@@ -262,9 +280,10 @@ void subtractRecursively(PresburgerBasicSet &b, Simplex &simplex,
   b = oldB;
 }
 
-PresburgerSet /* why does the formatter want to merge these words?? */
-PresburgerSet::eliminateExistentials(const PresburgerBasicSet &bs) {
-  ParamLexSimplex paramLexSimplex(bs.getNumTotalDims(),
+template <typename Int>
+PresburgerSet<Int> /* why does the formatter want to merge these words?? */
+PresburgerSet<Int>::eliminateExistentials(const PresburgerBasicSet<Int> &bs) {
+  ParamLexSimplex<Int> paramLexSimplex(bs.getNumTotalDims(),
                                   bs.getNumParams() + bs.getNumDims());
   for (const auto &div : bs.getDivisions()) {
     // The division variables must be in the same order they are stored in the
@@ -279,7 +298,7 @@ PresburgerSet::eliminateExistentials(const PresburgerBasicSet &bs) {
     paramLexSimplex.addEquality(eq.getCoeffs());
   }
 
-  PresburgerSet result(bs.getNumDims(), bs.getNumParams());
+  PresburgerSet<Int> result(bs.getNumDims(), bs.getNumParams());
   for (auto &b : paramLexSimplex.findParamLexmin().domain) {
     b.nParam = bs.nParam;
     b.nDim = bs.nDim;
@@ -288,20 +307,22 @@ PresburgerSet::eliminateExistentials(const PresburgerBasicSet &bs) {
   return result;
 }
 
-PresburgerSet PresburgerSet::eliminateExistentials(const PresburgerSet &set) {
-  PresburgerSet unquantifiedSet(set.getNumDims(), set.getNumSyms());
+template <typename Int>
+PresburgerSet<Int> PresburgerSet<Int>::eliminateExistentials(const PresburgerSet<Int> &set) {
+  PresburgerSet<Int> unquantifiedSet(set.getNumDims(), set.getNumSyms());
   for (const auto &bs : set.getBasicSets()) {
     if (bs.getNumExists() == 0) {
       unquantifiedSet.addBasicSet(bs);
     } else {
-      unquantifiedSet.unionSet(PresburgerSet::eliminateExistentials(bs));
+      unquantifiedSet.unionSet(PresburgerSet<Int>::eliminateExistentials(bs));
     }
   }
   return unquantifiedSet;
 }
 
-PresburgerSet PresburgerSet::eliminateExistentials(PresburgerSet &&set) {
-  PresburgerSet unquantifiedSet(set.getNumDims(), set.getNumSyms());
+template <typename Int>
+PresburgerSet<Int> PresburgerSet<Int>::eliminateExistentials(PresburgerSet<Int> &&set) {
+  PresburgerSet<Int> unquantifiedSet(set.getNumDims(), set.getNumSyms());
   bool clean = true;
   for (auto &bs : set.basicSets) {
     if (bs.getNumExists() != 0) {
@@ -316,37 +337,40 @@ PresburgerSet PresburgerSet::eliminateExistentials(PresburgerSet &&set) {
     if (bs.getNumExists() == 0) {
       unquantifiedSet.addBasicSet(std::move(bs));
     } else {
-      unquantifiedSet.unionSet(PresburgerSet::eliminateExistentials(bs));
+      unquantifiedSet.unionSet(PresburgerSet<Int>::eliminateExistentials(bs));
     }
   }
   return unquantifiedSet;
 }
 
 // Returns the set difference c - set.
-PresburgerSet PresburgerSet::subtract(PresburgerBasicSet cs,
-                                      const PresburgerSet &set) {
+template <typename Int>
+PresburgerSet<Int> PresburgerSet<Int>::subtract(PresburgerBasicSet<Int> cs,
+                                      const PresburgerSet<Int> &set) {
   assertDimensionsCompatible(cs, set);
 
   if (set.isUniverse())
-    return PresburgerSet::makeEmptySet(set.getNumDims(), set.getNumSyms());
+    return PresburgerSet<Int>::makeEmptySet(set.getNumDims(), set.getNumSyms());
   if (set.isMarkedEmpty())
-    return PresburgerSet(cs);
+    return PresburgerSet<Int>(cs);
 
-  Simplex simplex(cs);
-  PresburgerSet result(set.getNumDims(), set.getNumSyms());
+  Simplex<Int> simplex(cs);
+  PresburgerSet<Int> result(set.getNumDims(), set.getNumSyms());
   subtractRecursively(cs, simplex, eliminateExistentials(set), 0, result);
   return result;
 }
 
-PresburgerSet PresburgerSet::complement(const PresburgerSet &set) {
-  return subtract(PresburgerBasicSet(set.getNumDims(), set.getNumSyms(), 0),
+template <typename Int>
+PresburgerSet<Int> PresburgerSet<Int>::complement(const PresburgerSet<Int> &set) {
+  return subtract(PresburgerBasicSet<Int>(set.getNumDims(), set.getNumSyms(), 0),
                   set);
 }
 
 // Subtracts the set S from the current set.
 //
 // We compute (U_i T_i) - (U_i S_i) as U_i (T_i - U_i S_i).
-void PresburgerSet::subtract(const PresburgerSet &set) {
+template <typename Int>
+void PresburgerSet<Int>::subtract(const PresburgerSet<Int> &set) {
   assertDimensionsCompatible(set, *this);
 
   if (markedEmpty)
@@ -358,24 +382,25 @@ void PresburgerSet::subtract(const PresburgerSet &set) {
     return;
   }
   if (isUniverse()) {
-    *this = PresburgerSet::complement(set);
+    *this = PresburgerSet<Int>::complement(set);
     return;
   }
 
-  PresburgerSet result = PresburgerSet::makeEmptySet(nDim, nSym);
-  for (const PresburgerBasicSet &c : basicSets)
+  PresburgerSet<Int> result = PresburgerSet<Int>::makeEmptySet(nDim, nSym);
+  for (const PresburgerBasicSet<Int> &c : basicSets)
     result.unionSet(subtract(c, set));
   *this = result;
 }
 
-bool PresburgerSet::equal(const PresburgerSet &s, const PresburgerSet &t) {
+template <typename Int>
+bool PresburgerSet<Int>::equal(const PresburgerSet<Int> &s, const PresburgerSet<Int> &t) {
   // TODO we cannot assert here, as equal is used by other functionality that
   // otherwise breaks here
   // assert(s.getNumSyms() + t.getNumSyms() == 0 &&
   //       "operations on sets with symbols are not yet supported");
 
   assertDimensionsCompatible(s, t);
-  PresburgerSet sCopy = s, tCopy = t;
+  PresburgerSet<Int> sCopy = s, tCopy = t;
   sCopy.subtract(std::move(t));
   if (!sCopy.isIntegerEmpty())
     return false;
@@ -385,19 +410,20 @@ bool PresburgerSet::equal(const PresburgerSet &s, const PresburgerSet &t) {
   return true;
 }
 
-Optional<SmallVector<SafeInteger, 8>> PresburgerSet::findIntegerSample() {
+template <typename Int>
+Optional<SmallVector<SafeInteger<Int>, 8>> PresburgerSet<Int>::findIntegerSample() {
   if (maybeSample)
     return maybeSample;
   if (markedEmpty)
     return {};
   if (isUniverse())
-    return SmallVector<SafeInteger, 8>(nDim, 0);
+    return SmallVector<SafeInteger<Int>, 8>(nDim, 0);
 
-  for (PresburgerBasicSet &cs : basicSets) {
+  for (PresburgerBasicSet<Int> &cs : basicSets) {
     if (auto opt = cs.findIntegerSample()) {
-      maybeSample = SmallVector<SafeInteger, 8>();
+      maybeSample = SmallVector<SafeInteger<Int>, 8>();
 
-      for (SafeInteger v : opt.getValue())
+      for (SafeInteger<Int> v : opt.getValue())
         maybeSample->push_back(v);
 
       return maybeSample;
@@ -406,43 +432,50 @@ Optional<SmallVector<SafeInteger, 8>> PresburgerSet::findIntegerSample() {
   return {};
 }
 
-bool PresburgerSet::isIntegerEmpty() {
+template <typename Int>
+bool PresburgerSet<Int>::isIntegerEmpty() {
   if (markedEmpty)
     return true;
-  for (PresburgerBasicSet &bs : basicSets) {
+  for (PresburgerBasicSet<Int> &bs : basicSets) {
     if (!bs.isIntegerEmpty())
       return false;
   }
   return true;
 }
 
-llvm::Optional<SmallVector<SafeInteger, 8>>
-PresburgerSet::maybeGetCachedSample() const {
+template <typename Int>
+llvm::Optional<SmallVector<SafeInteger<Int>, 8>>
+PresburgerSet<Int>::maybeGetCachedSample() const {
   if (isUniverse())
-    return SmallVector<SafeInteger, 8>(nDim, 0);
+    return SmallVector<SafeInteger<Int>, 8>(nDim, 0);
   return maybeSample;
 }
 
 // TODO refactor and rewrite after discussion with the others
-void PresburgerSet::printISL(raw_ostream &os) const {
+template <typename Int>
+void PresburgerSet<Int>::printISL(raw_ostream &os) const {
   printPresburgerSetISL(os, *this);
 }
 
-void PresburgerSet::dumpISL() const {
+template <typename Int>
+void PresburgerSet<Int>::dumpISL() const {
   printISL(llvm::errs());
   llvm::errs() << '\n';
 }
 
-void PresburgerSet::print(raw_ostream &os) const {
+template <typename Int>
+void PresburgerSet<Int>::print(raw_ostream &os) const {
   printPresburgerSet(os, *this);
 }
 
-void PresburgerSet::dump() const {
+template <typename Int>
+void PresburgerSet<Int>::dump() const {
   print(llvm::errs());
   llvm::errs() << '\n';
 }
 
-void PresburgerSet::dumpCoeffs() const {
+template <typename Int>
+void PresburgerSet<Int>::dumpCoeffs() const {
   llvm::errs() << "nBasicSets = " << basicSets.size() << '\n';
   for (auto &basicSet : basicSets) {
     basicSet.dumpCoeffs();
@@ -450,8 +483,9 @@ void PresburgerSet::dumpCoeffs() const {
   }
 }
 
-llvm::hash_code PresburgerSet::hash_value() const {
-  // TODO how should we hash PresburgerBasicSet without having access to
+template <typename Int>
+llvm::hash_code PresburgerSet<Int>::hash_value() const {
+  // TODO how should we hash PresburgerBasicSet<Int> without having access to
   // private vars?
   return llvm::hash_combine(nDim, nSym);
 }

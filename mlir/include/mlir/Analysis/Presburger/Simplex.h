@@ -28,7 +28,9 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
+template <typename Int>
 class GBRSimplex;
+template <typename Int>
 class PresburgerBasicSet;
 
 /// This class implements a version of the Simplex and Generalized Basis
@@ -127,6 +129,8 @@ class PresburgerBasicSet;
 ///
 /// Finding an integer sample is done with the Generalized Basis Reduction
 /// algorithm. See the documentation for findIntegerSample and reduceBasis.
+
+template <typename Int>
 class Simplex {
 public:
   enum class Direction { Up, Down };
@@ -136,7 +140,7 @@ public:
   Simplex() = delete;
   explicit Simplex(unsigned nVar);
   explicit Simplex(const FlatAffineConstraints &constraints);
-  explicit Simplex(const PresburgerBasicSet &bs);
+  explicit Simplex(const PresburgerBasicSet<Int> &bs);
 
   /// Returns true if the tableau is empty (has conflicting constraints),
   /// false otherwise.
@@ -158,7 +162,7 @@ public:
   /// Add an inequality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
   /// is the current number of variables, then the corresponding inequality is
   /// c_n + c_0*x_0 + c_1*x_1 + ... + c_{n-1}*x_{n-1} >= 0.
-  void addInequality(ArrayRef<SafeInteger> coeffs);
+  void addInequality(ArrayRef<SafeInteger<Int>> coeffs);
 
   /// Returns the number of variables in the tableau.
   unsigned numVariables() const;
@@ -169,10 +173,10 @@ public:
   /// Add an equality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
   /// is the current number of variables, then the corresponding equality is
   /// c_n + c_0*x_0 + c_1*x_1 + ... + c_{n-1}*x_{n-1} == 0.
-  void addEquality(ArrayRef<SafeInteger> coeffs);
+  void addEquality(ArrayRef<SafeInteger<Int>> coeffs);
 
   void addVariable();
-  void addDivisionVariable(ArrayRef<SafeInteger> coeffs, SafeInteger denom);
+  void addDivisionVariable(ArrayRef<SafeInteger<Int>> coeffs, SafeInteger<Int> denom);
 
   /// Mark the tableau as being empty.
   void markEmpty();
@@ -199,27 +203,27 @@ public:
   ///             inequality
   ///
   /// \returns an IneqType, the type of the specified inequality.
-  IneqType ineqType(ArrayRef<SafeInteger> coeffs);
+  IneqType ineqType(ArrayRef<SafeInteger<Int>> coeffs);
 
   /// Compute the maximum or minimum value of the given row, depending on
   /// direction.
   ///
   /// Returns a (num, den) pair denoting the optimum, or None if no
   /// optimum exists, i.e., if the expression is unbounded in this direction.
-  Optional<Fraction> computeRowOptimum(Direction direction, unsigned row);
+  Optional<Fraction<Int>> computeRowOptimum(Direction direction, unsigned row);
 
   /// Compute the maximum or minimum value of the given expression, depending on
   /// direction.
   ///
   /// Returns a (num, den) pair denoting the optimum, or a null value if no
   /// optimum exists, i.e., if the expression is unbounded in this direction.
-  Optional<Fraction> computeOptimum(Direction direction,
-                                    ArrayRef<SafeInteger> coeffs);
+  Optional<Fraction<Int>> computeOptimum(Direction direction,
+                                    ArrayRef<SafeInteger<Int>> coeffs);
 
   /// Returns a (min, max) pair denoting the minimum and maximum integer values
   /// of the given expression.
-  std::pair<SafeInteger, SafeInteger>
-  computeIntegerBounds(ArrayRef<SafeInteger> coeffs);
+  std::pair<SafeInteger<Int>, SafeInteger<Int>>
+  computeIntegerBounds(ArrayRef<SafeInteger<Int>> coeffs);
 
   /// Returns true if the polytope is unbounded, i.e., extends to infinity in
   /// some direction. Otherwise, returns false.
@@ -231,17 +235,17 @@ public:
 
   /// Returns the current (possibly fractional) sample point. This should not
   /// be called when the simplex is empty.
-  SmallVector<Fraction, 8> getSamplePoint() const;
+  SmallVector<Fraction<Int>, 8> getSamplePoint() const;
 
   /// Returns the current sample point if it is integral. Otherwise, returns
   /// None.
-  Optional<SmallVector<SafeInteger, 8>> getSamplePointIfIntegral() const;
+  Optional<SmallVector<SafeInteger<Int>, 8>> getSamplePointIfIntegral() const;
 
   /// Returns an integer sample point if one exists, or None
   /// otherwise. This should only be called for bounded sets.
-  Optional<SmallVector<SafeInteger, 8>> findIntegerSample();
+  Optional<SmallVector<SafeInteger<Int>, 8>> findIntegerSample();
 
-  std::pair<SafeInteger, SmallVector<SafeInteger, 8>>
+  std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>>
   findRationalSample() const;
 
   /// Print the tableau's internal state.
@@ -250,7 +254,7 @@ public:
   void dump() const;
 
   void addFlatAffineConstraints(const FlatAffineConstraints &cs);
-  void addBasicSet(const PresburgerBasicSet &bs);
+  void addBasicSet(const PresburgerBasicSet<Int> &bs);
   // void addFlatAffineConstraintsAsIneqs(const FlatAffineConstraints &cs);
 
   void detectImplicitEqualities();
@@ -262,7 +266,7 @@ public:
   bool constraintIsEquality(int con_index) const;
 
 protected:
-  friend class GBRSimplex;
+  friend class GBRSimplex<Int>;
 
   enum class Orientation { Row, Column };
 
@@ -338,7 +342,7 @@ protected:
   /// \returns +1 if the maximum value is greater than \p origin, 0 if they are
   // equal, and -1 if it is less than \p origin.
   template <int origin>
-  SafeInteger signOfMax(Unknown &u);
+  SafeInteger<Int> signOfMax(Unknown &u);
 
   /// Returns the unknown associated with index.
   const Unknown &unknownFromIndex(int index) const;
@@ -401,7 +405,7 @@ protected:
   void addZeroConstraint();
 
   /// Add a new row to the tableau and the associated data structures.
-  unsigned addRow(ArrayRef<SafeInteger> coeffs);
+  unsigned addRow(ArrayRef<SafeInteger<Int>> coeffs);
 
   /// Normalize the given row by removing common factors between the numerator
   /// and the denominator.
@@ -461,12 +465,12 @@ protected:
   Optional<unsigned> findPivotRow(Optional<unsigned> skipRow,
                                   Direction direction, unsigned col) const;
 
-  SafeInteger sign(SafeInteger num, SafeInteger den = 1,
-                   SafeInteger origin = 0) const;
+  SafeInteger<Int> sign(SafeInteger<Int> num, SafeInteger<Int> den = 1,
+                   SafeInteger<Int> origin = 0) const;
 
   /// Reduce the given basis, starting at the specified level, using general
   /// basis reduction.
-  void reduceBasis(Matrix &basis, unsigned level);
+  void reduceBasis(Matrix<Int> &basis, unsigned level);
 
   /// The number of rows in the tableau.
   unsigned nRow;
@@ -482,7 +486,7 @@ protected:
   unsigned liveColBegin;
 
   /// The matrix representing the tableau.
-  Matrix tableau;
+  Matrix<Int> tableau;
 
   /// This is true if the tableau has been detected to be empty, false
   /// otherwise.

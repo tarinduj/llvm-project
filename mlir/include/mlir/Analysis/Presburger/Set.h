@@ -7,21 +7,22 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
+template <typename Int>
 class PresburgerSet {
 public:
   PresburgerSet(unsigned nDim = 0, unsigned nSym = 0, bool markedEmpty = false)
       : nDim(nDim), nSym(nSym), markedEmpty(markedEmpty) {}
-  PresburgerSet(PresburgerBasicSet cs);
+  PresburgerSet(PresburgerBasicSet<Int> cs);
 
   unsigned getNumBasicSets() const;
   unsigned getNumDims() const;
   unsigned getNumSyms() const;
-  static PresburgerSet eliminateExistentials(const PresburgerBasicSet &bs);
+  static PresburgerSet eliminateExistentials(const PresburgerBasicSet<Int> &bs);
   static PresburgerSet eliminateExistentials(const PresburgerSet &set);
   static PresburgerSet eliminateExistentials(PresburgerSet &&set);
-  const SmallVector<PresburgerBasicSet, 4> &getBasicSets() const;
-  void addBasicSet(const PresburgerBasicSet &cs);
-  void addBasicSet(PresburgerBasicSet &&cs);
+  const SmallVector<PresburgerBasicSet<Int>, 4> &getBasicSets() const;
+  void addBasicSet(const PresburgerBasicSet<Int> &cs);
+  void addBasicSet(PresburgerBasicSet<Int> &&cs);
   void unionSet(const PresburgerSet &set);
   void unionSet(PresburgerSet &&set);
   void intersectSet(const PresburgerSet &set);
@@ -40,26 +41,28 @@ public:
   static PresburgerSet makeEmptySet(unsigned nDim, unsigned nSym);
   static PresburgerSet complement(const PresburgerSet &set);
   void subtract(const PresburgerSet &set);
-  static PresburgerSet subtract(PresburgerBasicSet c, const PresburgerSet &set);
+  static PresburgerSet subtract(PresburgerBasicSet<Int> c, const PresburgerSet &set);
 
-  llvm::Optional<SmallVector<SafeInteger, 8>> findIntegerSample();
+  llvm::Optional<SmallVector<SafeInteger<Int>, 8>> findIntegerSample();
   bool isIntegerEmpty();
   // bool containsPoint(const std::vector<INT> &values) const;
-  llvm::Optional<SmallVector<SafeInteger, 8>> maybeGetCachedSample() const;
+  llvm::Optional<SmallVector<SafeInteger<Int>, 8>> maybeGetCachedSample() const;
 
 private:
   unsigned nDim;
   unsigned nSym;
-  SmallVector<PresburgerBasicSet, 4> basicSets;
+  SmallVector<PresburgerBasicSet<Int>, 4> basicSets;
   // This is NOT just cached information about the constraints in basicSets.
   // If this is set to true, then the set is empty, irrespective of the state
   // of basicSets.
   bool markedEmpty;
-  Optional<SmallVector<SafeInteger, 8>> maybeSample;
-  void printBasicSet(raw_ostream &os, PresburgerBasicSet cs) const;
-  void printVar(raw_ostream &os, SafeInteger var, unsigned i,
+  Optional<SmallVector<SafeInteger<Int>, 8>> maybeSample;
+  void printBasicSet(raw_ostream &os, PresburgerBasicSet<Int> cs) const;
+  void printVar(raw_ostream &os, SafeInteger<Int> var, unsigned i,
                 unsigned &countNonZero) const;
 };
+
+using TransprecSet = PresburgerSet<int16_t>;
 
 } // namespace presburger
 } // namespace analysis

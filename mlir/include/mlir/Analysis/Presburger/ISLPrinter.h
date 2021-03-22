@@ -13,10 +13,12 @@ namespace presburger {
 /// TODO: move this to the head documentation
 
 /// Prints the set into the stream
-void printPresburgerSetISL(raw_ostream &os, const PresburgerSet &set);
+template <typename Int>
+void printPresburgerSetISL(raw_ostream &os, const PresburgerSet<Int> &set);
 
 /// Prints the basic set into the stream
-void printPresburgerBasicSetISL(raw_ostream &os, const PresburgerBasicSet &set);
+template <typename Int>
+void printPresburgerBasicSetISL(raw_ostream &os, const PresburgerBasicSet<Int> &set);
 } // namespace presburger
 } // namespace analysis
 } // namespace mlir

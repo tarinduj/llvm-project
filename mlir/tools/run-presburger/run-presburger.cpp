@@ -8,7 +8,7 @@
 using namespace mlir;
 using namespace mlir::presburger;
 
-static PresburgerSet setFromString(StringRef string) {
+static TransprecSet setFromString(StringRef string) {
   ErrorCallback callback = [&](SMLoc loc, const Twine &message) {
     // This is a hack to make the Parser compile
     llvm::errs() << "Parsing error " << message << " at " << loc.getPointer()
@@ -19,14 +19,14 @@ static PresburgerSet setFromString(StringRef string) {
     MLIRContext context;
     return mlir::emitError(UnknownLoc::get(&context), message);
   };
-  Parser parser(string, callback);
-  PresburgerParser setParser(parser);
-  PresburgerSet res;
+  Parser<int16_t> parser(string, callback);
+  PresburgerParser<int16_t> setParser(parser);
+  TransprecSet res;
   setParser.parsePresburgerSet(res);
   return res;
 }
 
-PresburgerSet getSetFromInput() {
+TransprecSet getSetFromInput() {
   char str[1'000'000];
   std::cin.getline(str, 1'000'000);
   return setFromString(str);
@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
   const unsigned numRuns = 5;
   std::string op = argv[1];
   if (op == "empty") {
-    PresburgerSet setA = getSetFromInput();
+    TransprecSet setA = getSetFromInput();
     for (unsigned i = 0; i < numRuns; ++i) {
       auto a = setA;
       unsigned int dummy;
@@ -53,22 +53,22 @@ int main(int argc, char **argv) {
         std::cerr << res << '\n';
     }
   } else if (op == "equal") {
-    PresburgerSet setA = getSetFromInput();
-    PresburgerSet setB = getSetFromInput();
+    TransprecSet setA = getSetFromInput();
+    TransprecSet setB = getSetFromInput();
     for (unsigned i = 0; i < numRuns; ++i) {
       auto a = setA;
       auto b = setB;
       unsigned int dummy;
       unsigned long long start = __rdtscp(&dummy);
-      auto res = PresburgerSet::equal(a, b);
+      auto res = TransprecSet::equal(a, b);
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         llvm::errs() << res << '\n';
     }
   } else if (op == "union") {
-    PresburgerSet setA = getSetFromInput();
-    PresburgerSet setB = getSetFromInput();
+    TransprecSet setA = getSetFromInput();
+    TransprecSet setB = getSetFromInput();
     for (unsigned i = 0; i < numRuns; ++i) {
       auto a = setA;
       auto b = setB;
@@ -81,8 +81,8 @@ int main(int argc, char **argv) {
         a.dumpISL();
     }
   } else if (op == "intersect") {
-    PresburgerSet setA = getSetFromInput();
-    PresburgerSet setB = getSetFromInput();
+    TransprecSet setA = getSetFromInput();
+    TransprecSet setB = getSetFromInput();
     for (unsigned i = 0; i < numRuns; ++i) {
       auto a = setA;
       auto b = setB;
@@ -95,8 +95,8 @@ int main(int argc, char **argv) {
         a.dumpISL();
     }
   } else if (op == "subtract") {
-    PresburgerSet setA = getSetFromInput();
-    PresburgerSet setB = getSetFromInput();
+    TransprecSet setA = getSetFromInput();
+    TransprecSet setB = getSetFromInput();
     for (unsigned i = 0; i < numRuns; ++i) {
       auto a = setA;
       auto b = setB;
@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
         a.dumpISL();
     }
   } else if (op == "coalesce") {
-    PresburgerSet setA = getSetFromInput();
+    TransprecSet setA = getSetFromInput();
     for (unsigned i = 0; i < numRuns; ++i) {
       auto a = setA;
       unsigned int dummy;
@@ -121,24 +121,24 @@ int main(int argc, char **argv) {
         res.dumpISL();
     }
   } else if (op == "complement") {
-    PresburgerSet setA = getSetFromInput();
+    TransprecSet setA = getSetFromInput();
     for (unsigned i = 0; i < numRuns; ++i) {
       auto a = setA;
       unsigned int dummy;
       unsigned long long start = __rdtscp(&dummy);
-      auto res = PresburgerSet::complement(a);
+      auto res = TransprecSet::complement(a);
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         res.dumpISL();
     }
   } else if (op == "eliminate") {
-    PresburgerSet setA = getSetFromInput();
+    TransprecSet setA = getSetFromInput();
     for (unsigned i = 0; i < numRuns; ++i) {
       auto a = setA;
       unsigned int dummy;
       unsigned long long start = __rdtscp(&dummy);
-      auto res = PresburgerSet::eliminateExistentials(a);
+      auto res = TransprecSet::eliminateExistentials(a);
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)

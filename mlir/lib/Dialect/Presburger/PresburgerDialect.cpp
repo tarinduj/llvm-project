@@ -33,7 +33,7 @@ Attribute PresburgerDialect::parseAttribute(DialectAsmParser &parser,
     return parser.emitError(loc, msg);
   };
 
-  Parser p(parser.getFullSymbolSpec(), callback);
+  TransprecParser p(parser.getFullSymbolSpec(), callback);
 
   // Parse the kind keyword first.
   StringRef attrKind;
@@ -41,8 +41,8 @@ Attribute PresburgerDialect::parseAttribute(DialectAsmParser &parser,
     return {};
 
   if (attrKind == PresburgerSetAttr::getKindName()) {
-    PresburgerParser setParser(p);
-    PresburgerSet set;
+    TransprecPresburgerParser setParser(p);
+    TransprecSet set;
 
     if (failed(setParser.parsePresburgerSet(set))) {
       return Attribute();
@@ -53,7 +53,7 @@ Attribute PresburgerDialect::parseAttribute(DialectAsmParser &parser,
 
     return PresburgerSetAttr::get(type, set);
   } else if (attrKind == PresburgerExprAttr::getKindName()) {
-    PresburgerParser exprParser(p);
+    TransprecPresburgerParser exprParser(p);
     PresburgerExpr expr;
 
     if ((failed(exprParser.parsePresburgerExpr(expr))))
@@ -72,7 +72,7 @@ Attribute PresburgerDialect::parseAttribute(DialectAsmParser &parser,
 void PresburgerDialect::printAttribute(Attribute attr,
                                        DialectAsmPrinter &printer) const {
   switch (attr.getKind()) {
-  case PresburgerAttributes::PresburgerSet:
+  case PresburgerAttributes::TransprecSet:
     printer << PresburgerSetAttr::getKindName();
     attr.cast<PresburgerSetAttr>().getValue().print(printer.getStream());
     break;

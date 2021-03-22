@@ -27,7 +27,7 @@ def PresburgerSetType : Type<CPred<"$_self.isa<PresburgerSetType>()">, "Presburg
 
 def PresburgerSetAttr : Attr<CPred<"$_self.isa<PresburgerSetAttr>()">, "Presburger set attr"> {
     let storageType = [{ PresburgerSetAttr }];
-    let returnType = [{ PresburgerSet }];
+    let returnType = [{ TransprecSet }];
 }
 
 def PresburgerExprType : Type<CPred<"$_self.isa<PresburgerExprType>()">, "Presburger expression type">;

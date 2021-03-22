@@ -6,9 +6,9 @@ namespace presburger {
 namespace detail {
 
 struct PresburgerSetAttributeStorage : public AttributeStorage {
-  using KeyTy = std::pair<PresburgerSetType, PresburgerSet>;
+  using KeyTy = std::pair<PresburgerSetType, TransprecSet>;
 
-  PresburgerSetAttributeStorage(Type t, PresburgerSet value)
+  PresburgerSetAttributeStorage(Type t, TransprecSet value)
       : AttributeStorage(t), value(value) {}
 
   bool operator==(const KeyTy &key) const {
@@ -27,7 +27,7 @@ struct PresburgerSetAttributeStorage : public AttributeStorage {
         PresburgerSetAttributeStorage(std::get<0>(key), std::get<1>(key));
   }
 
-  PresburgerSet value;
+  TransprecSet value;
 };
 
 struct PresburgerExprAttributeStorage : public AttributeStorage {
@@ -62,12 +62,12 @@ struct PresburgerExprAttributeStorage : public AttributeStorage {
 //===----------------------------------------------------------------------===//
 
 PresburgerSetAttr PresburgerSetAttr::get(PresburgerSetType t,
-                                         PresburgerSet value) {
-  return Base::get(t.getContext(), PresburgerAttributes::PresburgerSet, t,
+                                         TransprecSet value) {
+  return Base::get(t.getContext(), PresburgerAttributes::TransprecSet, t,
                    value);
 }
 
-PresburgerSet PresburgerSetAttr::getValue() const { return getImpl()->value; }
+TransprecSet PresburgerSetAttr::getValue() const { return getImpl()->value; }
 
 StringRef PresburgerSetAttr::getKindName() { return "set"; }
 

@@ -12,12 +12,12 @@ const SmallVector<PresburgerExpr::ExprType, 2> &
 PresburgerExpr::getExprs() const {
   return exprs;
 }
-const SmallVector<PresburgerSet, 2> &PresburgerExpr::getDomains() const {
+const SmallVector<PresburgerSet<int64_t>, 2> &PresburgerExpr::getDomains() const {
   return domains;
 }
 
 void PresburgerExpr::addPiece(const ExprType &expr,
-                              const PresburgerSet &domain) {
+                              const PresburgerSet<int64_t> &domain) {
   assert(exprs.size() == domains.size() &&
          "cannot have different amount of expressions and domains");
   exprs.push_back(expr);

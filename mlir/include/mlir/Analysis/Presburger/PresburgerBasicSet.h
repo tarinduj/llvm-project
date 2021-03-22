@@ -25,11 +25,13 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
+template <typename Int>
 class PresburgerSet;
 
+template <typename Int>
 class PresburgerBasicSet {
 public:
-  friend class PresburgerSet;
+  friend class PresburgerSet<Int>;
 
   PresburgerBasicSet(unsigned oNDim = 0, unsigned oNParam = 0,
                      unsigned oNExist = 0)
@@ -47,20 +49,20 @@ public:
 
   void intersect(PresburgerBasicSet bs);
 
-  void appendDivisionVariable(ArrayRef<SafeInteger> coeffs, SafeInteger denom);
+  void appendDivisionVariable(ArrayRef<SafeInteger<Int>> coeffs, SafeInteger<Int> denom);
 
   static void toCommonSpace(PresburgerBasicSet &a, PresburgerBasicSet &b);
-  void appendDivisionVariables(ArrayRef<DivisionConstraint> newDivs);
-  void prependDivisionVariables(ArrayRef<DivisionConstraint> newDivs);
+  void appendDivisionVariables(ArrayRef<DivisionConstraint<Int>> newDivs);
+  void prependDivisionVariables(ArrayRef<DivisionConstraint<Int>> newDivs);
 
-  const InequalityConstraint &getInequality(unsigned i) const;
-  const EqualityConstraint &getEquality(unsigned i) const;
-  ArrayRef<InequalityConstraint> getInequalities() const;
-  ArrayRef<EqualityConstraint> getEqualities() const;
-  ArrayRef<DivisionConstraint> getDivisions() const;
+  const InequalityConstraint<Int> &getInequality(unsigned i) const;
+  const EqualityConstraint<Int> &getEquality(unsigned i) const;
+  ArrayRef<InequalityConstraint<Int>> getInequalities() const;
+  ArrayRef<EqualityConstraint<Int>> getEqualities() const;
+  ArrayRef<DivisionConstraint<Int>> getDivisions() const;
 
-  void addInequality(ArrayRef<SafeInteger> coeffs);
-  void addEquality(ArrayRef<SafeInteger> coeffs);
+  void addInequality(ArrayRef<SafeInteger<Int>> coeffs);
+  void addEquality(ArrayRef<SafeInteger<Int>> coeffs);
 
   void removeLastInequality();
   void removeLastEquality();
@@ -69,7 +71,7 @@ public:
   void removeInequality(unsigned i);
   void removeEquality(unsigned i);
 
-  Optional<SmallVector<SafeInteger, 8>>
+  Optional<SmallVector<SafeInteger<Int>, 8>>
   findIntegerSampleRemoveEqs(bool onlyEmptiness = false);
 
   /// Find a sample point satisfying the constraints. This uses a branch and
@@ -77,14 +79,14 @@ public:
   /// the set is bounded. This should not be called for unbounded sets.
   ///
   /// Returns such a point if one exists, or an empty Optional otherwise.
-  Optional<SmallVector<SafeInteger, 8>>
+  Optional<SmallVector<SafeInteger<Int>, 8>>
   findIntegerSample(bool onlyEmptiness = false);
 
   bool isIntegerEmpty();
 
   /// Get a {denominator, sample} pair representing a rational sample point in
   /// this basic set.
-  Optional<std::pair<SafeInteger, SmallVector<SafeInteger, 8>>>
+  Optional<std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>>>
   findRationalSample() const;
 
   PresburgerBasicSet makeRecessionCone() const;
@@ -98,20 +100,20 @@ public:
   void dumpISL() const;
 
 private:
-  void substitute(ArrayRef<SafeInteger> values);
+  void substitute(ArrayRef<SafeInteger<Int>> values);
 
   /// Find a sample point in this basic set, when it is known that this basic
   /// set has no unbounded directions.
   ///
   /// \returns the sample point or an empty llvm::Optional if the set is empty.
-  Optional<SmallVector<SafeInteger, 8>> findSampleBounded(bool onlyEmptiness);
+  Optional<SmallVector<SafeInteger<Int>, 8>> findSampleBounded(bool onlyEmptiness);
 
   /// Find a sample for only the bounded dimensions of this basic set.
   ///
   /// \param cone should be the recession cone of this basic set.
   ///
   /// \returns the sample or an empty std::optional if no sample exists.
-  Optional<SmallVector<SafeInteger, 8>>
+  Optional<SmallVector<SafeInteger<Int>, 8>>
   findBoundedDimensionsSample(const PresburgerBasicSet &cone,
                               bool onlyEmptiness) const;
 
@@ -119,7 +121,7 @@ private:
   /// cone.
   ///
   /// \returns the sample point or an empty std::optional if the set is empty.
-  Optional<SmallVector<SafeInteger, 8>> findSampleFullCone();
+  Optional<SmallVector<SafeInteger<Int>, 8>> findSampleFullCone();
 
   /// Project this basic set to its bounded dimensions. It is assumed that the
   /// unbounded dimensions occupy the last \p unboundedDims dimensions.
@@ -131,23 +133,23 @@ private:
   ///
   /// \returns the sample point or an empty llvm::Optional if the set
   /// is empty.
-  Optional<SmallVector<SafeInteger, 8>>
+  Optional<SmallVector<SafeInteger<Int>, 8>>
   findSampleUnbounded(PresburgerBasicSet &cone, bool onlyEmptiness);
 
-  Matrix coefficientMatrixFromEqs() const;
+  Matrix<Int> coefficientMatrixFromEqs() const;
 
   void insertDimensions(unsigned pos, unsigned count);
   void prependExistentialDimensions(unsigned count);
   void appendExistentialDimensions(unsigned count);
 
-  PresburgerBasicSet makePlainBasicSet() const;
+  PresburgerBasicSet<Int> makePlainBasicSet() const;
   bool isPlainBasicSet() const;
 
-  void updateFromSimplex(const Simplex &simplex);
+  void updateFromSimplex(const Simplex<Int> &simplex);
 
-  SmallVector<InequalityConstraint, 8> ineqs;
-  SmallVector<EqualityConstraint, 8> eqs;
-  SmallVector<DivisionConstraint, 8> divs;
+  SmallVector<InequalityConstraint<Int>, 8> ineqs;
+  SmallVector<EqualityConstraint<Int>, 8> eqs;
+  SmallVector<DivisionConstraint<Int>, 8> divs;
   unsigned nDim, nParam, nExist;
 };
 } // namespace presburger

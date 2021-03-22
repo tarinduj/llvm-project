@@ -1,4 +1,4 @@
-//===- Matrix.cpp - MLIR Matrix Class -------------------------------------===//
+//===- Matrix<Int>.cpp - MLIR Matrix<Int> Class -------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,7 +11,8 @@
 using namespace mlir;
 using namespace analysis::presburger;
 
-Matrix::Matrix(unsigned rows, unsigned columns)
+template <typename Int>
+Matrix<Int>::Matrix(unsigned rows, unsigned columns)
     : nRows(rows), nColumns(columns), data(nRows * MATRIX_COLUMN_COUNT) {
   if (nColumns > MATRIX_COLUMN_COUNT) {
     llvm::errs() << "Cannot construct matrix with " << nColumns << " columns; limit is " << MATRIX_COLUMN_COUNT << ".\n";
@@ -19,18 +20,22 @@ Matrix::Matrix(unsigned rows, unsigned columns)
   }
 }
 
-Matrix Matrix::identity(unsigned dimension) {
-  Matrix matrix(dimension, dimension);
+template <typename Int>
+Matrix<Int> Matrix<Int>::identity(unsigned dimension) {
+  Matrix<Int> matrix(dimension, dimension);
   for (unsigned i = 0; i < dimension; ++i)
     matrix(i, i) = 1;
   return matrix;
 }
 
-unsigned Matrix::getNumRows() const { return nRows; }
+template <typename Int>
+unsigned Matrix<Int>::getNumRows() const { return nRows; }
 
-unsigned Matrix::getNumColumns() const { return nColumns; }
+template <typename Int>
+unsigned Matrix<Int>::getNumColumns() const { return nColumns; }
 
-void Matrix::resize(unsigned newNRows, unsigned newNColumns) {
+template <typename Int>
+void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
   nRows = newNRows;
   data.resize(nRows * MATRIX_COLUMN_COUNT);
   if (newNColumns < nColumns) {
@@ -43,12 +48,14 @@ void Matrix::resize(unsigned newNRows, unsigned newNColumns) {
   nColumns = newNColumns;
 }
 
-void Matrix::reserveRows(unsigned newNRows) {
+template <typename Int>
+void Matrix<Int>::reserveRows(unsigned newNRows) {
   assert(newNRows >= nRows);
   data.reserve(newNRows * MATRIX_COLUMN_COUNT);
 }
 
-void Matrix::swapRows(unsigned row, unsigned otherRow) {
+template <typename Int>
+void Matrix<Int>::swapRows(unsigned row, unsigned otherRow) {
   assert((row < getNumRows() && otherRow < getNumRows()) &&
          "Given row out of bounds");
   if (row == otherRow)
@@ -57,7 +64,8 @@ void Matrix::swapRows(unsigned row, unsigned otherRow) {
     std::swap(at(row, col), at(otherRow, col));
 }
 
-void Matrix::swapColumns(unsigned column, unsigned otherColumn) {
+template <typename Int>
+void Matrix<Int>::swapColumns(unsigned column, unsigned otherColumn) {
   assert((column < getNumColumns() && otherColumn < getNumColumns()) &&
          "Given column out of bounds");
   if (column == otherColumn)
@@ -66,7 +74,8 @@ void Matrix::swapColumns(unsigned column, unsigned otherColumn) {
     std::swap(at(row, column), at(row, otherColumn));
 }
 
-void Matrix::negateColumn(unsigned column) {
+template <typename Int>
+void Matrix<Int>::negateColumn(unsigned column) {
   assert(column < getNumColumns() && "Given column out of bounds");
   for (unsigned row = 0, e = getNumRows(); row < e; ++row) {
     // TODO not overflow safe
@@ -74,12 +83,14 @@ void Matrix::negateColumn(unsigned column) {
   }
 }
 
-ArrayRef<SafeInteger> Matrix::getRow(unsigned row) const {
+template <typename Int>
+ArrayRef<SafeInteger<Int>> Matrix<Int>::getRow(unsigned row) const {
   return {&data[row * MATRIX_COLUMN_COUNT], nColumns};
 }
 
-void Matrix::addToRow(unsigned sourceRow, unsigned targetRow,
-                      SafeInteger scale) {
+template <typename Int>
+void Matrix<Int>::addToRow(unsigned sourceRow, unsigned targetRow,
+                      SafeInteger<Int> scale) {
   if (scale == 0)
     return;
   for (unsigned col = 0; col < nColumns; ++col)
@@ -87,7 +98,8 @@ void Matrix::addToRow(unsigned sourceRow, unsigned targetRow,
   return;
 }
 
-void Matrix::scaleColumn(unsigned column, SafeInteger scale) {
+template <typename Int>
+void Matrix<Int>::scaleColumn(unsigned column, SafeInteger<Int> scale) {
   if (scale == 0)
     return;
   for (unsigned row = 0, e = getNumRows(); row < e; ++row)
@@ -95,8 +107,9 @@ void Matrix::scaleColumn(unsigned column, SafeInteger scale) {
   return;
 }
 
-void Matrix::addToColumn(unsigned sourceColumn, unsigned targetColumn,
-                         SafeInteger scale) {
+template <typename Int>
+void Matrix<Int>::addToColumn(unsigned sourceColumn, unsigned targetColumn,
+                         SafeInteger<Int> scale) {
   if (scale == 0)
     return;
   for (unsigned row = 0, e = getNumRows(); row < e; ++row)
@@ -104,7 +117,8 @@ void Matrix::addToColumn(unsigned sourceColumn, unsigned targetColumn,
   return;
 }
 
-void Matrix::print(raw_ostream &os) const {
+template <typename Int>
+void Matrix<Int>::print(raw_ostream &os) const {
   for (unsigned row = 0; row < nRows; ++row) {
     for (unsigned column = 0; column < nColumns; ++column)
       os << at(row, column) << '\t';
@@ -112,4 +126,5 @@ void Matrix::print(raw_ostream &os) const {
   }
 }
 
-void Matrix::dump() const { print(llvm::errs()); }
+template <typename Int>
+void Matrix<Int>::dump() const { print(llvm::errs()); }

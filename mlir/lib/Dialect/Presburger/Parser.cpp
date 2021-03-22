@@ -298,7 +298,8 @@ InFlightDiagnostic Lexer::emitError(const Twine &message) {
 ///  pb-int        ::= digit+
 ///
 /// TODO adapt grammar to future changes
-LogicalResult Parser::parseSet(std::unique_ptr<SetExpr> &setExpr) {
+template <typename Int>
+LogicalResult Parser<Int>::parseSet(std::unique_ptr<SetExpr<Int>> &setExpr) {
   std::pair<SmallVector<StringRef, 8>, SmallVector<StringRef, 8>> dimSymPair;
   if (failed(parseDimAndSymbolIdLists(dimSymPair)))
     return failure();
@@ -312,7 +313,7 @@ LogicalResult Parser::parseSet(std::unique_ptr<SetExpr> &setExpr) {
   if (failed(parseOr(constraints)))
     return failure();
 
-  setExpr = std::make_unique<SetExpr>(std::move(dimSymPair.first),
+  setExpr = std::make_unique<SetExpr<Int>>(std::move(dimSymPair.first),
                                       std::move(dimSymPair.second),
                                       std::move(constraints));
   // checks that we are at the end of the string
@@ -327,7 +328,8 @@ LogicalResult Parser::parseSet(std::unique_ptr<SetExpr> &setExpr) {
 ///  pb-expr ::= dim-and-symbol-use-list `->` piece (`;` piece)*
 ///  piece      ::= `(`pb-sum`) : (`pb-or-expr`)`
 ///
-LogicalResult Parser::parseExpr(std::unique_ptr<PresburgerExprExpr> &expr) {
+template <typename Int>
+LogicalResult Parser<Int>::parseExpr(std::unique_ptr<PresburgerExprExpr> &expr) {
   std::pair<SmallVector<StringRef, 8>, SmallVector<StringRef, 8>> dimSymPair;
   SmallVector<std::unique_ptr<PieceExpr>, 4> pieces;
   if (failed(parseDimAndSymbolIdLists(dimSymPair)))
@@ -366,7 +368,8 @@ LogicalResult Parser::parseExpr(std::unique_ptr<PresburgerExprExpr> &expr) {
 /// should be parsed
 ///
 /// TODO find a nicer way to do this
-LogicalResult Parser::parseKeyword(StringRef &keyword) {
+template <typename Int>
+LogicalResult Parser<Int>::parseKeyword(StringRef &keyword) {
   std::unique_ptr<VariableExpr> varExpr;
   if (failed(parseVariable(varExpr)))
     return failure();
@@ -380,7 +383,8 @@ LogicalResult Parser::parseKeyword(StringRef &keyword) {
 ///   abstract-list ::= rightToken           // if allowEmptyList == true
 ///   abstract-list ::= element (',' element)* rightToken
 ///
-LogicalResult Parser::parseCommaSeparatedListUntil(SmallVector<StringRef, 8> &l,
+template <typename Int>
+LogicalResult Parser<Int>::parseCommaSeparatedListUntil(SmallVector<StringRef, 8> &l,
                                                    Token::Kind rightToken,
                                                    bool allowEmpty) {
   Token token = lexer.peek();
@@ -410,7 +414,8 @@ LogicalResult Parser::parseCommaSeparatedListUntil(SmallVector<StringRef, 8> &l,
 ///
 /// dim-and-symbol-use-list is defined elsewhere
 ///
-LogicalResult Parser::parseDimAndSymbolIdLists(
+template <typename Int>
+LogicalResult Parser<Int>::parseDimAndSymbolIdLists(
     std::pair<SmallVector<StringRef, 8>, SmallVector<StringRef, 8>>
         &dimSymPair) {
   if (failed(lexer.consumeKindOrError(Token::Kind::LeftParen)))
@@ -434,12 +439,13 @@ LogicalResult Parser::parseDimAndSymbolIdLists(
 ///
 ///  pb-or-expr ::= pb-and-expr (`or` pb-and-expr)*
 ///
-LogicalResult Parser::parseOr(std::unique_ptr<Expr> &expr) {
+template <typename Int>
+LogicalResult Parser<Int>::parseOr(std::unique_ptr<Expr> &expr) {
   SmallVector<std::unique_ptr<Expr>, 8> exprs;
   std::unique_ptr<Expr> andExpr;
 
   if (lexer.peek().isa(Token::Kind::Empty)) {
-    expr = std::make_unique<OrExpr>(std::move(exprs));
+    expr = std::make_unique<OrExpr<Int>>(std::move(exprs));
     return success();
   }
 
@@ -458,7 +464,7 @@ LogicalResult Parser::parseOr(std::unique_ptr<Expr> &expr) {
     return success();
   }
 
-  expr = std::make_unique<OrExpr>(std::move(exprs));
+  expr = std::make_unique<OrExpr<Int>>(std::move(exprs));
   return success();
 }
 
@@ -466,13 +472,14 @@ LogicalResult Parser::parseOr(std::unique_ptr<Expr> &expr) {
 ///
 ///  pb-and-expr ::= pb-constraint (`and` pb-constraint)*
 ///
-LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
+template <typename Int>
+LogicalResult Parser<Int>::parseAnd(std::unique_ptr<Expr> &expr) {
   if (failed(lexer.consumeKindOrError(Token::Kind::LeftParen)))
     return failure();
 
   SmallVector<StringRef, 8> exists;
   SmallVector<StringRef, 8> divNames;
-  SmallVector<std::unique_ptr<DivExpr>, 8> divs;
+  SmallVector<std::unique_ptr<DivExpr<Int>>, 8> divs;
 
   if (lexer.peek().isa(Token::Kind::Exists)) {
     lexer.next();
@@ -498,7 +505,7 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
         if (failed(lexer.consumeKindOrError(Token::Kind::Divide)))
           return failure();
 
-        std::unique_ptr<IntegerExpr> den;
+        std::unique_ptr<IntegerExpr<Int>> den;
         if (failed(parseInteger(den, false)))
           return failure();
 
@@ -507,7 +514,7 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
 
         divNames.emplace_back(name);
         divs.emplace_back(
-            std::make_unique<DivExpr>(std::move(num), std::move(den)));
+            std::make_unique<DivExpr<Int>>(std::move(num), std::move(den)));
       } else {
         exists.emplace_back(name);
       }
@@ -522,15 +529,15 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
     }
   }
 
-  SmallVector<std::unique_ptr<ConstraintExpr>, 8> constraints;
+  SmallVector<std::unique_ptr<ConstraintExpr<Int>>, 8> constraints;
   if (lexer.peek().isa(Token::Kind::RightParen)) {
     lexer.next();
-    expr = std::make_unique<AndExpr>(std::move(constraints), std::move(exists),
+    expr = std::make_unique<AndExpr<Int>>(std::move(constraints), std::move(exists),
                                      std::move(divNames), std::move(divs));
     return success();
   }
 
-  std::unique_ptr<ConstraintExpr> c;
+  std::unique_ptr<ConstraintExpr<Int>> c;
   if (failed(parseConstraint(c)))
     return failure();
   constraints.push_back(std::move(c));
@@ -545,7 +552,7 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
   if (failed(lexer.consumeKindOrError(Token::Kind::RightParen)))
     return failure();
 
-  expr = std::make_unique<AndExpr>(std::move(constraints), std::move(exists),
+  expr = std::make_unique<AndExpr<Int>>(std::move(constraints), std::move(exists),
                                    std::move(divNames), std::move(divs));
   return success();
 }
@@ -554,7 +561,8 @@ LogicalResult Parser::parseAnd(std::unique_ptr<Expr> &expr) {
 ///
 ///  piece ::= `(`pb-sum`) : (`pb-or-expr`)`
 ///
-LogicalResult Parser::parsePiece(std::unique_ptr<PieceExpr> &piece) {
+template <typename Int>
+LogicalResult Parser<Int>::parsePiece(std::unique_ptr<PieceExpr> &piece) {
   if (failed(lexer.consumeKindOrError(Token::Kind::LeftParen)))
     return failure();
 
@@ -579,20 +587,21 @@ LogicalResult Parser::parsePiece(std::unique_ptr<PieceExpr> &piece) {
 ///
 ///  pb-constraint ::= pb-expr (`>=` | `=` | `<=`) pb-expr
 ///
+template <typename Int>
 LogicalResult
-Parser::parseConstraint(std::unique_ptr<ConstraintExpr> &constraint) {
+Parser<Int>::parseConstraint(std::unique_ptr<ConstraintExpr<Int>> &constraint) {
   std::unique_ptr<Expr> leftExpr;
   if (failed(parseSum(leftExpr)))
     return failure();
 
-  ConstraintExpr::Kind kind;
+  typename ConstraintExpr<Int>::Kind kind;
   Token cmpToken = lexer.next();
   if (cmpToken.isa(Token::Kind::GreaterEqual))
-    kind = ConstraintExpr::Kind::GE;
+    kind = ConstraintExpr<Int>::Kind::GE;
   else if (cmpToken.isa(Token::Kind::Equal))
-    kind = ConstraintExpr::Kind::EQ;
+    kind = ConstraintExpr<Int>::Kind::EQ;
   else if (cmpToken.isa(Token::Kind::LessEqual))
-    kind = ConstraintExpr::Kind::LE;
+    kind = ConstraintExpr<Int>::Kind::LE;
   else if (cmpToken.isa(Token::Kind::GreaterThan)) {
     return emitErrorForToken(cmpToken, "strict inequalities are not supported");
   } else if (cmpToken.isa(Token::Kind::LessThan)) {
@@ -607,7 +616,7 @@ Parser::parseConstraint(std::unique_ptr<ConstraintExpr> &constraint) {
   if (failed(parseSum(rightExpr)))
     return failure();
 
-  constraint = std::make_unique<ConstraintExpr>(kind, std::move(leftExpr),
+  constraint = std::make_unique<ConstraintExpr<Int>>(kind, std::move(leftExpr),
                                                 std::move(rightExpr));
   return success();
 }
@@ -616,9 +625,10 @@ Parser::parseConstraint(std::unique_ptr<ConstraintExpr> &constraint) {
 ///
 ///  pb-sum ::= pb-term (('+' | '-') pb-term)*
 ///
-LogicalResult Parser::parseSum(std::unique_ptr<Expr> &expr) {
-  SmallVector<std::unique_ptr<TermExpr>, 8> terms;
-  std::unique_ptr<TermExpr> term;
+template <typename Int>
+LogicalResult Parser<Int>::parseSum(std::unique_ptr<Expr> &expr) {
+  SmallVector<std::unique_ptr<TermExpr<Int>>, 8> terms;
+  std::unique_ptr<TermExpr<Int>> term;
 
   if (failed(parseTerm(term)))
     return failure();
@@ -639,7 +649,7 @@ LogicalResult Parser::parseSum(std::unique_ptr<Expr> &expr) {
     return success();
   }
 
-  expr = std::make_unique<SumExpr>(std::move(terms));
+  expr = std::make_unique<SumExpr<Int>>(std::move(terms));
   return success();
 }
 
@@ -648,9 +658,10 @@ LogicalResult Parser::parseSum(std::unique_ptr<Expr> &expr) {
 ///  pb-term       ::= '-'? pb-int? pb-var
 ///                ::= '-'? pb-int
 ///
-LogicalResult Parser::parseTerm(std::unique_ptr<TermExpr> &term,
+template <typename Int>
+LogicalResult Parser<Int>::parseTerm(std::unique_ptr<TermExpr<Int>> &term,
                                 bool isNegated) {
-  std::unique_ptr<IntegerExpr> integer;
+  std::unique_ptr<IntegerExpr<Int>> integer;
   if (lexer.peek().isa(Token::Kind::Minus)) {
     isNegated = !isNegated;
     lexer.next();
@@ -661,7 +672,7 @@ LogicalResult Parser::parseTerm(std::unique_ptr<TermExpr> &term,
       return failure();
     lexer.consume(Token::Kind::Times);
   } else if (isNegated)
-    integer = std::make_unique<IntegerExpr>(-1);
+    integer = std::make_unique<IntegerExpr<Int>>(-1);
 
   std::unique_ptr<VariableExpr> identifier;
   if (lexer.peek().isa(Token::Kind::Identifier))
@@ -671,7 +682,7 @@ LogicalResult Parser::parseTerm(std::unique_ptr<TermExpr> &term,
   if (!integer.get() && !identifier.get())
     return emitErrorForToken(lexer.peek(), "expected non empty term");
 
-  term = std::make_unique<TermExpr>(std::move(integer), std::move(identifier));
+  term = std::make_unique<TermExpr<Int>>(std::move(integer), std::move(identifier));
   return success();
 }
 
@@ -679,7 +690,8 @@ LogicalResult Parser::parseTerm(std::unique_ptr<TermExpr> &term,
 ///
 ///  pb-var ::= letter (digit | letter)*
 ///
-LogicalResult Parser::parseVariable(std::unique_ptr<VariableExpr> &vExpr) {
+template <typename Int>
+LogicalResult Parser<Int>::parseVariable(std::unique_ptr<VariableExpr> &vExpr) {
   Token t;
   if (failed(lexer.consumeKindOrError(Token::Kind::Identifier, t)))
     return failure();
@@ -691,7 +703,8 @@ LogicalResult Parser::parseVariable(std::unique_ptr<VariableExpr> &vExpr) {
 ///
 ///  pb-int ::= digit+
 ///
-LogicalResult Parser::parseInteger(std::unique_ptr<IntegerExpr> &iExpr,
+template <typename Int>
+LogicalResult Parser<Int>::parseInteger(std::unique_ptr<IntegerExpr<Int>> &iExpr,
                                    bool isNegated) {
   bool negativ = isNegated ^ lexer.peek().isa(Token::Kind::Minus);
   lexer.consume(Token::Kind::Minus);
@@ -705,32 +718,37 @@ LogicalResult Parser::parseInteger(std::unique_ptr<IntegerExpr> &iExpr,
   if (negativ)
     value = -value;
 
-  iExpr = std::make_unique<IntegerExpr>(value);
+  iExpr = std::make_unique<IntegerExpr<Int>>(value);
   return success();
 }
 
-InFlightDiagnostic Parser::emitErrorForToken(Token token,
+template <typename Int>
+InFlightDiagnostic Parser<Int>::emitErrorForToken(Token token,
                                              const Twine &message) {
   return lexer.emitError(token.string().begin(), message);
 }
 
-InFlightDiagnostic Parser::emitError(const Twine &message) {
+template <typename Int>
+InFlightDiagnostic Parser<Int>::emitError(const Twine &message) {
   return lexer.emitErrorAtStart(message);
 }
 
-InFlightDiagnostic Parser::emitError(SMLoc loc, const Twine &message) {
+template <typename Int>
+InFlightDiagnostic Parser<Int>::emitError(SMLoc loc, const Twine &message) {
   return lexer.emitError(loc, message);
 }
 
 //===----------------------------------------------------------------------===//
-// PresburgerParser
+// PresburgerParser<Int>
 //===----------------------------------------------------------------------===//
 //
-PresburgerParser::PresburgerParser(Parser parser) : parser(parser) {}
+template <typename Int>
+PresburgerParser<Int>::PresburgerParser(Parser<Int> parser) : parser(parser) {}
 
 /// initializes a name to id mapping for variables
+template <typename Int>
 LogicalResult
-PresburgerParser::initVariables(const SmallVector<StringRef, 8> &vars,
+PresburgerParser<Int>::initVariables(const SmallVector<StringRef, 8> &vars,
                                 StringMap<size_t> &map) {
   map.clear();
   for (auto &name : vars) {
@@ -746,14 +764,15 @@ PresburgerParser::initVariables(const SmallVector<StringRef, 8> &vars,
 
 /// Parse a Presburger set into set
 ///
-/// For the exact parsing rules, see Parser::parseSet
-LogicalResult PresburgerParser::parsePresburgerSet(PresburgerSet &set) {
-  std::unique_ptr<SetExpr> setExpr;
+/// For the exact parsing rules, see Parser<Int>::parseSet
+template <typename Int>
+LogicalResult PresburgerParser<Int>::parsePresburgerSet(PresburgerSet<Int> &set) {
+  std::unique_ptr<SetExpr<Int>> setExpr;
   if (failed(parser.parseSet(setExpr)))
     return failure();
 
   if (setExpr->getConstraints() == nullptr) {
-    set = PresburgerSet(setExpr->getDims().size(), setExpr->getSyms().size());
+    set = PresburgerSet<Int>(setExpr->getDims().size(), setExpr->getSyms().size());
     return success();
   }
 
@@ -765,16 +784,17 @@ LogicalResult PresburgerParser::parsePresburgerSet(PresburgerSet &set) {
   return success();
 }
 
-/// Creates a PresburgerSet instance from constraints
+/// Creates a PresburgerSet<Int> instance from constraints
 ///
-/// For each AndExpr contained in constraints it creates one
-/// PresburgerBasicSet object
-LogicalResult PresburgerParser::parsePresburgerSet(Expr *constraints,
-                                                   PresburgerSet &set) {
-  set = PresburgerSet(dimNameToIndex.size(), symNameToIndex.size());
-  if (auto orConstraints = constraints->dyn_cast<OrExpr>()) {
+/// For each AndExpr<Int> contained in constraints it creates one
+/// PresburgerBasicSet<Int> object
+template <typename Int>
+LogicalResult PresburgerParser<Int>::parsePresburgerSet(Expr *constraints,
+                                                   PresburgerSet<Int> &set) {
+  set = PresburgerSet<Int>(dimNameToIndex.size(), symNameToIndex.size());
+  if (auto orConstraints = constraints->dyn_cast<OrExpr<Int>>()) {
     for (std::unique_ptr<Expr> &basicSet : orConstraints->getConstraints()) {
-      PresburgerBasicSet bs;
+      PresburgerBasicSet<Int> bs;
       if (failed(parsePresburgerBasicSet(basicSet.get(), bs)))
         return failure();
       set.addBasicSet(bs);
@@ -782,7 +802,7 @@ LogicalResult PresburgerParser::parsePresburgerSet(Expr *constraints,
     return success();
   }
 
-  PresburgerBasicSet bs;
+  PresburgerBasicSet<Int> bs;
   if (failed(parsePresburgerBasicSet(constraints, bs)))
     return failure();
 
@@ -793,42 +813,43 @@ LogicalResult PresburgerParser::parsePresburgerSet(Expr *constraints,
 
 /// Creates a FlatAffineConstraint instance from constraints
 ///
-/// Expects either a single ConstraintExpr or multiple of them combined in an
-/// AndExpr
+/// Expects either a single ConstraintExpr<Int> or multiple of them combined in an
+/// AndExpr<Int>
+template <typename Int>
 LogicalResult
-PresburgerParser::parsePresburgerBasicSet(Expr *constraints,
-                                          PresburgerBasicSet &cs) {
-  if (constraints->dyn_cast<OrExpr>() != nullptr)
+PresburgerParser<Int>::parsePresburgerBasicSet(Expr *constraints,
+                                          PresburgerBasicSet<Int> &cs) {
+  if (constraints->dyn_cast<OrExpr<Int>>() != nullptr)
     return emitError("or conditions are not valid for basic sets");
 
-  if (auto constraint = constraints->dyn_cast<ConstraintExpr>()) {
+  if (auto constraint = constraints->dyn_cast<ConstraintExpr<Int>>()) {
     llvm_unreachable("PresburgerBasicSets should only contain AndExprs.");
-    PresburgerParser::Constraint c;
+    PresburgerParser<Int>::Constraint c;
     if (failed(parseConstraint(constraint, c)))
       return failure();
     addConstraint(cs, c);
-  } else if (auto andConstraints = constraints->dyn_cast<AndExpr>()) {
+  } else if (auto andConstraints = constraints->dyn_cast<AndExpr<Int>>()) {
     initVariables(andConstraints->getExists(), existNameToIndex);
     initVariables(andConstraints->getDivNames(), divNameToIndex);
-    cs = PresburgerBasicSet(dimNameToIndex.size(), symNameToIndex.size(),
+    cs = PresburgerBasicSet<Int>(dimNameToIndex.size(), symNameToIndex.size(),
                             existNameToIndex.size());
 
     unsigned offset =
         dimNameToIndex.size() + symNameToIndex.size() + existNameToIndex.size();
-    SmallVector<DivisionConstraint, 8> divs;
+    SmallVector<DivisionConstraint<Int>, 8> divs;
     for (auto &divExpr : andConstraints->getDivs()) {
-      std::pair<SafeInteger, SmallVector<SafeInteger, 8>> affineSum;
+      std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> affineSum;
       parseSum(divExpr->num.get(), affineSum);
-      SafeInteger denominator = divExpr->den->getValue();
-      SmallVector<SafeInteger, 8> coeffs(affineSum.second);
+      SafeInteger<Int> denominator = divExpr->den->getValue();
+      SmallVector<SafeInteger<Int>, 8> coeffs(affineSum.second);
       coeffs.push_back(affineSum.first);
       divs.emplace_back(coeffs, denominator, offset + divs.size());
     }
     cs.appendDivisionVariables(divs);
 
-    for (std::unique_ptr<ConstraintExpr> &constraint :
+    for (std::unique_ptr<ConstraintExpr<Int>> &constraint :
          andConstraints->getConstraints()) {
-      PresburgerParser::Constraint c;
+      PresburgerParser<Int>::Constraint c;
       if (failed(parseConstraint(constraint.get(), c)))
         return failure();
       addConstraint(cs, c);
@@ -840,19 +861,20 @@ PresburgerParser::parsePresburgerBasicSet(Expr *constraints,
   return success();
 }
 
-/// Creates a constraint from a ConstraintExpr.
+/// Creates a constraint from a ConstraintExpr<Int>.
 ///
 /// It either returns an equality (== 0) or an inequalitiy (>= 0).
-/// As a ConstraintExpr contains sums on both sides, they are subtracted from
+/// As a ConstraintExpr<Int> contains sums on both sides, they are subtracted from
 /// each other to get the desired form.
+template <typename Int>
 LogicalResult
-PresburgerParser::parseConstraint(ConstraintExpr *constraint,
-                                  PresburgerParser::Constraint &c) {
+PresburgerParser<Int>::parseConstraint(ConstraintExpr<Int> *constraint,
+                                  PresburgerParser<Int>::Constraint &c) {
   if (constraint == nullptr)
     llvm_unreachable("constraint was nullptr!");
 
-  std::pair<SafeInteger, SmallVector<SafeInteger, 8>> left;
-  std::pair<SafeInteger, SmallVector<SafeInteger, 8>> right;
+  std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> left;
+  std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> right;
   if (failed(parseSum(constraint->getLeftSum(), left)) ||
       failed(parseSum(constraint->getRightSum(), right)))
     return failure();
@@ -862,14 +884,14 @@ PresburgerParser::parseConstraint(ConstraintExpr *constraint,
   auto rightConst = right.first;
   auto rightCoeffs = right.second;
 
-  SafeInteger constant;
-  SmallVector<SafeInteger, 8> coeffs;
-  if (constraint->getKind() == ConstraintExpr::Kind::LE) {
+  SafeInteger<Int> constant;
+  SmallVector<SafeInteger<Int>, 8> coeffs;
+  if (constraint->getKind() == ConstraintExpr<Int>::Kind::LE) {
     constant = rightConst - leftConst;
     for (size_t i = 0; i < leftCoeffs.size(); i++)
       coeffs.push_back(rightCoeffs[i] - leftCoeffs[i]);
-  } else if (constraint->getKind() == ConstraintExpr::Kind::GE ||
-             constraint->getKind() == ConstraintExpr::Kind::EQ) {
+  } else if (constraint->getKind() == ConstraintExpr<Int>::Kind::GE ||
+             constraint->getKind() == ConstraintExpr<Int>::Kind::EQ) {
     constant = leftConst - rightConst;
     for (size_t i = 0; i < leftCoeffs.size(); i++)
       coeffs.push_back(leftCoeffs[i] - rightCoeffs[i]);
@@ -878,7 +900,7 @@ PresburgerParser::parseConstraint(ConstraintExpr *constraint,
   }
 
   Kind kind;
-  if (constraint->getKind() == ConstraintExpr::Kind::EQ)
+  if (constraint->getKind() == ConstraintExpr<Int>::Kind::EQ)
     kind = Kind::Equality;
   else
     kind = Kind::Inequality;
@@ -888,23 +910,24 @@ PresburgerParser::parseConstraint(ConstraintExpr *constraint,
   return success();
 }
 
-/// Creates a list of coefficients and a constant from a SumExpr or a TermExpr.
+/// Creates a list of coefficients and a constant from a SumExpr<Int> or a TermExpr<Int>.
 ///
 /// The list of coefficients corresponds to the coefficients of the dimensions
 /// and after that the symbols.
 ///
-LogicalResult PresburgerParser::parseSum(
-    Expr *expr, std::pair<SafeInteger, SmallVector<SafeInteger, 8>> &r) {
-  SafeInteger constant = 0;
-  SmallVector<SafeInteger, 8> coeffs(
+template <typename Int>
+LogicalResult PresburgerParser<Int>::parseSum(
+    Expr *expr, std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> &r) {
+  SafeInteger<Int> constant = 0;
+  SmallVector<SafeInteger<Int>, 8> coeffs(
       dimNameToIndex.size() + symNameToIndex.size() + existNameToIndex.size() +
           divNameToIndex.size(),
       0);
-  if (auto *term = expr->dyn_cast<TermExpr>()) {
+  if (auto *term = expr->dyn_cast<TermExpr<Int>>()) {
     if (failed(parseAndAddTerm(term, constant, coeffs)))
       return failure();
-  } else if (auto *sum = expr->dyn_cast<SumExpr>()) {
-    for (std::unique_ptr<TermExpr> &term : sum->getTerms())
+  } else if (auto *sum = expr->dyn_cast<SumExpr<Int>>()) {
+    for (std::unique_ptr<TermExpr<Int>> &term : sum->getTerms())
       if (failed(parseAndAddTerm(term.get(), constant, coeffs)))
         return failure();
   }
@@ -912,15 +935,16 @@ LogicalResult PresburgerParser::parseSum(
   return success();
 }
 
-/// Takes a TermExpr and addapts the matchin coefficient or the constant to this
+/// Takes a TermExpr<Int> and addapts the matchin coefficient or the constant to this
 /// terms value. To determine the coefficient id it looks it up in the
 /// nameToIndex mappings
 ///
 /// Fails if the variable name is unknown
+template <typename Int>
 LogicalResult
-PresburgerParser::parseAndAddTerm(TermExpr *term, SafeInteger &constant,
-                                  SmallVector<SafeInteger, 8> &coeffs) {
-  SafeInteger delta = 1;
+PresburgerParser<Int>::parseAndAddTerm(TermExpr<Int> *term, SafeInteger<Int> &constant,
+                                  SmallVector<SafeInteger<Int>, 8> &coeffs) {
+  SafeInteger<Int> delta = 1;
   if (auto coeff = term->getCoeff())
     delta = coeff->getValue();
 
@@ -962,8 +986,9 @@ PresburgerParser::parseAndAddTerm(TermExpr *term, SafeInteger &constant,
   return emitError("encountered unknown variable name: " + var->getName());
 }
 
-void PresburgerParser::addConstraint(PresburgerBasicSet &bs,
-                                     PresburgerParser::Constraint &constraint) {
+template <typename Int>
+void PresburgerParser<Int>::addConstraint(PresburgerBasicSet<Int> &bs,
+                                     PresburgerParser<Int>::Constraint &constraint) {
   if (constraint.second == Kind::Equality)
     bs.addEquality(constraint.first);
   else
@@ -972,8 +997,9 @@ void PresburgerParser::addConstraint(PresburgerBasicSet &bs,
 
 /// Parse a Presburger expression into expr
 ///
-/// For the exact parsing rules, see Parser::parseExpr
-LogicalResult PresburgerParser::parsePresburgerExpr(PresburgerExpr &res) {
+/// For the exact parsing rules, see Parser<Int>::parseExpr
+template <typename Int>
+LogicalResult PresburgerParser<Int>::parsePresburgerExpr(PresburgerExpr &res) {
 
   std::unique_ptr<PresburgerExprExpr> expr;
   if (failed(parser.parseExpr(expr)))
@@ -995,15 +1021,16 @@ LogicalResult PresburgerParser::parsePresburgerExpr(PresburgerExpr &res) {
 }
 
 /// Takes a PieceExpr and adds its corresponding representation to expr
-LogicalResult PresburgerParser::parseAndAddPiece(PieceExpr *piece,
+template <typename Int>
+LogicalResult PresburgerParser<Int>::parseAndAddPiece(PieceExpr *piece,
                                                  PresburgerExpr &expr) {
-  std::pair<SafeInteger, SmallVector<SafeInteger, 8>> affineExpr;
+  std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> affineExpr;
   parseSum(piece->getExpr(), affineExpr);
 
-  PresburgerSet set;
+  PresburgerSet<Int> set;
 
   if (piece->getConstraints() == nullptr)
-    set = PresburgerSet(expr.getNumDims(), expr.getNumSyms());
+    set = PresburgerSet<Int>(expr.getNumDims(), expr.getNumSyms());
   else
     parsePresburgerSet(piece->getConstraints(), set);
 
@@ -1013,12 +1040,14 @@ LogicalResult PresburgerParser::parseAndAddPiece(PieceExpr *piece,
 }
 
 /// Emits the provided error message at the start of the string to parse.
-InFlightDiagnostic PresburgerParser::emitError(const Twine &message) {
+template <typename Int>
+InFlightDiagnostic PresburgerParser<Int>::emitError(const Twine &message) {
   return parser.emitError(message);
 }
 
 /// Emits the provided error message at the location provided.
-InFlightDiagnostic PresburgerParser::emitError(SMLoc loc,
+template <typename Int>
+InFlightDiagnostic PresburgerParser<Int>::emitError(SMLoc loc,
                                                const Twine &message) {
   return parser.emitError(loc, message);
 }

@@ -8,15 +8,17 @@
 using namespace mlir;
 using namespace analysis::presburger;
 
-LinearTransform::LinearTransform(MatrixType oMatrix)
+template <typename Int>
+LinearTransform<Int>::LinearTransform(Matrix<Int> oMatrix)
     : matrix(std::move(oMatrix)) {}
 
 // Normalize M(row, targetCol) to the range [0, M(row, sourceCol)) by
 // subtracting from targetCol an appropriate integer multiple of sourceCol.
 // Apply the same operation to otherMatrix. (with the same multiple)
-static void subtractColumns(LinearTransform::MatrixType &m, unsigned row,
+template <typename Int>
+static void subtractColumns(Matrix<Int> &m, unsigned row,
                             unsigned sourceCol, unsigned targetCol,
-                            LinearTransform::MatrixType &otherMatrix) {
+                            Matrix<Int> &otherMatrix) {
   assert(m(row, sourceCol) != 0 && "cannot divide by zero");
   auto ratio = floorDiv(m(row, targetCol), m(row, sourceCol));
   m.addToColumn(sourceCol, targetCol, -ratio);
@@ -46,9 +48,10 @@ T extendedEuclid(T a, T b, T &x, T &y) {
 //
 // But at some point we need the pre-multiply version as well, so optimisation
 // doesn't help in that case or only helps 1/3rd of the time (when we need both)
-LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType &m) {
+template <typename Int>
+LinearTransform<Int> LinearTransform<Int>::makeTransformToColumnEchelon(Matrix<Int> &m) {
   // Padding of one is required by the LinearTransform constructor.
-  MatrixType resultMatrix = MatrixType::identity(m.getNumColumns());
+  Matrix<Int> resultMatrix = Matrix<Int>::identity(m.getNumColumns());
 
   for (unsigned row = 0, col = 0; row < m.getNumRows(); ++row) {
     bool found = false;
@@ -98,7 +101,7 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType &m) {
         resultMatrix.swapColumns(i, col);
         subtractColumns(m, row, col, i, resultMatrix);
       } else {
-        SafeInteger a_i, a_col;
+        SafeInteger<Int> a_i, a_col;
         extendedEuclid(m_i, m_col, a_i, a_col);
 
         // a_i m_i + a_col m_col = g
@@ -130,14 +133,15 @@ LinearTransform LinearTransform::makeTransformToColumnEchelon(MatrixType &m) {
   return LinearTransform(std::move(resultMatrix));
 }
 
-SmallVector<SafeInteger, 8>
-LinearTransform::postMultiplyRow(ArrayRef<SafeInteger> row) {
+template <typename Int>
+SmallVector<SafeInteger<Int>, 8>
+LinearTransform<Int>::postMultiplyRow(ArrayRef<SafeInteger<Int>> row) {
   assert(row.size() == matrix.getNumRows() &&
          "row vector dimension should be matrix output dimension");
 
-  SmallVector<SafeInteger, 8> result;
+  SmallVector<SafeInteger<Int>, 8> result;
   for (unsigned col = 0, e = matrix.getNumColumns(); col < e; col++) {
-    SafeInteger elem = 0;
+    SafeInteger<Int> elem = 0;
     for (unsigned i = 0, e = matrix.getNumRows(); i < e; i++)
       elem += row[i] * matrix(i, col);
     result.push_back(elem);
@@ -145,14 +149,15 @@ LinearTransform::postMultiplyRow(ArrayRef<SafeInteger> row) {
   return result;
 }
 
-SmallVector<SafeInteger, 8>
-LinearTransform::preMultiplyColumn(ArrayRef<SafeInteger> col) {
+template <typename Int>
+SmallVector<SafeInteger<Int>, 8>
+LinearTransform<Int>::preMultiplyColumn(ArrayRef<SafeInteger<Int>> col) {
   assert(matrix.getNumColumns() == col.size() &&
          "row vector dimension should be matrix output dimension");
 
-  SmallVector<SafeInteger, 8> result;
+  SmallVector<SafeInteger<Int>, 8> result;
   for (unsigned row = 0, e = matrix.getNumRows(); row < e; row++) {
-    SafeInteger elem = 0;
+    SafeInteger<Int> elem = 0;
     for (unsigned i = 0, e = matrix.getNumColumns(); i < e; i++)
       elem += matrix(row, i) * col[i];
     result.push_back(elem);
@@ -160,26 +165,27 @@ LinearTransform::preMultiplyColumn(ArrayRef<SafeInteger> col) {
   return result;
 }
 
-PresburgerBasicSet
-LinearTransform::postMultiplyBasicSet(const PresburgerBasicSet &bs) {
-  PresburgerBasicSet result(bs.getNumTotalDims(), 0, 0);
+template <typename Int>
+PresburgerBasicSet<Int>
+LinearTransform<Int>::postMultiplyBasicSet(const PresburgerBasicSet<Int> &bs) {
+  PresburgerBasicSet<Int> result(bs.getNumTotalDims(), 0, 0);
 
   for (unsigned i = 0; i < bs.getNumEqualities(); ++i) {
-    ArrayRef<SafeInteger> eq = bs.getEquality(i).getCoeffs();
+    ArrayRef<SafeInteger<Int>> eq = bs.getEquality(i).getCoeffs();
 
-    SafeInteger c = eq.back();
+    SafeInteger<Int> c = eq.back();
 
-    SmallVector<SafeInteger, 8> newEq = postMultiplyRow(eq.drop_back());
+    SmallVector<SafeInteger<Int>, 8> newEq = postMultiplyRow(eq.drop_back());
     newEq.push_back(c);
     result.addEquality(newEq);
   }
 
   for (unsigned i = 0; i < bs.getNumInequalities(); ++i) {
-    ArrayRef<SafeInteger> ineq = bs.getInequality(i).getCoeffs();
+    ArrayRef<SafeInteger<Int>> ineq = bs.getInequality(i).getCoeffs();
 
-    SafeInteger c = ineq.back();
+    SafeInteger<Int> c = ineq.back();
 
-    SmallVector<SafeInteger, 8> newIneq = postMultiplyRow(ineq.drop_back());
+    SmallVector<SafeInteger<Int>, 8> newIneq = postMultiplyRow(ineq.drop_back());
     newIneq.push_back(c);
     result.addInequality(newIneq);
   }

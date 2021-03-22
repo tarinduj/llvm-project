@@ -34,6 +34,8 @@ typedef int16_t Vector __attribute__((ext_vector_type(MATRIX_COLUMN_COUNT)));
 /// This is a simple class to represent a resizable matrix.
 ///
 /// The data is stored in the form of a vector of vectors.
+
+template <typename Int>
 class Matrix {
 public:
   Matrix() = delete;
@@ -48,26 +50,26 @@ public:
   /// Access the element at the specified row and column.
 
   __attribute__((always_inline))
-  SafeInteger &at(unsigned row, unsigned column) {
+  SafeInteger<Int> &at(unsigned row, unsigned column) {
     assert(row < getNumRows() && "Row outside of range");
     assert(column < getNumColumns() && "Column outside of range");
     return data[row * MATRIX_COLUMN_COUNT + column];
   }
 
   __attribute__((always_inline))
-  SafeInteger at(unsigned row, unsigned column) const {
+  SafeInteger<Int> at(unsigned row, unsigned column) const {
     assert(row < getNumRows() && "Row outside of range");
     assert(column < getNumColumns() && "Column outside of range");
     return data[row * MATRIX_COLUMN_COUNT + column];
   }
 
   __attribute__((always_inline))
-  SafeInteger &operator()(unsigned row, unsigned column) {
+  SafeInteger<Int> &operator()(unsigned row, unsigned column) {
     return at(row, column);
   }
 
   __attribute__((always_inline))
-  SafeInteger operator()(unsigned row, unsigned column) const {
+  SafeInteger<Int> operator()(unsigned row, unsigned column) const {
     return at(row, column);
   }
 
@@ -93,15 +95,15 @@ public:
 
 
   /// Get an ArrayRef corresponding to the specified row.
-  ArrayRef<SafeInteger> getRow(unsigned row) const;
+  ArrayRef<SafeInteger<Int>> getRow(unsigned row) const;
 
   /// Add `scale` multiples of the source row to the target row.
-  void addToRow(unsigned sourceRow, unsigned targetRow, SafeInteger scale);
+  void addToRow(unsigned sourceRow, unsigned targetRow, SafeInteger<Int> scale);
 
-  void scaleColumn(unsigned column, SafeInteger scale);
+  void scaleColumn(unsigned column, SafeInteger<Int> scale);
 
   void addToColumn(unsigned sourceColumn, unsigned targetColumn,
-                   SafeInteger scale);
+                   SafeInteger<Int> scale);
 
   /// Resize the matrix to the specified dimensions. If a dimension is smaller,
   /// the values are truncated; if it is bigger, the new values are default
@@ -119,7 +121,7 @@ private:
   unsigned nRows, nColumns;
 
   /// Stores the data. data.size() is equal to nRows * nColumns.
-  std::vector<SafeInteger, AlignedAllocator<SafeInteger, 64>> data;
+  std::vector<SafeInteger<Int>, AlignedAllocator<SafeInteger<Int>, 64>> data;
 };
 
 } // namespace presburger

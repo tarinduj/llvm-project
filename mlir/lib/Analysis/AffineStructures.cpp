@@ -1044,12 +1044,12 @@ bool FlatAffineConstraints::isEmptyByGCDTest() const {
 // we cannot use the GBR algorithm and we conservatively return false.
 //
 // If the set is bounded, we use the complete emptiness check for this case
-// provided by Simplex::findIntegerSample(), which gives a definitive answer.
+// provided by Simplex<int64_t>::findIntegerSample(), which gives a definitive answer.
 bool FlatAffineConstraints::isIntegerEmpty() const {
   if (isEmptyByGCDTest())
     return true;
 
-  Simplex simplex(*this);
+  Simplex<int64_t> simplex(*this);
   if (simplex.isUnbounded())
     return false;
   return !simplex.findIntegerSample().hasValue();
@@ -1066,7 +1066,7 @@ FlatAffineConstraints::findIntegerSample() const {
 
 Optional<std::pair<int64_t, SmallVector<int64_t, 8>>>
 FlatAffineConstraints::findRationalSample() const {
-  Simplex simplex(*this);
+  Simplex<int64_t> simplex(*this);
   if (simplex.isEmpty())
     return {};
   llvm_unreachable("not yet implemented");
@@ -1077,9 +1077,9 @@ FlatAffineConstraints::findRationalSample() const {
 //
 // This only makes a matrix of the coefficients! The constant terms are
 // omitted.
-Matrix FlatAffineConstraints::coefficientMatrixFromEqs() const {
+Matrix<int64_t> FlatAffineConstraints::coefficientMatrixFromEqs() const {
   // TODO check if this works because of missing symbols
-  Matrix result(getNumEqualities(), getNumDimIds());
+  Matrix<int64_t> result(getNumEqualities(), getNumDimIds());
   for (unsigned i = 0; i < getNumEqualities(); ++i) {
     for (unsigned j = 0; j < getNumDimIds(); ++j)
       result(i, j) = atEq(i, j);
@@ -1109,7 +1109,7 @@ Matrix FlatAffineConstraints::coefficientMatrixFromEqs() const {
 llvm::Optional<SmallVector<int64_t, 8>>
 FlatAffineConstraints::findSampleUnbounded(FlatAffineConstraints &cone) const {
   auto coeffMatrix = cone.coefficientMatrixFromEqs();
-  auto U = LinearTransform::makeTransformToColumnEchelon(coeffMatrix);
+  auto U = LinearTransform<int64_t>::makeTransformToColumnEchelon(coeffMatrix);
   FlatAffineConstraints transformedSet = U.postMultiplyBasicSet(*this);
 
   auto maybeBoundedSample = transformedSet.findBoundedDimensionsSample(cone);
@@ -1248,7 +1248,7 @@ FlatAffineConstraints::findSampleBounded() const {
   if (getNumDimIds() == 0)
     return SmallVector<int64_t, 8>();
 
-  Simplex simplex(*this);
+  Simplex<int64_t> simplex(*this);
   if (simplex.isEmpty())
     return {};
 
@@ -1276,7 +1276,7 @@ FlatAffineConstraints FlatAffineConstraints::makeRecessionCone() const {
 
   // NOTE isl does gauss here.
 
-  Simplex simplex(cone);
+  Simplex<int64_t> simplex(cone);
   if (simplex.isEmpty()) {
     // TODO: empty flag for FlatAffineConstraints
     // cone.maybeIsEmpty = true;
@@ -1295,7 +1295,7 @@ FlatAffineConstraints FlatAffineConstraints::makeRecessionCone() const {
   return cone;
 }
 
-void FlatAffineConstraints::updateFromSimplex(const Simplex &simplex) {
+void FlatAffineConstraints::updateFromSimplex(const Simplex<int64_t> &simplex) {
   if (simplex.isEmpty()) {
     // maybeIsEmpty = true;
     return;
@@ -1686,10 +1686,10 @@ void FlatAffineConstraints::removeRedundantInequalities() {
   inequalities.resize(numReservedCols * pos);
 }
 
-// A more complex check to eliminate redundant inequalities. Uses Simplex
+// A more complex check to eliminate redundant inequalities. Uses Simplex<int64_t>
 // to check if a constraint is redundant.
 void FlatAffineConstraints::removeRedundantConstraints() {
-  Simplex simplex(*this);
+  Simplex<int64_t> simplex(*this);
   simplex.detectRedundant();
 
   // Scan to get rid of all inequalities marked redundant, in-place.

@@ -9,7 +9,7 @@ using namespace mlir::presburger;
 static SetOp createEmptySetOfEqualDim(PatternRewriter &rewriter,
                                       PresburgerSetType type) {
   Location loc = rewriter.getInsertionPoint()->getLoc();
-  PresburgerSet set(type.getDimCount(), type.getSymbolCount(), true);
+  TransprecSet set(type.getDimCount(), type.getSymbolCount(), true);
 
   PresburgerSetAttr attr = PresburgerSetAttr::get(type, set);
   return rewriter.create<SetOp>(loc, type, attr);

@@ -7,8 +7,9 @@
 
 namespace mlir {
 
+template <typename Int>
 FlatAffineConstraints
-LinearTransform::postMultiplyBasicSet(const FlatAffineConstraints &bs) {
+LinearTransform<Int>::postMultiplyBasicSet(const FlatAffineConstraints &bs) {
   // FlatAffineConstraints result(bs.getNumDimIds());
 
   // for (unsigned i = 0; i < bs.getNumEqualities(); ++i) {

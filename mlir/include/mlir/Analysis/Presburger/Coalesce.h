@@ -49,4 +49,5 @@ template <typename Int>
 bool containedFacet(ArrayRef<SafeInteger<Int>> ineq, const PresburgerBasicSet<Int> &bs,
                     ArrayRef<ArrayRef<SafeInteger<Int>>> cut);
 
+
 } // namespace mlir

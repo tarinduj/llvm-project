@@ -4,7 +4,6 @@ add_mlir_dialect_library(MLIRPresburgerDialect
   PresburgerOptions.cpp
   Attributes.cpp
   Types.cpp
-  Parser.cpp
   Transforms/Evaluation.cpp
   Transforms/Canonicalization.cpp
   

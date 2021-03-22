@@ -1,5 +1,4 @@
 set (LIBS
-MLIRLoopAnalysis
 MLIRPresburgerDialect
 )
 

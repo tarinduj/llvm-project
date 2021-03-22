@@ -73,12 +73,14 @@ public:
   using Simplex<Int>::getSnapshotBasis;
   using Simplex<Int>::unknownFromRow;
   using Simplex<Int>::unknownFromColumn;
+  using Simplex<Int>::unknownFromIndex;
   using Simplex<Int>::rollback;
   using Simplex<Int>::addVariable;
   using Simplex<Int>::addDivisionVariable;
   using Simplex<Int>::addZeroConstraint;
   using Simplex<Int>::pivot;
   using Simplex<Int>::markEmpty;
+  using Simplex<Int>::addRow;
 
   ParamLexSimplex() = delete;
   ParamLexSimplex(unsigned nDim, unsigned nParam);

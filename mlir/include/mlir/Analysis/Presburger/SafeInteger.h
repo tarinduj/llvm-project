@@ -158,6 +158,35 @@ inline void operator/=(SafeInteger<Int> &x, const SafeInteger<Int> &y) { x = x /
 template <typename Int>
 inline void operator%=(SafeInteger<Int> &x, const SafeInteger<Int> &y) { x = x % y; }
 
+template <typename Int>
+inline void operator+=(SafeInteger<Int> &x, int y) { x = x + SafeInteger<Int>(y); }
+
+template <typename Int>
+inline void operator-=(SafeInteger<Int> &x, int y) { x = x - SafeInteger<Int>(y); }
+
+template <typename Int>
+inline void operator*=(SafeInteger<Int> &x, int y) { x = x * SafeInteger<Int>(y); }
+
+template <typename Int>
+inline void operator/=(SafeInteger<Int> &x, int y) { x = x / SafeInteger<Int>(y); }
+
+template <typename Int>
+inline void operator%=(SafeInteger<Int> &x, int y) { x = x % SafeInteger<Int>(y); }
+
+template <typename Int>
+inline SafeInteger<Int> operator+(const SafeInteger<Int> &x, int y) { return x + SafeInteger<Int>(y); }
+
+template <typename Int>
+inline SafeInteger<Int> operator-(const SafeInteger<Int> &x, int y) { return x - SafeInteger<Int>(y); }
+
+template <typename Int>
+inline SafeInteger<Int> operator*(const SafeInteger<Int> &x, int y) { return x * SafeInteger<Int>(y); }
+
+template <typename Int>
+inline SafeInteger<Int> operator/(const SafeInteger<Int> &x, int y) { return x / SafeInteger<Int>(y); }
+
+template <typename Int>
+inline SafeInteger<Int> operator%(const SafeInteger<Int> &x, int y) { return x % SafeInteger<Int>(y); }
 /// Returns MLIR's mod operation on constants. MLIR's mod operation yields the
 /// remainder of the Euclidean division of 'lhs' by 'rhs', and is therefore not
 /// C's % operator.  The RHS is always expected to be positive, and the result

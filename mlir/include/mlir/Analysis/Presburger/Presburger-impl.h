@@ -7,3 +7,4 @@
 #include "Printer-impl.h"
 #include "Set-impl.h"
 #include "Simplex-impl.h"
+#include "mlir/Dialect/Presburger/Parser-impl.h"

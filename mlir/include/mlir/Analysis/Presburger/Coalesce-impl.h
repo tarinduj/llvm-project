@@ -6,6 +6,31 @@
 
 using namespace mlir;
 
+template <typename Int>
+bool containedFacet(ArrayRef<SafeInteger<Int>> ineq, const PresburgerBasicSet<Int> &bs,
+                    const SmallVectorImpl<ArrayRef<SafeInteger<Int>>> &cut) {
+  return containedFacet(ineq, bs, makeArrayRef(cut));
+}
+
+namespace mlir {
+template <typename Int>
+SmallVector<SafeInteger<Int>, 8> combineConstraint(const SmallVectorImpl<SafeInteger<Int>> &c1,
+                                              const SmallVectorImpl<SafeInteger<Int>> &c2,
+                                              Fraction<Int> &ratio) {
+  return combineConstraint(makeArrayRef(c1), makeArrayRef(c2), ratio);
+}
+
+template <typename Int>
+bool sameConstraint(const SmallVectorImpl<SafeInteger<Int>> &c1, const SmallVectorImpl<SafeInteger<Int>> &c2) {
+  return sameConstraint(makeArrayRef(c1), makeArrayRef(c2));
+}
+
+template <typename Int>
+bool sameConstraint(const SmallVectorImpl<SafeInteger<Int>> &c1, ArrayRef<SafeInteger<Int>> c2) {
+  return sameConstraint(makeArrayRef(c1), c2);
+}
+}
+
 /// TODO: look at MutableArrayRef
 /// struct for classified constraints
 /// redundant and cut are for constraints that are typed as Redundant or Cut
@@ -63,6 +88,13 @@ void addEqualitiesAsInequalities(const ArrayRef<ArrayRef<SafeInteger<Int>>> eq,
                                  SmallVectorImpl<ArrayRef<SafeInteger<Int>>> &target,
                                  Info<Int> &info);
 
+template <typename Int>
+void addEqualitiesAsInequalities(const SmallVectorImpl<ArrayRef<SafeInteger<Int>>> &eq,
+                                 SmallVectorImpl<ArrayRef<SafeInteger<Int>>> &target,
+                                 Info<Int> &info) {
+  return addEqualitiesAsInequalities(makeArrayRef(eq), target, info);
+}
+
 /// adds all Equalities to bs
 template <typename Int>
 void addEqualities(PresburgerBasicSet<Int> &bs,
@@ -72,6 +104,12 @@ void addEqualities(PresburgerBasicSet<Int> &bs,
 template <typename Int>
 void addInequalities(PresburgerBasicSet<Int> &bs,
                      ArrayRef<ArrayRef<SafeInteger<Int>>> inequalities);
+
+template <typename Int>
+void addInequalities(PresburgerBasicSet<Int> &bs,
+                     const SmallVectorImpl<ArrayRef<SafeInteger<Int>>> &inequalities) {
+  return addInequalities(bs, makeArrayRef(inequalities));
+}
 
 /// only gets called by classify
 /// classifies all constraints into redundant, cut or adjIneq according to the
@@ -98,6 +136,11 @@ template <typename Int>
 bool classify(Simplex<Int> &simp, ArrayRef<ArrayRef<SafeInteger<Int>>> inequalities,
               ArrayRef<ArrayRef<SafeInteger<Int>>> equalities, Info<Int> &info);
 
+template <typename Int>
+bool classify(Simplex<Int> &simp, const SmallVector<ArrayRef<SafeInteger<Int>>, 8> &inequalities,
+              const SmallVector<ArrayRef<SafeInteger<Int>>, 8> &equalities, Info<Int> &info) {
+  return classify(simp, makeArrayRef(inequalities), makeArrayRef(equalities), info);
+}
 /// compute the protrusionCase and return whether it has worked
 ///
 /// In the protusionCase, only Cut constraints and Redundant constraints can
@@ -121,6 +164,12 @@ bool protrusionCase(SmallVectorImpl<PresburgerBasicSet<Int>> &basicSetVector,
 template <typename Int>
 bool stickingOut(ArrayRef<ArrayRef<SafeInteger<Int>>> cut,
                  const PresburgerBasicSet<Int> &bs);
+
+template <typename Int>
+bool stickingOut(const SmallVectorImpl<ArrayRef<SafeInteger<Int>>> &cut,
+                 const PresburgerBasicSet<Int> &bs) {
+  return stickingOut(makeArrayRef(cut), bs);
+}
 
 /// adds a PresburgerBasicSet<Int> and removes the sets at i and j.
 template <typename Int>
@@ -614,7 +663,7 @@ bool adjEqCaseNonPure(SmallVectorImpl<PresburgerBasicSet<Int>> &basicSetVector,
   // the constraint of a adjacent to an equality, it the complement of the
   // constraint f b, that is part of an equality and adjacent to an inequality.
   SmallVector<SafeInteger<Int>, 8> t =
-      complement(llvm::to_vector<8>(infoB.t.getValue()));
+      complement(infoB.t.getValue());
   for (const SafeInteger<Int> n : t) {
     minusT.push_back(-n);
   }

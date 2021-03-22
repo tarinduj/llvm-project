@@ -24,7 +24,6 @@ void printConst(raw_ostream &os, SafeInteger<Int> c, bool first);
 
 /// Prints the '(d0, ..., dN)[s0, ... ,sM]' dimension and symbol list.
 ///
-template <typename Int>
 void printVariableList(raw_ostream &os, unsigned nDim, unsigned nSym) {
   if (nSym > 0) {
     os << "[";
@@ -210,7 +209,7 @@ void printExpr(raw_ostream &os, ArrayRef<SafeInteger<Int>> coeffs,
 template <typename Int>
 void mlir::analysis::presburger::printPresburgerSetISL(
     raw_ostream &os, const PresburgerSet<Int> &set) {
-  printVariableList(os, set.getNumDims(), set.getNumSyms());
+  islprinter::printVariableList(os, set.getNumDims(), set.getNumSyms());
   if (set.isUniverse()) {
     os << "}";
     return;
@@ -219,7 +218,7 @@ void mlir::analysis::presburger::printPresburgerSetISL(
   if (set.isMarkedEmpty()) {
     os << "false";
   } else {
-    printConstraints(os, set);
+    islprinter::printConstraints(os, set);
   }
   os << "}";
 }
@@ -227,8 +226,8 @@ void mlir::analysis::presburger::printPresburgerSetISL(
 template <typename Int>
 void mlir::analysis::presburger::printPresburgerBasicSetISL(
     raw_ostream &os, const PresburgerBasicSet<Int> &bs) {
-  printVariableList(os, bs.getNumDims(), bs.getNumParams());
+  islprinter::printVariableList(os, bs.getNumDims(), bs.getNumParams());
   os << " : ";
-  printConstraints(os, bs);
+  islprinter::printConstraints(os, bs);
   os << "}";
 }

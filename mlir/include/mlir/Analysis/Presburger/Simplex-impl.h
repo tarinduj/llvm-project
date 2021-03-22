@@ -15,11 +15,11 @@
 using namespace mlir;
 using namespace analysis::presburger;
 
-__mmask32 equalMask(Vector x, Vector y) {
+inline __mmask32 equalMask(Vector x, Vector y) {
   return _mm512_cmp_epi16_mask(x, y, _MM_CMPINT_EQ);
 }
 
-Vector add(Vector x, Vector y) {
+inline Vector add(Vector x, Vector y) {
   Vector z = _mm512_adds_epi16(x, y);
   bool overflow = equalMask(z, std::numeric_limits<int16_t>::min()) ||
                   equalMask(z, std::numeric_limits<int16_t>::max());
@@ -27,7 +27,7 @@ Vector add(Vector x, Vector y) {
   return z;
 }
 
-__mmask32 negs(Vector x) {
+inline __mmask32 negs(Vector x) {
   return _mm512_cmp_epi16_mask(x, Vector(0), _MM_CMPINT_LT);
 }
 
@@ -35,7 +35,7 @@ __mmask32 negs(Vector x) {
 // a) The hi bits are either 0 or 111111... = -1, and
 // b) The sign of the lo bits is correct.
 // We check these two conditions. If either of them don't hold then an overflow has occurred.
-Vector mul(Vector x, Vector y) {
+inline Vector mul(Vector x, Vector y) {
   Vector lo = _mm512_mullo_epi16(x, y);
   __mmask32 xnegs = negs(x);
   __mmask32 ynegs = negs(y);
@@ -51,7 +51,7 @@ Vector mul(Vector x, Vector y) {
   return lo;
 }
 
-Vector negate(Vector x) {
+inline Vector negate(Vector x) {
   bool overflow = equalMask(x, std::numeric_limits<int16_t>::min());
   SafeInteger<int16_t>::overflow |= overflow;
   return -x;
@@ -398,7 +398,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
     return {};
 
   Direction newDirection =
-      tableau(row, *col) < 0 ? flippedDirection(direction) : direction;
+      tableau(row, *col) < 0 ? flippedDirection<Int>(direction) : direction;
   Optional<unsigned> maybePivotRow = findPivotRow(row, newDirection, *col);
   return Pivot{maybePivotRow.getValueOr(row), *col};
 }
@@ -1879,7 +1879,7 @@ SafeInteger<Int> Simplex<Int>::signOfMax(Unknown &u) {
     auto p = findPivot(u.pos, Direction::Up);
     if (!p) {
       // u is manifestly maximised
-      return sign(tableau(u.pos, 1) - origin * tableau(u.pos, 0));
+      return sign(tableau(u.pos, 1) - tableau(u.pos, 0)) * origin;
     } else if (p->row == u.pos) { // u is manifestly unbounded
       // In isl, this pivot is performed only when origin == 0 but not when it's
       // 1. This is because the two are different functions with very slightly

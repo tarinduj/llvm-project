@@ -1455,6 +1455,8 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
 
     // This variable stores width_i(b_{i+1} + u*b_i).
     Fraction<Int> widthICandidate = updateBasisWithUAndGetFCandidate(i);
+    if (SafeInteger<Int>::overflow)
+      return;
     if (widthICandidate < epsilon * width[i - level]) {
       basis.swapRows(i, i + 1);
       width[i - level] = widthICandidate;
@@ -1612,6 +1614,8 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
           rollback(snap);
         }
         reduceBasis(basis, level);
+        if (SafeInteger<Int>::overflow)
+          return {};
         basisCoeffs = llvm::to_vector<8>(basis.getRow(level));
         basisCoeffs.push_back(0);
         if (Optional<Fraction<Int>> maybeMin =

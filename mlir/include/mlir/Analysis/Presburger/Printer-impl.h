@@ -222,29 +222,29 @@ void mlir::analysis::presburger::printPresburgerBasicSet(
   printConstraints(os, bs);
 }
 
-void mlir::analysis::presburger::printPresburgerExpr(
-    raw_ostream &os, const PresburgerExpr &expr) {
-  unsigned nDim = expr.getNumDims(), nSym = expr.getNumSyms();
+// void mlir::analysis::presburger::printPresburgerExpr(
+//     raw_ostream &os, const PresburgerExpr &expr) {
+//   unsigned nDim = expr.getNumDims(), nSym = expr.getNumSyms();
 
-  // Terrible hack to pass nDim, nSym to printExpr until the domains of Exprs
-  // become basic sets.
-  PresburgerBasicSet<int64_t> bs(nDim, nSym);
-  printVariableList(os, nDim, nSym);
+//   // Terrible hack to pass nDim, nSym to printExpr until the domains of Exprs
+//   // become basic sets.
+//   PresburgerBasicSet<int64_t> bs(nDim, nSym);
+//   printVariableList(os, nDim, nSym);
 
-  os << " -> ";
+//   os << " -> ";
 
-  for (unsigned i = 0, e = expr.getExprs().size(); i < e; ++i) {
-    if (i != 0)
-      os << " ; ";
+//   for (unsigned i = 0, e = expr.getExprs().size(); i < e; ++i) {
+//     if (i != 0)
+//       os << " ; ";
 
-    os << "(";
-    // TODO change this as soon as we have a Constraint class. Try to unify the
-    // handling of expression
-    auto eI = expr.getExprs()[i];
-    llvm_unreachable("not yet implemented!");
-    // printExpr(os, eI.second, eI.first, bs);
-    os << ")";
-    os << " : ";
-    printConstraints(os, expr.getDomains()[i]);
-  }
-}
+//     os << "(";
+//     // TODO change this as soon as we have a Constraint class. Try to unify the
+//     // handling of expression
+//     auto eI = expr.getExprs()[i];
+//     llvm_unreachable("not yet implemented!");
+//     // printExpr(os, eI.second, eI.first, bs);
+//     os << ")";
+//     os << " : ";
+//     printConstraints(os, expr.getDomains()[i]);
+//   }
+// }

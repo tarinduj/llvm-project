@@ -3,7 +3,7 @@
 using namespace mlir;
 using namespace analysis::presburger;
 
-namespace {
+namespace islprinter {
 
 template <typename Int>
 void printConstraints(raw_ostream &os, const PresburgerBasicSet<Int> &bs);

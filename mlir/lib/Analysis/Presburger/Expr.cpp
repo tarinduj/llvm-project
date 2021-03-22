@@ -1,5 +1,6 @@
 #include "mlir/Analysis/Presburger/Expr.h"
 #include "mlir/Analysis/Presburger/Printer.h"
+#include "mlir/Analysis/Presburger/Presburger-impl.h"
 
 using namespace mlir;
 using namespace analysis::presburger;

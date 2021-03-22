@@ -1,6 +1,7 @@
 #include "mlir/Analysis/Presburger/Coalesce.h"
 #include "mlir/Analysis/Presburger/Set.h"
 #include "mlir/Dialect/Presburger/Parser.h"
+#include "mlir/Analysis/Presburger/Presburger-impl.h"
 #include <iostream>
 #include <string>
 #include <x86intrin.h>

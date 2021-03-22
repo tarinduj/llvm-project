@@ -105,7 +105,8 @@ template <typename Int>
 inline SafeInteger<Int> operator+(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
   Int result;
   bool overflow = __builtin_add_overflow(x.val, y.val, &result);
-  SafeInteger<Int>::overflow |= overflow;
+  if (overflow)
+    SafeInteger<Int>::overflow = true;
   return SafeInteger<Int>(result);
 }
 
@@ -113,7 +114,8 @@ template <typename Int>
 inline SafeInteger<Int> operator-(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
   Int result;
   bool overflow = __builtin_sub_overflow(x.val, y.val, &result);
-  SafeInteger<Int>::overflow |= overflow;
+  if (overflow)
+    SafeInteger<Int>::overflow = true;
   return SafeInteger<Int>(result);
 }
 
@@ -126,15 +128,21 @@ template <typename Int>
 inline SafeInteger<Int> operator*(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
   Int result;
   bool overflow = __builtin_mul_overflow(x.val, y.val, &result);
-  SafeInteger<Int>::overflow |= overflow;
+  if (overflow)
+    SafeInteger<Int>::overflow = true;
   return SafeInteger<Int>(result);
 }
 
 template <typename Int>
 inline SafeInteger<Int> operator/(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
   // overflow only possible if y == -1
-  if (y == SafeInteger<Int>(-1))
+  if (y.val == -1)
     return -x;
+  // Divide by zeros should only occur due to overflows. We return some garbage in such a case.
+  if (y.val == 0) {
+    assert(SafeInteger<Int>::overflow);
+    return 0;
+  }
   return x.val / y.val;
 }
 

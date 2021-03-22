@@ -23,7 +23,8 @@ inline Vector add(Vector x, Vector y) {
   Vector z = _mm512_adds_epi16(x, y);
   bool overflow = equalMask(z, std::numeric_limits<int16_t>::min()) ||
                   equalMask(z, std::numeric_limits<int16_t>::max());
-  SafeInteger<int16_t>::overflow |= overflow;
+  if (overflow)
+    SafeInteger<int16_t>::overflow = true;
   return z;
 }
 
@@ -43,17 +44,20 @@ inline Vector mul(Vector x, Vector y) {
 
   __mmask32 xzeros = equalMask(x, 0);
   __mmask32 yzeros = equalMask(y, 0);
-  SafeInteger<int16_t>::overflow |= (lonegs != ((xnegs ^ ynegs) & ~(xzeros | yzeros)));
+  if (lonegs != ((xnegs ^ ynegs) & ~(xzeros | yzeros)))
+    SafeInteger<int16_t>::overflow = true;
 
   Vector hi = _mm512_mulhi_epi16(x, y);
   __mmask32 zeroOrNegOneMask = equalMask(hi, 0) | equalMask(hi, -1);
-  SafeInteger<int16_t>::overflow |= bool(~zeroOrNegOneMask);
+  if (~zeroOrNegOneMask)
+    SafeInteger<int16_t>::overflow = true;
   return lo;
 }
 
 inline Vector negate(Vector x) {
   bool overflow = equalMask(x, std::numeric_limits<int16_t>::min());
-  SafeInteger<int16_t>::overflow |= overflow;
+  if (overflow)
+    SafeInteger<int16_t>::overflow = true;
   return -x;
 }
 

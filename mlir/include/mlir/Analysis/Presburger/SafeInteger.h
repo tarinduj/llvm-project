@@ -148,6 +148,11 @@ inline SafeInteger<Int> operator/(const SafeInteger<Int> &x, const SafeInteger<I
 
 template <typename Int>
 inline SafeInteger<Int> operator%(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
+  // The denominator should only become zero if an overflow occurred, in which case we return some garbage.
+  if (y.val == 0) {
+    assert(SafeInteger<Int>::overflow);
+    return x.val;
+  }
   return x.val % y.val;
 }
 

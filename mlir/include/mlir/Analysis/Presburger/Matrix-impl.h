@@ -16,7 +16,7 @@ Matrix<Int>::Matrix(unsigned rows, unsigned columns)
     : nRows(rows), nColumns(columns), data(nRows * MATRIX_COLUMN_COUNT) {
   if (nColumns > MATRIX_COLUMN_COUNT) {
     llvm::errs() << "Cannot construct matrix with " << nColumns << " columns; limit is " << MATRIX_COLUMN_COUNT << ".\n";
-    abort();
+    exit(1);
   }
 }
 

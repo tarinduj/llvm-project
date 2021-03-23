@@ -25,6 +25,8 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
+using DefaultInt = __int128_t;
+
 /// A class to overflow-aware 64-bit integers.
 ///
 /// Overflows are asserted to not occur.

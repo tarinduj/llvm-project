@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = a.isIntegerEmpty();
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<int16_t>::overflow) {
+      if (SafeInteger<DefaultInt>::overflow) {
         std::cerr << "Overflow!\n";
         exit(1);
       }
@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = TransprecSet::equal(a, b);
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<int16_t>::overflow) {
+      if (SafeInteger<DefaultInt>::overflow) {
         std::cerr << "Overflow!\n";
         exit(1);
       }
@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       a.unionSet(std::move(b));
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<int16_t>::overflow) {
+      if (SafeInteger<DefaultInt>::overflow) {
         std::cerr << "Overflow!\n";
         exit(1);
       }
@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       a.intersectSet(std::move(b));
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<int16_t>::overflow) {
+      if (SafeInteger<DefaultInt>::overflow) {
         std::cerr << "Overflow!\n";
         exit(1);
       }
@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       a.subtract(std::move(b));
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<int16_t>::overflow) {
+      if (SafeInteger<DefaultInt>::overflow) {
         std::cerr << "Overflow!\n";
         exit(1);
       }
@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = coalesce(a);
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<int16_t>::overflow) {
+      if (SafeInteger<DefaultInt>::overflow) {
         std::cerr << "Overflow!\n";
         exit(1);
       }
@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = TransprecSet::complement(a);
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<int16_t>::overflow) {
+      if (SafeInteger<DefaultInt>::overflow) {
         std::cerr << "Overflow!\n";
         exit(1);
       }
@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = TransprecSet::eliminateExistentials(a);
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<int16_t>::overflow) {
+      if (SafeInteger<DefaultInt>::overflow) {
         std::cerr << "Overflow!\n";
         exit(1);
       }

@@ -1002,6 +1002,8 @@ Optional<Fraction<Int>> Simplex<Int>::computeRowOptimum(Direction direction,
     if (maybePivot->row == row)
       return {};
     pivot(*maybePivot);
+    if (SafeInteger<Int>::overflow)
+      return {};
   }
 
   // The row has reached its optimal sample value, which we return.
@@ -1463,6 +1465,8 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
   // directions from `level` to i - 1.
   unsigned i = level;
   while (i < basis.getNumRows() - 1) {
+    if (SafeInteger<Int>::overflow)
+      return;
     if (i >= level + width.size()) {
       // We don't even know the value of f_i(b_i), so let's find that first.
       // We have to do this first since later we assume that width already
@@ -1479,6 +1483,8 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
           gbrSimplex.computeWidthAndDuals(basis.getRow(i), dual, dualDenom));
     }
 
+    if (SafeInteger<Int>::overflow)
+      return;
     if (i >= level + dual.size()) {
       assert(i + 1 >= level + width.size() &&
              "We don't know dual_i but we know width_{i+1}");

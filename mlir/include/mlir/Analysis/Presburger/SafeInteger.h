@@ -32,9 +32,15 @@ template <typename Int>
 struct SafeInteger {
   /// Construct a SafeInteger from a numerator and denominator.
   SafeInteger(int64_t oVal) {
-    overflow |= !(std::numeric_limits<Int>::min() <= oVal &&
-                      oVal <= std::numeric_limits<Int>::max());
-    val = oVal;
+    if constexpr (std::is_same<Int, __int128_t>::value) {
+      val = oVal;
+    } else {
+      Int min = std::numeric_limits<Int>::min();
+      Int max = std::numeric_limits<Int>::max();
+      throwOverflowIf(oVal < min);
+      throwOverflowIf(max < oVal);
+      val = oVal;
+    }
   }
 
   /// Default constructor initializes the number to zero.

@@ -90,6 +90,7 @@ public:
 
   __attribute__((always_inline))
   Vector &getRowVector(unsigned row) {
+    static_assert(std::is_same<Int, int16_t>::value, "getRowVector is only valid for int16_t matrices!");
     return *(Vector *)&data[row * MATRIX_COLUMN_COUNT];
   }
 

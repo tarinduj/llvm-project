@@ -62,7 +62,7 @@ private:
                 unsigned &countNonZero) const;
 };
 
-using TransprecSet = PresburgerSet<int16_t>;
+using TransprecSet = PresburgerSet<__int128_t>;
 
 } // namespace presburger
 } // namespace analysis

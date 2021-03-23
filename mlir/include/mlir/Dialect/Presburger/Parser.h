@@ -471,8 +471,8 @@ private:
   Parser<Int> parser;
 };
 
-using TransprecParser = Parser<int16_t>;
-using TransprecPresburgerParser = PresburgerParser<int16_t>;
+using TransprecParser = Parser<__int128_t>;
+using TransprecPresburgerParser = PresburgerParser<__int128_t>;
 
 } // namespace presburger
 } // namespace mlir

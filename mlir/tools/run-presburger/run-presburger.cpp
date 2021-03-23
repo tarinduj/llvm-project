@@ -20,8 +20,8 @@ static TransprecSet setFromString(StringRef string) {
     MLIRContext context;
     return mlir::emitError(UnknownLoc::get(&context), message);
   };
-  Parser<int16_t> parser(string, callback);
-  PresburgerParser<int16_t> setParser(parser);
+  TransprecParser parser(string, callback);
+  TransprecPresburgerParser setParser(parser);
   TransprecSet res;
   setParser.parsePresburgerSet(res);
   return res;

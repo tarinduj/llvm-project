@@ -165,35 +165,69 @@ unsigned Simplex<Int>::addRow(ArrayRef<SafeInteger<Int>> coeffs) {
          "Incorrect number of coefficients!");
 
   addZeroConstraint();
-  Vector &vec = tableau.getRowVector(nRow - 1);
-  tableau(nRow - 1, 1) = coeffs.back();
-  // Process each given variable coefficient.
-  for (unsigned i = 0, e = var.size(); i < e; ++i) {
-    unsigned pos = var[i].pos;
-    if (coeffs[i] == 0)
-      continue;
 
-    if (var[i].orientation == Orientation::Column) {
-      // If a variable is in column position at column col, then we just add the
-      // coefficient for that variable (scaled by the common row denominator) to
-      // the corresponding entry in the new row.
-      tableau(nRow - 1, pos) += coeffs[i] * tableau(nRow - 1, 0);
-      continue;
+  if constexpr (std::is_same<Int, int16_t>::value) {
+    tableau(nRow - 1, 1) = coeffs.back();
+    // Process each given variable coefficient.
+    Vector &vec = tableau.getRowVector(nRow - 1);
+    for (unsigned i = 0, e = var.size(); i < e; ++i) {
+      unsigned pos = var[i].pos;
+      if (coeffs[i] == 0)
+        continue;
+
+      if (var[i].orientation == Orientation::Column) {
+        // If a variable is in column position at column col, then we just add the
+        // coefficient for that variable (scaled by the common row denominator) to
+        // the corresponding entry in the new row.
+        tableau(nRow - 1, pos) += coeffs[i] * tableau(nRow - 1, 0);
+        continue;
+      }
+
+      // If the variable is in row position, we need to add that row to the new
+      // row, scaled by the coefficient for the variable, accounting for the two
+      // rows potentially having different denominators. The new denominator is
+      // the lcm of the two.
+      Vector &varRowVec = tableau.getRowVector(pos);
+      SafeInteger<Int> lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
+      SafeInteger<Int> nRowCoeff = lcm / tableau(nRow - 1, 0);
+      SafeInteger<Int> idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
+      vec = add(mul(vec, nRowCoeff.val), mul(idxRowCoeff.val, varRowVec));
+      tableau(nRow - 1, 0) = lcm.val;
     }
 
-    // If the variable is in row position, we need to add that row to the new
-    // row, scaled by the coefficient for the variable, accounting for the two
-    // rows potentially having different denominators. The new denominator is
-    // the lcm of the two.
-    Vector &varRowVec = tableau.getRowVector(pos);
-    SafeInteger<Int> lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
-    SafeInteger<Int> nRowCoeff = lcm / tableau(nRow - 1, 0);
-    SafeInteger<Int> idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
-    vec = add(mul(vec, nRowCoeff.val), mul(idxRowCoeff.val, varRowVec));
-    tableau(nRow - 1, 0) = lcm.val;
-  }
+    normalizeRow(nRow - 1, vec);
+  } else {
 
-  normalizeRow(nRow - 1, vec);
+    tableau(nRow - 1, 1) = coeffs.back();
+    // Process each given variable coefficient.
+    for (unsigned i = 0, e = var.size(); i < e; ++i) {
+      unsigned pos = var[i].pos;
+      if (coeffs[i] == 0)
+        continue;
+
+      if (var[i].orientation == Orientation::Column) {
+        // If a variable is in column position at column col, then we just add the
+        // coefficient for that variable (scaled by the common row denominator) to
+        // the corresponding entry in the new row.
+        tableau(nRow - 1, pos) += coeffs[i] * tableau(nRow - 1, 0);
+        continue;
+      }
+
+      // If the variable is in row position, we need to add that row to the new
+      // row, scaled by the coefficient for the variable, accounting for the two
+      // rows potentially having different denominators. The new denominator is
+      // the lcm of the two.
+      SafeInteger<Int> lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
+      SafeInteger<Int> nRowCoeff = lcm / tableau(nRow - 1, 0);
+      SafeInteger<Int> idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
+      tableau(nRow - 1, 0) = lcm;
+      for (unsigned col = 1; col < nCol; ++col)
+        tableau(nRow - 1, col) =
+            nRowCoeff * tableau(nRow - 1, col) + idxRowCoeff * tableau(pos, col);
+    }
+
+    normalizeRowScalar(nRow - 1);
+  }
   return con.size() - 1;
 }
 
@@ -201,14 +235,14 @@ unsigned Simplex<Int>::addRow(ArrayRef<SafeInteger<Int>> coeffs) {
 /// denominator and all the numerator coefficients.
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row) {
-  normalizeRow(row, tableau.getRowVector(row));
+  if constexpr (std::is_same<Int, int16_t>::value) 
+    normalizeRow(row, tableau.getRowVector(row));
+  else
+    normalizeRowScalar(row);
 }
 
 template <typename Int>
-void Simplex<Int>::normalizeRow(unsigned row, Vector &rowVec) {
-  if (equalMask(rowVec, 1))
-    return;
-
+void Simplex<Int>::normalizeRowScalar(unsigned row) {
   SafeInteger<Int> gcd = 0;
   for (unsigned col = 0; col < nCol; ++col) {
     if (gcd == 1)
@@ -221,6 +255,17 @@ void Simplex<Int>::normalizeRow(unsigned row, Vector &rowVec) {
   for (unsigned col = 0; col < nCol; ++col)
     tableau(row, col) /= gcd;
   assert(tableau(row, 0) != 0);
+}
+
+
+template <typename Int>
+void Simplex<Int>::normalizeRow(unsigned row, Vector &rowVec) {
+  if constexpr (std::is_same<Int, int16_t>::value) {
+    if (equalMask(rowVec, 1))
+      return;
+  }
+
+  normalizeRowScalar(row);
 }
 
 namespace {
@@ -457,108 +502,103 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   swapRowWithCol(pivotRow, pivotCol);
 
-  // auto copy = tableau;
+  if constexpr (std::is_same<Int, int16_t>::value) {
+    Vector &pivotRowVec = tableau.getRowVector(pivotRow);
 
-  // std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
-  // // We need to negate the whole pivot row except for the pivot column.
-  // if (tableau(pivotRow, 0) < 0) {
-  //   // If the denominator is negative, we negate the row by simply negating
-  //   the
-  //   // denominator.
-  //   tableau(pivotRow, 0) = -tableau(pivotRow, 0);
-  //   tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
-  // } else {
-  //   for (unsigned col = 1; col < nCol; ++col) {
-  //     if (col == pivotCol)
-  //       continue;
-  //     tableau(pivotRow, col) = -tableau(pivotRow, col);
-  //   }
-  // }
-  // normalizeRow(pivotRow);
+    // swap pivotRowVec[0], pivotRowVec[pivotCol]
+    // and negate the whole pivot row except for the pivot column.
+    // (implemented as only flipping the pivot coloum and the denominator)
+    // We merge sign flipping into the swap for improved performance.
+    auto tmp = tableau(pivotRow, 0);
+    tableau(pivotRow, 0) = -tableau(pivotRow, pivotCol);
+    tableau(pivotRow, pivotCol) = -tmp;
 
-  // for (unsigned row = 0; row < nRow; ++row) {
-  //   if (row == pivotRow)
-  //     continue;
-  //   if (tableau(row, pivotCol) == 0) // Nothing to do.
-  //     continue;
-  //   tableau(row, 0) *= tableau(pivotRow, 0);
-  //   for (unsigned j = 1; j < nCol; ++j) {
-  //     if (j == pivotCol)
-  //       continue;
-  //     // Add rather than subtract because the pivot row has been negated.
-  //     tableau(row, j) = tableau(row, j) * tableau(pivotRow, 0) +
-  //                       tableau(row, pivotCol) * tableau(pivotRow, j);
-  //   }
-  //   tableau(row, pivotCol) *= tableau(pivotRow, pivotCol);
-  //   normalizeRow(row);
-  // }
+      // If the denominator is negative, we canonicalize the row.
+    if (tableau(pivotRow, 0) < 0)
+      pivotRowVec = negate(pivotRowVec);
 
-  Vector &pivotRowVec = tableau.getRowVector(pivotRow);
-
-  // swap pivotRowVec[0], pivotRowVec[pivotCol]
-  // and negate the whole pivot row except for the pivot column.
-  // (implemented as only flipping the pivot coloum and the denominator)
-  // We merge sign flipping into the swap for improved performance.
-  auto tmp = tableau(pivotRow, 0);
-  tableau(pivotRow, 0) = -tableau(pivotRow, pivotCol);
-  tableau(pivotRow, pivotCol) = -tmp;
-
-    // If the denominator is negative, we canonicalize the row.
-  if (tableau(pivotRow, 0) < 0)
-    pivotRowVec = negate(pivotRowVec);
-
-  normalizeRow(pivotRow, pivotRowVec);
+    normalizeRow(pivotRow, pivotRowVec);
 
 
-  // Load into register to avoid memory loads from within the loop.
-  // The compiler likely can perform this optimization itself, but
-  // by doing it manually we can modify the register value without
-  // affecting the pivot row, which will enable further optimizations.
-  Vector pivotRowVecTerm = pivotRowVec;
+    // Load into register to avoid memory loads from within the loop.
+    // The compiler likely can perform this optimization itself, but
+    // by doing it manually we can modify the register value without
+    // affecting the pivot row, which will enable further optimizations.
+    Vector pivotRowVecTerm = pivotRowVec;
 
-  // The first column is not multiplied by pivotRowVec. Instead of spending
-  // instructions within the loop on preserving the first column, just set
-  // pivotRowVecTerm[0] to zero, such that we can perform a uniform
-  // multiplication, which just does not change column '0'.
-  pivotRowVecTerm[0] = 0;
+    // The first column is not multiplied by pivotRowVec. Instead of spending
+    // instructions within the loop on preserving the first column, just set
+    // pivotRowVecTerm[0] to zero, such that we can perform a uniform
+    // multiplication, which just does not change column '0'.
+    pivotRowVecTerm[0] = 0;
 
-  // In the pivotColumn, we overwrite the value from vac, which we implement
-  // by multiplying with a zeroValue in the a vector.
-  Int a = tableau(pivotRow, 0).val;
-  Vector aVector = a;
-  aVector[pivotCol] = 0;
+    // In the pivotColumn, we overwrite the value from vac, which we implement
+    // by multiplying with a zeroValue in the a vector.
+    Int a = tableau(pivotRow, 0).val;
+    Vector aVector = a;
+    aVector[pivotCol] = 0;
 
-  for (unsigned row = 0; row < pivotRow; ++row) {
-    Int c = tableau(row, pivotCol).val;
+    for (unsigned row = 0; row < pivotRow; ++row) {
+      Int c = tableau(row, pivotCol).val;
 
-    if (c == 0) // Nothing to do.
-      continue;
+      if (c == 0) // Nothing to do.
+        continue;
 
-    Vector &vec = tableau.getRowVector(row);
-    // c/q, d/q
-    vec = mul(vec, aVector);
-    // ca/aq, da/aq
-    vec = add(vec, mul(c, pivotRowVecTerm));
-    normalizeRow(row, vec);
+      Vector &vec = tableau.getRowVector(row);
+      // c/q, d/q
+      vec = mul(vec, aVector);
+      // ca/aq, da/aq
+      vec = add(vec, mul(c, pivotRowVecTerm));
+      normalizeRow(row, vec);
+    }
+
+    for (unsigned row = pivotRow+1; row < nRow; ++row) {
+      Int c = tableau(row, pivotCol).val;
+
+      if (c == 0) // Nothing to do.
+        continue;
+
+      Vector &vec = tableau.getRowVector(row);
+      // c/q, d/q
+      vec = mul(vec, aVector);
+      // ca/aq, da/aq
+      vec = add(vec, mul(c, pivotRowVecTerm));
+      normalizeRow(row, vec);
+    }
+  } else {
+    std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
+    // We need to negate the whole pivot row except for the pivot column.
+    if (tableau(pivotRow, 0) < 0) {
+      // If the denominator is negative, we negate the row by simply negating
+      // the denominator.
+      tableau(pivotRow, 0) = -tableau(pivotRow, 0);
+      tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
+    } else {
+      for (unsigned col = 1; col < nCol; ++col) {
+        if (col == pivotCol)
+          continue;
+        tableau(pivotRow, col) = -tableau(pivotRow, col);
+      }
+    }
+    normalizeRowScalar(pivotRow);
+
+    for (unsigned row = 0; row < nRow; ++row) {
+      if (row == pivotRow)
+        continue;
+      if (tableau(row, pivotCol) == 0) // Nothing to do.
+        continue;
+      tableau(row, 0) *= tableau(pivotRow, 0);
+      for (unsigned j = 1; j < nCol; ++j) {
+        if (j == pivotCol)
+          continue;
+        // Add rather than subtract because the pivot row has been negated.
+        tableau(row, j) = tableau(row, j) * tableau(pivotRow, 0) +
+                          tableau(row, pivotCol) * tableau(pivotRow, j);
+      }
+      tableau(row, pivotCol) *= tableau(pivotRow, pivotCol);
+      normalizeRowScalar(row);
+    }
   }
-
-  for (unsigned row = pivotRow+1; row < nRow; ++row) {
-    Int c = tableau(row, pivotCol).val;
-
-    if (c == 0) // Nothing to do.
-      continue;
-
-    Vector &vec = tableau.getRowVector(row);
-    // c/q, d/q
-    vec = mul(vec, aVector);
-    // ca/aq, da/aq
-    vec = add(vec, mul(c, pivotRowVecTerm));
-    normalizeRow(row, vec);
-  }
-
-  // for (unsigned row = 0; row < nRow; ++row)
-  //   for (unsigned col = 0; col < nCol; ++col)
-  //     assert(copy(row, col) == tableau(row, col));
 }
 
 /// Perform pivots until the unknown has a non-negative sample value or until

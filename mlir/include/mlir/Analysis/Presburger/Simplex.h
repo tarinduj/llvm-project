@@ -411,6 +411,7 @@ protected:
   /// and the denominator.
   void normalizeRow(unsigned row, Vector &rowVec);
   void normalizeRow(unsigned row);
+  void normalizeRowScalar(unsigned row);
 
   /// Mark the column as zero.
   ///

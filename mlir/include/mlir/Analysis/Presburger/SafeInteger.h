@@ -28,8 +28,6 @@ namespace presburger {
 using DefaultInt = __int128_t;
 
 /// A class to overflow-aware 64-bit integers.
-///
-/// Overflows are asserted to not occur.
 template <typename Int>
 struct SafeInteger {
   /// Construct a SafeInteger from a numerator and denominator.
@@ -48,6 +46,11 @@ struct SafeInteger {
   Int val;
 
   static bool overflow;
+
+  static void throwOverflowIf(bool cond) {
+    if (cond)
+      overflow = true;
+  }
 };
 
 template <typename Int>
@@ -107,8 +110,7 @@ template <typename Int>
 inline SafeInteger<Int> operator+(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
   Int result;
   bool overflow = __builtin_add_overflow(x.val, y.val, &result);
-  if (overflow)
-    SafeInteger<Int>::overflow = true;
+  SafeInteger<Int>::throwOverflowIf(overflow);
   return SafeInteger<Int>(result);
 }
 
@@ -116,8 +118,7 @@ template <typename Int>
 inline SafeInteger<Int> operator-(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
   Int result;
   bool overflow = __builtin_sub_overflow(x.val, y.val, &result);
-  if (overflow)
-    SafeInteger<Int>::overflow = true;
+  SafeInteger<Int>::throwOverflowIf(overflow);
   return SafeInteger<Int>(result);
 }
 
@@ -130,8 +131,7 @@ template <typename Int>
 inline SafeInteger<Int> operator*(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
   Int result;
   bool overflow = __builtin_mul_overflow(x.val, y.val, &result);
-  if (overflow)
-    SafeInteger<Int>::overflow = true;
+  SafeInteger<Int>::throwOverflowIf(overflow);
   return SafeInteger<Int>(result);
 }
 

@@ -30,17 +30,19 @@ using DefaultInt = __int128_t;
 /// A class to overflow-aware 64-bit integers.
 template <typename Int>
 struct SafeInteger {
-  /// Construct a SafeInteger from a numerator and denominator.
-  SafeInteger(int64_t oVal) {
-    if constexpr (std::is_same<Int, __int128_t>::value) {
-      val = oVal;
-    } else {
-      Int min = std::numeric_limits<Int>::min();
-      Int max = std::numeric_limits<Int>::max();
-      throwOverflowIf(oVal < min);
-      throwOverflowIf(max < oVal);
-      val = oVal;
-    }
+  /// Construct a SafeInteger<Int> from an Int.
+  /// Note that if this was the constructor for Int = int16_t, then SafeInteger<int16_t>(123) causes problems as 123 is an int and convering it to int16_t narrows it.
+  /// Therefore we only use this when Int i snot int16_t (a hack; it should also be disabled for int8_t but we never use that anyway). For int16_t we provide a different constructor
+  /// instead that takes an int32_t as argument.
+  /// Because integer constants (without any suffixes) are ints by default
+  template <typename IntCopy = Int, std::enable_if_t<(std::is_integral<IntCopy>::value || std::is_same<IntCopy, __int128_t>::value) && !std::is_same<IntCopy, int16_t>::value, bool> = true>
+  SafeInteger(IntCopy oVal) : val(oVal) {}
+  template <typename IntCopy = Int, std::enable_if_t<std::is_same<IntCopy, int16_t>::value, bool> = true>
+  SafeInteger(IntCopy oVal) {
+    Int min = std::numeric_limits<Int>::min();
+    Int max = std::numeric_limits<Int>::max();
+    throwOverflowIf(!(min <= oVal && oVal <= max));
+    val = oVal;
   }
 
   /// Default constructor initializes the number to zero.

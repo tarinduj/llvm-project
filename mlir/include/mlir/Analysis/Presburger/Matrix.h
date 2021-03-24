@@ -27,16 +27,16 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
-#define MATRIX_COLUMN_COUNT 32
+const unsigned MatrixVectorColumns = 32;
 
-typedef int16_t Vector __attribute__((ext_vector_type(MATRIX_COLUMN_COUNT)));
+typedef int16_t Vector __attribute__((ext_vector_type(MatrixVectorColumns)));
 
 /// This is a simple class to represent a resizable matrix.
 ///
-/// The data is stored in the form of a vector of vectors.
-
+/// The data is stored as one big vector.
 template <typename Int>
 class Matrix {
+  static constexpr bool isVectorized = std::is_same<Int, int16_t>::value;
 public:
   Matrix() = delete;
 
@@ -53,14 +53,14 @@ public:
   SafeInteger<Int> &at(unsigned row, unsigned column) {
     assert(row < getNumRows() && "Row outside of range");
     assert(column < getNumColumns() && "Column outside of range");
-    return data[row * MATRIX_COLUMN_COUNT + column];
+    return data[row * nReservedColumns + column];
   }
 
   __attribute__((always_inline))
   SafeInteger<Int> at(unsigned row, unsigned column) const {
     assert(row < getNumRows() && "Row outside of range");
     assert(column < getNumColumns() && "Column outside of range");
-    return data[row * MATRIX_COLUMN_COUNT + column];
+    return data[row * nReservedColumns + column];
   }
 
   __attribute__((always_inline))
@@ -90,8 +90,8 @@ public:
 
   __attribute__((always_inline))
   Vector &getRowVector(unsigned row) {
-    static_assert(std::is_same<Int, int16_t>::value, "getRowVector is only valid for int16_t matrices!");
-    return *(Vector *)&data[row * MATRIX_COLUMN_COUNT];
+    static_assert(isVectorized, "getRowVector is only valid for int16_t matrices!");
+    return *(Vector *)&data[row * nReservedColumns];
   }
 
 
@@ -119,7 +119,7 @@ public:
   void dump() const;
 
 private:
-  unsigned nRows, nColumns;
+  unsigned nRows, nColumns, nReservedColumns;
 
   /// Stores the data. data.size() is equal to nRows * nColumns.
   std::vector<SafeInteger<Int>, AlignedAllocator<SafeInteger<Int>, 64>> data;

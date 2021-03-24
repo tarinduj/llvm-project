@@ -11,12 +11,21 @@
 using namespace mlir;
 using namespace analysis::presburger;
 
+inline unsigned nextPowOfTwo(unsigned n) {
+  unsigned ret = 1;
+  while (n > ret)
+    ret *= 2;
+  return ret;
+}
+
 template <typename Int>
 Matrix<Int>::Matrix(unsigned rows, unsigned columns)
-    : nRows(rows), nColumns(columns), data(nRows * MATRIX_COLUMN_COUNT) {
-  if (nColumns > MATRIX_COLUMN_COUNT) {
-    llvm::errs() << "Cannot construct matrix with " << nColumns << " columns; limit is " << MATRIX_COLUMN_COUNT << ".\n";
-    exit(1);
+    : nRows(rows), nColumns(columns), nReservedColumns(isVectorized ? MatrixVectorColumns : nextPowOfTwo(nColumns)), data(nRows * nReservedColumns) {
+
+  if constexpr (isVectorized) {
+    SafeInteger<Int>::throwOverflowIf(columns > MatrixVectorColumns);
+    // llvm::errs() << "Cannot construct matrix with " << nColumns << " columns; limit is " << nReservedColumns << ".\n";
+    // exit(1);
   }
 }
 
@@ -36,22 +45,35 @@ unsigned Matrix<Int>::getNumColumns() const { return nColumns; }
 
 template <typename Int>
 void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
-  nRows = newNRows;
-  data.resize(nRows * MATRIX_COLUMN_COUNT);
-  if (newNColumns < nColumns) {
-    for (unsigned row = 0; row < nRows; ++row) {
-      for (unsigned col = newNColumns; col < nColumns; ++col) {
-        at(row, col) = 0;
+  if (newNColumns > nReservedColumns) {
+    if constexpr (isVectorized) {
+      SafeInteger<Int>::overflow = true;
+    }
+    unsigned newNReservedColumns = nextPowOfTwo(newNColumns);
+    data.resize(newNRows * newNReservedColumns);
+    for (int row = newNRows - 1; row >= 0; --row)
+      for (int col = newNColumns - 1; col >= 0; --col)
+        data[row * newNReservedColumns + col] = unsigned(row) < nRows && unsigned(col) < nColumns ? at(row, col) : 0;
+    nRows = newNRows;
+    nColumns = newNColumns;
+  } else {
+    nRows = newNRows;
+    data.resize(nRows * nReservedColumns);
+    if (newNColumns < nColumns) {
+      for (unsigned row = 0; row < nRows; ++row) {
+        for (unsigned col = newNColumns; col < nColumns; ++col) {
+          at(row, col) = 0;
+        }
       }
     }
+    nColumns = newNColumns;
   }
-  nColumns = newNColumns;
 }
 
 template <typename Int>
 void Matrix<Int>::reserveRows(unsigned newNRows) {
   assert(newNRows >= nRows);
-  data.reserve(newNRows * MATRIX_COLUMN_COUNT);
+  data.reserve(newNRows * nReservedColumns);
 }
 
 template <typename Int>
@@ -85,7 +107,7 @@ void Matrix<Int>::negateColumn(unsigned column) {
 
 template <typename Int>
 ArrayRef<SafeInteger<Int>> Matrix<Int>::getRow(unsigned row) const {
-  return {&data[row * MATRIX_COLUMN_COUNT], nColumns};
+  return {&data[row * nReservedColumns], nColumns};
 }
 
 template <typename Int>

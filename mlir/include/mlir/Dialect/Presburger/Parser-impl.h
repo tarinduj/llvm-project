@@ -712,9 +712,9 @@ LogicalResult Parser<Int>::parseInteger(std::unique_ptr<IntegerExpr<Int>> &iExpr
   Token integerToken;
   if (failed(lexer.consumeKindOrError(Token::Kind::Integer, integerToken)))
     return failure();
-  int64_t value;
+  Int value;
   if (!llvm::to_integer(integerToken.string(), value))
-    return emitErrorForToken(integerToken, "expected a valid 64 bit integer");
+    return emitErrorForToken(integerToken, "expected a valid integer");
   if (negativ)
     value = -value;
 

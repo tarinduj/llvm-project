@@ -389,6 +389,8 @@ void PresburgerSet<Int>::subtract(const PresburgerSet<Int> &set) {
   PresburgerSet<Int> result = PresburgerSet<Int>::makeEmptySet(nDim, nSym);
   for (const PresburgerBasicSet<Int> &c : basicSets)
     result.unionSet(subtract(c, set));
+  if (SafeInteger<Int>::overflow)
+    return;
   *this = result;
 }
 

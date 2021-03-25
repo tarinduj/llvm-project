@@ -106,7 +106,7 @@ private:
   /// set has no unbounded directions.
   ///
   /// \returns the sample point or an empty llvm::Optional if the set is empty.
-  Optional<SmallVector<SafeInteger<Int>, 8>> findSampleBounded(bool onlyEmptiness);
+  Optional<SmallVector<SafeInteger<Int>, 8>> findSampleBounded(bool onlyEmptiness) const;
 
   /// Find a sample for only the bounded dimensions of this basic set.
   ///

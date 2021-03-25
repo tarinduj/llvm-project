@@ -9,28 +9,38 @@
 using namespace mlir;
 using namespace mlir::presburger;
 
-static TransprecSet setFromString(StringRef string) {
+template <typename Int>
+Optional<PresburgerSet<Int>> setFromString(StringRef string) {
   ErrorCallback callback = [&](SMLoc loc, const Twine &message) {
     // This is a hack to make the Parser compile
-    llvm::errs() << "Parsing error " << message << " at " << loc.getPointer()
-                 << '\n';
-    llvm::errs() << "invalid input " << string << '\n';
+    // llvm::errs() << "Parsing error " << message << " at " << loc.getPointer()
+    //              << '\n';
+    // llvm::errs() << "invalid input " << string << '\n';
 
-    llvm_unreachable("PARSING ERROR!!");
+    // llvm_unreachable("PARSING ERROR!!");
     MLIRContext context;
-    return mlir::emitError(UnknownLoc::get(&context), message);
+    return mlir::emitError(UnknownLoc::get(&context), "");
   };
-  TransprecParser parser(string, callback);
-  TransprecPresburgerParser setParser(parser);
-  TransprecSet res;
-  setParser.parsePresburgerSet(res);
+  Parser<Int> parser(string, callback);
+  PresburgerParser<Int> setParser(parser);
+  PresburgerSet<Int> res;
+  if (failed(setParser.parsePresburgerSet(res)))
+    return {};
   return res;
 }
 
 TransprecSet getSetFromInput() {
   char str[1'000'000];
   std::cin.getline(str, 1'000'000);
-  return setFromString(str);
+  if (auto set = setFromString<int16_t>(str))
+    return TransprecSet(*set);
+  else if (auto set = setFromString<int64_t>(str))
+    return TransprecSet(*set);
+  else if (auto set = setFromString<int128_t>(str))
+    return TransprecSet(*set);
+  else
+    llvm_unreachable("Input did not fit in 128-bits!");
+  // return setFromString(str);
 }
 
 int main(int argc, char **argv) {
@@ -57,128 +67,133 @@ int main(int argc, char **argv) {
       if (i == numRuns - 1)
         std::cerr << res << '\n';
     }
-  } else if (op == "equal") {
-    TransprecSet setA = getSetFromInput();
-    TransprecSet setB = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      auto b = setB;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      auto res = TransprecSet::equal(a, b);
-      unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        llvm::errs() << res << '\n';
-    }
-  } else if (op == "union") {
-    TransprecSet setA = getSetFromInput();
-    TransprecSet setB = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      auto b = setB;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      a.unionSet(std::move(b));
-      unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        a.dumpISL();
-    }
-  } else if (op == "intersect") {
-    TransprecSet setA = getSetFromInput();
-    TransprecSet setB = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      auto b = setB;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      a.intersectSet(std::move(b));
-      unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        a.dumpISL();
-    }
-  } else if (op == "subtract") {
-    TransprecSet setA = getSetFromInput();
-    TransprecSet setB = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      auto b = setB;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      a.subtract(std::move(b));
-      unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        a.dumpISL();
-    }
-  } else if (op == "coalesce") {
-    TransprecSet setA = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      auto res = coalesce(a);
-      unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        res.dumpISL();
-    }
-  } else if (op == "complement") {
-    TransprecSet setA = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      auto res = TransprecSet::complement(a);
-      unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        res.dumpISL();
-    }
-  } else if (op == "eliminate") {
-    TransprecSet setA = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      auto res = TransprecSet::eliminateExistentials(a);
-      unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        a.dumpISL();
-    }
   } else {
-    std::cout << "Unsupported operation " << op << "!\n";
+    std::cerr << "NYI!\n";
     return 1;
   }
+
+  // if (op == "equal") {
+  //   TransprecSet setA = getSetFromInput();
+  //   TransprecSet setB = getSetFromInput();
+  //   for (unsigned i = 0; i < numRuns; ++i) {
+  //     auto a = setA;
+  //     auto b = setB;
+  //     unsigned int dummy;
+  //     unsigned long long start = __rdtscp(&dummy);
+  //     auto res = TransprecSet::equal(a, b);
+  //     unsigned long long end = __rdtscp(&dummy);
+  //     if (SafeInteger<DefaultInt>::overflow) {
+  //       std::cerr << "Overflow!\n";
+  //       exit(1);
+  //     }
+  //     std::cerr << end - start << '\n';
+  //     if (i == numRuns - 1)
+  //       llvm::errs() << res << '\n';
+  //   }
+  // } else if (op == "union") {
+  //   TransprecSet setA = getSetFromInput();
+  //   TransprecSet setB = getSetFromInput();
+  //   for (unsigned i = 0; i < numRuns; ++i) {
+  //     auto a = setA;
+  //     auto b = setB;
+  //     unsigned int dummy;
+  //     unsigned long long start = __rdtscp(&dummy);
+  //     a.unionSet(std::move(b));
+  //     unsigned long long end = __rdtscp(&dummy);
+  //     if (SafeInteger<DefaultInt>::overflow) {
+  //       std::cerr << "Overflow!\n";
+  //       exit(1);
+  //     }
+  //     std::cerr << end - start << '\n';
+  //     if (i == numRuns - 1)
+  //       a.dumpISL();
+  //   }
+  // } else if (op == "intersect") {
+  //   TransprecSet setA = getSetFromInput();
+  //   TransprecSet setB = getSetFromInput();
+  //   for (unsigned i = 0; i < numRuns; ++i) {
+  //     auto a = setA;
+  //     auto b = setB;
+  //     unsigned int dummy;
+  //     unsigned long long start = __rdtscp(&dummy);
+  //     a.intersectSet(std::move(b));
+  //     unsigned long long end = __rdtscp(&dummy);
+  //     if (SafeInteger<DefaultInt>::overflow) {
+  //       std::cerr << "Overflow!\n";
+  //       exit(1);
+  //     }
+  //     std::cerr << end - start << '\n';
+  //     if (i == numRuns - 1)
+  //       a.dumpISL();
+  //   }
+  // } else if (op == "subtract") {
+  //   TransprecSet setA = getSetFromInput();
+  //   TransprecSet setB = getSetFromInput();
+  //   for (unsigned i = 0; i < numRuns; ++i) {
+  //     auto a = setA;
+  //     auto b = setB;
+  //     unsigned int dummy;
+  //     unsigned long long start = __rdtscp(&dummy);
+  //     a.subtract(std::move(b));
+  //     unsigned long long end = __rdtscp(&dummy);
+  //     if (SafeInteger<DefaultInt>::overflow) {
+  //       std::cerr << "Overflow!\n";
+  //       exit(1);
+  //     }
+  //     std::cerr << end - start << '\n';
+  //     if (i == numRuns - 1)
+  //       a.dumpISL();
+  //   }
+  // } else if (op == "coalesce") {
+  //   TransprecSet setA = getSetFromInput();
+  //   for (unsigned i = 0; i < numRuns; ++i) {
+  //     auto a = setA;
+  //     unsigned int dummy;
+  //     unsigned long long start = __rdtscp(&dummy);
+  //     auto res = coalesce(a);
+  //     unsigned long long end = __rdtscp(&dummy);
+  //     if (SafeInteger<DefaultInt>::overflow) {
+  //       std::cerr << "Overflow!\n";
+  //       exit(1);
+  //     }
+  //     std::cerr << end - start << '\n';
+  //     if (i == numRuns - 1)
+  //       res.dumpISL();
+  //   }
+  // } else if (op == "complement") {
+  //   TransprecSet setA = getSetFromInput();
+  //   for (unsigned i = 0; i < numRuns; ++i) {
+  //     auto a = setA;
+  //     unsigned int dummy;
+  //     unsigned long long start = __rdtscp(&dummy);
+  //     auto res = TransprecSet::complement(a);
+  //     unsigned long long end = __rdtscp(&dummy);
+  //     if (SafeInteger<DefaultInt>::overflow) {
+  //       std::cerr << "Overflow!\n";
+  //       exit(1);
+  //     }
+  //     std::cerr << end - start << '\n';
+  //     if (i == numRuns - 1)
+  //       res.dumpISL();
+  //   }
+  // } else if (op == "eliminate") {
+  //   TransprecSet setA = getSetFromInput();
+  //   for (unsigned i = 0; i < numRuns; ++i) {
+  //     auto a = setA;
+  //     unsigned int dummy;
+  //     unsigned long long start = __rdtscp(&dummy);
+  //     auto res = TransprecSet::eliminateExistentials(a);
+  //     unsigned long long end = __rdtscp(&dummy);
+  //     if (SafeInteger<DefaultInt>::overflow) {
+  //       std::cerr << "Overflow!\n";
+  //       exit(1);
+  //     }
+  //     std::cerr << end - start << '\n';
+  //     if (i == numRuns - 1)
+  //       a.dumpISL();
+  //   }
+  // } else {
+  //   std::cout << "Unsupported operation " << op << "!\n";
+  //   return 1;
+  // }
 }

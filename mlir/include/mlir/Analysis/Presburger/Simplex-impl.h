@@ -1596,8 +1596,11 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
       if (Optional<Fraction<Int>> maybeMin =
               computeOptimum(Direction::Down, basisCoeffs))
         minRoundedUp = ceil(*maybeMin);
-      else
+      else {
+        if (SafeInteger<Int>::overflow)
+          return {};
         llvm_unreachable("Tableau should not be unbounded");
+      }
 
       if (auto maybeSample = getSamplePointIfIntegral())
         return *maybeSample;
@@ -1605,8 +1608,11 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
       if (Optional<Fraction<Int>> maybeMax =
               computeOptimum(Direction::Up, basisCoeffs))
         maxRoundedDown = floor(*maybeMax);
-      else
+      else {
+        if (SafeInteger<Int>::overflow)
+          return {};
         llvm_unreachable("Tableau should not be unbounded");
+      }
 
       // Heuristic: if the sample point is integral at this point, just return
       // it.
@@ -1625,8 +1631,11 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
               if (Optional<Fraction<Int>> maybeMin =
                       computeOptimum(Direction::Down, basisCoeffs))
                 min = ceil(*maybeMin);
-              else
+              else {
+                if (SafeInteger<Int>::overflow)
+                  return {};
                 llvm_unreachable("Tableau should not be unbounded");
+              }
 
               if (auto maybeSample = getSamplePointIfIntegral())
                 return *maybeSample;
@@ -1634,8 +1643,11 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
               if (Optional<Fraction<Int>> maybeMax =
                       computeOptimum(Direction::Up, basisCoeffs))
                 max = floor(*maybeMax);
-              else
+              else {
+                if (SafeInteger<Int>::overflow)
+                  return {};
                 llvm_unreachable("Tableau should not be unbounded");
+              }
 
               if (min > max)
                 break;
@@ -1663,8 +1675,11 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
         if (Optional<Fraction<Int>> maybeMin =
                 computeOptimum(Direction::Down, basisCoeffs))
           minRoundedUp = ceil(*maybeMin);
-        else
+        else {
+          if (SafeInteger<Int>::overflow)
+            return {};
           llvm_unreachable("Tableau should not be unbounded");
+        }
 
         if (auto maybeSample = getSamplePointIfIntegral())
           return *maybeSample;
@@ -1672,8 +1687,11 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
         if (Optional<Fraction<Int>> maybeMax =
                 computeOptimum(Direction::Up, basisCoeffs))
           maxRoundedDown = floor(*maybeMax);
-        else
+        else {
+          if (SafeInteger<Int>::overflow)
+            return {};
           llvm_unreachable("Tableau should not be unbounded");
+        }
 
         if (auto maybeSample = getSamplePointIfIntegral())
           return *maybeSample;
@@ -1753,15 +1771,21 @@ Simplex<Int>::computeIntegerBounds(ArrayRef<SafeInteger<Int>> coeffs) {
   if (Optional<Fraction<Int>> maybeMin =
           computeOptimum(Direction::Down, coeffs))
     minRoundedUp = ceil(*maybeMin);
-  else
+  else {
+    if (SafeInteger<Int>::overflow)
+      return {0, 0};
     llvm_unreachable("Tableau should not be unbounded");
+  }
 
   SafeInteger<Int> maxRoundedDown;
   if (Optional<Fraction<Int>> maybeMax =
           computeOptimum(Direction::Up, coeffs))
     maxRoundedDown = floor(*maybeMax);
-  else
+  else {
+    if (SafeInteger<Int>::overflow)
+      return {0, 0};
     llvm_unreachable("Tableau should not be unbounded");
+  }
 
   return {minRoundedUp, maxRoundedDown};
 }
@@ -1876,6 +1900,8 @@ inline void Simplex<Int>::toRow(Unknown &unknown, Direction direction) {
     return;
 
   auto row = findPivotRow({}, direction, unknown.pos);
+  if (SafeInteger<Int>::overflow)
+    return;
   if (row)
     pivot(*row, unknown.pos);
   else

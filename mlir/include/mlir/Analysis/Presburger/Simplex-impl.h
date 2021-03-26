@@ -1002,8 +1002,6 @@ Optional<Fraction<Int>> Simplex<Int>::computeRowOptimum(Direction direction,
     if (maybePivot->row == row)
       return {};
     pivot(*maybePivot);
-    if (SafeInteger<Int>::overflow)
-      return {};
   }
 
   // The row has reached its optimal sample value, which we return.
@@ -1465,8 +1463,6 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
   // directions from `level` to i - 1.
   unsigned i = level;
   while (i < basis.getNumRows() - 1) {
-    if (SafeInteger<Int>::overflow)
-      return;
     if (i >= level + width.size()) {
       // We don't even know the value of f_i(b_i), so let's find that first.
       // We have to do this first since later we assume that width already
@@ -1483,8 +1479,6 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
           gbrSimplex.computeWidthAndDuals(basis.getRow(i), dual, dualDenom));
     }
 
-    if (SafeInteger<Int>::overflow)
-      return;
     if (i >= level + dual.size()) {
       assert(i + 1 >= level + width.size() &&
              "We don't know dual_i but we know width_{i+1}");
@@ -1497,8 +1491,6 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
 
     // This variable stores width_i(b_{i+1} + u*b_i).
     Fraction<Int> widthICandidate = updateBasisWithUAndGetFCandidate(i);
-    if (SafeInteger<Int>::overflow)
-      return;
     if (widthICandidate < epsilon * width[i - level]) {
       basis.swapRows(i, i + 1);
       width[i - level] = widthICandidate;
@@ -1597,8 +1589,6 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
               computeOptimum(Direction::Down, basisCoeffs))
         minRoundedUp = ceil(*maybeMin);
       else {
-        if (SafeInteger<Int>::overflow)
-          return {};
         llvm_unreachable("Tableau should not be unbounded");
       }
 
@@ -1609,8 +1599,6 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
               computeOptimum(Direction::Up, basisCoeffs))
         maxRoundedDown = floor(*maybeMax);
       else {
-        if (SafeInteger<Int>::overflow)
-          return {};
         llvm_unreachable("Tableau should not be unbounded");
       }
 
@@ -1632,8 +1620,6 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
                       computeOptimum(Direction::Down, basisCoeffs))
                 min = ceil(*maybeMin);
               else {
-                if (SafeInteger<Int>::overflow)
-                  return {};
                 llvm_unreachable("Tableau should not be unbounded");
               }
 
@@ -1644,8 +1630,6 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
                       computeOptimum(Direction::Up, basisCoeffs))
                 max = floor(*maybeMax);
               else {
-                if (SafeInteger<Int>::overflow)
-                  return {};
                 llvm_unreachable("Tableau should not be unbounded");
               }
 
@@ -1668,16 +1652,12 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
           rollback(snap);
         }
         reduceBasis(basis, level);
-        if (SafeInteger<Int>::overflow)
-          return {};
         basisCoeffs = llvm::to_vector<8>(basis.getRow(level));
         basisCoeffs.push_back(0);
         if (Optional<Fraction<Int>> maybeMin =
                 computeOptimum(Direction::Down, basisCoeffs))
           minRoundedUp = ceil(*maybeMin);
         else {
-          if (SafeInteger<Int>::overflow)
-            return {};
           llvm_unreachable("Tableau should not be unbounded");
         }
 
@@ -1688,8 +1668,6 @@ Optional<SmallVector<SafeInteger<Int>, 8>> Simplex<Int>::findIntegerSample() {
                 computeOptimum(Direction::Up, basisCoeffs))
           maxRoundedDown = floor(*maybeMax);
         else {
-          if (SafeInteger<Int>::overflow)
-            return {};
           llvm_unreachable("Tableau should not be unbounded");
         }
 
@@ -1772,8 +1750,6 @@ Simplex<Int>::computeIntegerBounds(ArrayRef<SafeInteger<Int>> coeffs) {
           computeOptimum(Direction::Down, coeffs))
     minRoundedUp = ceil(*maybeMin);
   else {
-    if (SafeInteger<Int>::overflow)
-      return {0, 0};
     llvm_unreachable("Tableau should not be unbounded");
   }
 
@@ -1782,8 +1758,6 @@ Simplex<Int>::computeIntegerBounds(ArrayRef<SafeInteger<Int>> coeffs) {
           computeOptimum(Direction::Up, coeffs))
     maxRoundedDown = floor(*maybeMax);
   else {
-    if (SafeInteger<Int>::overflow)
-      return {0, 0};
     llvm_unreachable("Tableau should not be unbounded");
   }
 
@@ -1900,8 +1874,6 @@ inline void Simplex<Int>::toRow(Unknown &unknown, Direction direction) {
     return;
 
   auto row = findPivotRow({}, direction, unknown.pos);
-  if (SafeInteger<Int>::overflow)
-    return;
   if (row)
     pivot(*row, unknown.pos);
   else

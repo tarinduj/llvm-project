@@ -16,6 +16,13 @@ PresburgerSet<Int>::PresburgerSet(PresburgerBasicSet<Int> cs)
 }
 
 template <typename Int>
+template <typename OInt>
+PresburgerSet<Int>::PresburgerSet(const PresburgerSet<OInt> &o) : nDim(o.nDim), nSym(o.nSym), basicSets(convert<PresburgerBasicSet<Int>>(o.basicSets)), markedEmpty(o.markedEmpty) {
+  if (o.maybeSample)
+    *maybeSample = convert<SafeInteger<Int>>(*o.maybeSample);
+}
+
+template <typename Int>
 unsigned PresburgerSet<Int>::getNumBasicSets() const { return basicSets.size(); }
 
 template <typename Int>

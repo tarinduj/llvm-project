@@ -21,12 +21,20 @@
 
 namespace mlir {
 
-using analysis::presburger::SafeInteger;
+
+
+using namespace mlir::analysis::presburger;
 
 template <typename Int>
 class Constraint {
 public:
   Constraint() = delete;
+
+  template <typename OInt>
+  friend class Constraint;
+
+  template <typename OInt>
+  Constraint(const Constraint<OInt> &o) : coeffs(convert<SafeInteger<Int>>(o.coeffs)) {}
 
   unsigned getNumDims() const {
     // The last element of the coefficient vector is the constant term and does
@@ -117,6 +125,9 @@ template <typename Int>
 class InequalityConstraint : public Constraint<Int> {
 public:
   InequalityConstraint(ArrayRef<SafeInteger<Int>> oCoeffs) : Constraint<Int>(oCoeffs) {}
+  template <typename OInt>
+  InequalityConstraint(const InequalityConstraint<OInt> &o) : Constraint<Int>(o) {}
+
   void print(raw_ostream &os) const {
     Constraint<Int>::print(os);
     os << " >= 0";
@@ -128,6 +139,8 @@ template <typename Int>
 class EqualityConstraint : public Constraint<Int> {
 public:
   EqualityConstraint(ArrayRef<SafeInteger<Int>> oCoeffs) : Constraint<Int>(oCoeffs) {}
+  template <typename OInt>
+  EqualityConstraint(const EqualityConstraint<OInt> &o) : Constraint<Int>(o) {}
   void print(raw_ostream &os) const {
     Constraint<Int>::print(os);
     os << " = 0";
@@ -147,6 +160,12 @@ public:
     Constraint<Int>::print(os);
     os << ")/" << denom << ')';
   }
+
+  template <typename OInt>
+  friend class DivisionConstraint;
+
+  template <typename OInt>
+  DivisionConstraint(const DivisionConstraint<OInt> &o) : Constraint<Int>(o), denom(o.denom), variable(o.variable) {}
 
   SafeInteger<Int> getDenominator() const { return denom; }
 

@@ -18,6 +18,14 @@ using namespace mlir::analysis;
 using namespace mlir::analysis::presburger;
 
 template <typename Int>
+template <typename OInt>
+PresburgerBasicSet<Int>::PresburgerBasicSet(const PresburgerBasicSet<OInt> &o) :
+  ineqs(convert<InequalityConstraint<Int>>(o.ineqs)),
+  eqs(convert<EqualityConstraint<Int>>(o.eqs)),
+  divs(convert<DivisionConstraint<Int>>(o.divs)),
+  nDim(o.nDim), nParam(o.nParam), nExist(o.nExist) {}
+
+template <typename Int>
 void PresburgerBasicSet<Int>::addInequality(ArrayRef<SafeInteger<Int>> coeffs) {
   ineqs.emplace_back(coeffs);
 }

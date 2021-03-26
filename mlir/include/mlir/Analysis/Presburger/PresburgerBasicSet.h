@@ -37,6 +37,9 @@ public:
                      unsigned oNExist = 0)
       : nDim(oNDim), nParam(oNParam), nExist(oNExist) {}
 
+  template <typename OInt>
+  PresburgerBasicSet(const PresburgerBasicSet<OInt> &o);
+
   unsigned getNumDims() const { return nDim; }
   unsigned getNumTotalDims() const {
     return nParam + nDim + nExist + divs.size();
@@ -98,6 +101,9 @@ public:
 
   void printISL(raw_ostream &os) const;
   void dumpISL() const;
+
+  template <typename OInt>
+  friend class PresburgerBasicSet;
 
 private:
   void substitute(ArrayRef<SafeInteger<Int>> values);

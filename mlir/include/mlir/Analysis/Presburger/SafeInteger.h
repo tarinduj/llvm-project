@@ -25,6 +25,14 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
+template <typename T, typename U, unsigned S>
+SmallVector<T, S> convert(const SmallVector<U, S> &v) {
+  SmallVector<T, S> res;
+  for (const auto &elem : v)
+    res.push_back(elem);
+  return res;
+}
+
 using DefaultInt = __int128_t;
 
 /// A class to overflow-aware 64-bit integers.
@@ -43,6 +51,11 @@ struct SafeInteger {
     Int max = std::numeric_limits<Int>::max();
     throwOverflowIf(!(min <= oVal && oVal <= max));
     val = oVal;
+  }
+
+  template <typename OInt>
+  SafeInteger(const SafeInteger<OInt> &o) : val(o.val) {
+    static_assert(sizeof(Int) >= sizeof(OInt));
   }
 
   /// Default constructor initializes the number to zero.

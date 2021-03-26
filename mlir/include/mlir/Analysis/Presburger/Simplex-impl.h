@@ -43,7 +43,7 @@ inline Vector mul(Vector x, Vector y) {
 
   __mmask32 xzeros = equalMask(x, 0);
   __mmask32 yzeros = equalMask(y, 0);
-  SafeInteger<int16_t>::throwOverflowIf(xzeros | yzeros);
+  SafeInteger<int16_t>::throwOverflowIf(lonegs != ((xnegs ^ ynegs) & ~(xzeros | yzeros)));
 
   Vector hi = _mm512_mulhi_epi16(x, y);
   __mmask32 zeroOrNegOneMask = equalMask(hi, 0) | equalMask(hi, -1);

@@ -18,7 +18,7 @@ struct PresburgerExprAttributeStorage;
 
 namespace PresburgerAttributes {
 enum Kind {
-  TransprecSet = Attribute::FIRST_PRIVATE_EXPERIMENTAL_3_ATTR,
+  DialectSet = Attribute::FIRST_PRIVATE_EXPERIMENTAL_3_ATTR,
   PresburgerExpr
 };
 
@@ -29,16 +29,16 @@ class PresburgerSetAttr
                                  detail::PresburgerSetAttributeStorage> {
 public:
   using Base::Base;
-  using ValueType = TransprecSet;
+  using ValueType = DialectSet;
 
-  static PresburgerSetAttr get(PresburgerSetType t, TransprecSet value);
+  static PresburgerSetAttr get(PresburgerSetType t, DialectSet value);
 
-  TransprecSet getValue() const;
+  DialectSet getValue() const;
 
   static StringRef getKindName();
 
   static bool kindof(unsigned kind) {
-    return kind == PresburgerAttributes::TransprecSet;
+    return kind == PresburgerAttributes::DialectSet;
   }
 };
 

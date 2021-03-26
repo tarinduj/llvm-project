@@ -42,7 +42,7 @@ Attribute PresburgerDialect::parseAttribute(DialectAsmParser &parser,
 
   if (attrKind == PresburgerSetAttr::getKindName()) {
     TransprecPresburgerParser setParser(p);
-    TransprecSet set;
+    DialectSet set;
 
     if (failed(setParser.parsePresburgerSet(set))) {
       return Attribute();
@@ -72,7 +72,7 @@ Attribute PresburgerDialect::parseAttribute(DialectAsmParser &parser,
 void PresburgerDialect::printAttribute(Attribute attr,
                                        DialectAsmPrinter &printer) const {
   switch (attr.getKind()) {
-  case PresburgerAttributes::TransprecSet:
+  case PresburgerAttributes::DialectSet:
     printer << PresburgerSetAttr::getKindName();
     attr.cast<PresburgerSetAttr>().getValue().print(printer.getStream());
     break;

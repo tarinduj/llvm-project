@@ -20,11 +20,11 @@ using namespace llvm;
 static SetOp unionSets(PatternRewriter &rewriter, Operation *op,
                        PresburgerSetAttr attr1, PresburgerSetAttr attr2) {
   registerPresburgerCLOptions();
-  TransprecSet ps(attr1.getValue());
+  DialectSet ps(attr1.getValue());
 
   if (printPresburgerRuntimes()) {
-    TransprecSet set1(attr1.getValue());
-    TransprecSet set2(attr2.getValue());
+    DialectSet set1(attr1.getValue());
+    DialectSet set2(attr2.getValue());
     unsigned int dummy;
     unsigned long long start = __rdtscp(&dummy);
     set1.unionSet(std::move(set2));
@@ -47,7 +47,7 @@ static SetOp unionSets(PatternRewriter &rewriter, Operation *op,
 
 static SetOp intersectSets(PatternRewriter &rewriter, Operation *op,
                            PresburgerSetAttr attr1, PresburgerSetAttr attr2) {
-  TransprecSet ps(attr1.getValue());
+  DialectSet ps(attr1.getValue());
 
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
@@ -71,7 +71,7 @@ static SetOp intersectSets(PatternRewriter &rewriter, Operation *op,
 
 static SetOp subtractSets(PatternRewriter &rewriter, Operation *op,
                           PresburgerSetAttr attr1, PresburgerSetAttr attr2) {
-  TransprecSet ps(attr1.getValue());
+  DialectSet ps(attr1.getValue());
 
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
@@ -96,8 +96,8 @@ static SetOp subtractSets(PatternRewriter &rewriter, Operation *op,
 static SetOp coalesceSet(PatternRewriter &rewriter, Operation *op,
                          PresburgerSetAttr attr) {
   // TODO: change Namespace of coalesce
-  TransprecSet in = attr.getValue();
-  TransprecSet ps;
+  DialectSet in = attr.getValue();
+  DialectSet ps;
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
     unsigned long long start = __rdtscp(&dummy);
@@ -121,18 +121,18 @@ static SetOp coalesceSet(PatternRewriter &rewriter, Operation *op,
 static SetOp eliminateExistentialsSet(PatternRewriter &rewriter, Operation *op,
                                       PresburgerSetAttr attr) {
   // TODO: change Namespace of coalesce
-  TransprecSet in = attr.getValue();
+  DialectSet in = attr.getValue();
 
-  TransprecSet ps;
+  DialectSet ps;
   if (printPresburgerRuntimes()) {
-    TransprecSet in2 = attr.getValue();
+    DialectSet in2 = attr.getValue();
     unsigned int dummy;
     unsigned long long start = __rdtscp(&dummy);
-    ps = TransprecSet::eliminateExistentials(std::move(in2));
+    ps = DialectSet::eliminateExistentials(std::move(in2));
     unsigned long long end = __rdtscp(&dummy);
     llvm::errs() << end - start << '\n';
   } else {
-    ps = TransprecSet::eliminateExistentials(in);
+    ps = DialectSet::eliminateExistentials(in);
   }
 
   if (dumpResults()) {
@@ -148,15 +148,15 @@ static SetOp eliminateExistentialsSet(PatternRewriter &rewriter, Operation *op,
 
 static SetOp complementSet(PatternRewriter &rewriter, Operation *op,
                            PresburgerSetAttr attr) {
-  TransprecSet ps;
+  DialectSet ps;
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
     unsigned long long start = __rdtscp(&dummy);
-    ps = TransprecSet::complement(attr.getValue());
+    ps = DialectSet::complement(attr.getValue());
     unsigned long long end = __rdtscp(&dummy);
     llvm::errs() << end - start << '\n';
   } else {
-    ps = TransprecSet::complement(attr.getValue());
+    ps = DialectSet::complement(attr.getValue());
   }
 
   if (dumpResults()) {
@@ -172,15 +172,15 @@ static SetOp complementSet(PatternRewriter &rewriter, Operation *op,
 static ConstantOp areEqualSets(PatternRewriter &rewriter, Operation *op,
                                PresburgerSetAttr attr1,
                                PresburgerSetAttr attr2) {
-  bool eq = TransprecSet::equal(attr1.getValue(), attr2.getValue());
+  bool eq = DialectSet::equal(attr1.getValue(), attr2.getValue());
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
     unsigned long long start = __rdtscp(&dummy);
-    eq = TransprecSet::equal(attr1.getValue(), attr2.getValue());
+    eq = DialectSet::equal(attr1.getValue(), attr2.getValue());
     unsigned long long end = __rdtscp(&dummy);
     llvm::errs() << end - start << '\n';
   } else {
-    eq = TransprecSet::equal(attr1.getValue(), attr2.getValue());
+    eq = DialectSet::equal(attr1.getValue(), attr2.getValue());
   }
 
   if (dumpResults()) {
@@ -194,7 +194,7 @@ static ConstantOp areEqualSets(PatternRewriter &rewriter, Operation *op,
 
 static ConstantOp emptySet(PatternRewriter &rewriter, Operation *op,
                            PresburgerSetAttr attr) {
-  TransprecSet ps = attr.getValue();
+  DialectSet ps = attr.getValue();
   bool empty;
   if (printPresburgerRuntimes()) {
     unsigned int dummy;

@@ -79,6 +79,13 @@ public:
   TransprecSet(PresburgerSet<int64_t> set) : setvar(std::move(set)) {}
   TransprecSet(PresburgerSet<int128_t> set) : setvar(std::move(set)) {}
 
+  static void harmonizePrecisions(TransprecSet &a, TransprecSet &b) {
+    while (a.setvar.index() < b.setvar.index())
+      a.increasePrecision();
+    while (a.setvar.index() > b.setvar.index())
+      b.increasePrecision();
+  }
+
   void increasePrecision() {
     if (std::holds_alternative<PresburgerSet<int16_t>>(setvar)) {
       setvar = PresburgerSet<int64_t>(std::get<PresburgerSet<int16_t>>(setvar));
@@ -89,11 +96,68 @@ public:
     }
   }
 
+  void unionSet(TransprecSet &set) {
+    harmonizePrecisions(*this, set);
+    std::visit([&set](auto &&thisPS) {
+      std::visit([&thisPS](auto &&oPS) {
+        thisPS.unionSet(oPS);
+      }, set.setvar);
+    }, setvar);
+  }
+
+  void intersectSet(TransprecSet &set) {
+    harmonizePrecisions(*this, set);
+    std::visit([&](auto &&thisPS) {
+      std::visit([&](auto &&oPS) {
+        thisPS.intersectSet(oPS);
+      }, set.setvar);
+    }, setvar);
+  }
+
+  void subtract(TransprecSet &set) {
+    harmonizePrecisions(*this, set);
+    std::visit([&](auto &&thisPS) {
+      std::visit([&](auto &&oPS) {
+        try {
+          thisPS.subtract(oPS);
+        } catch (const std::overflow_error &e) {
+          increasePrecision();
+          set.increasePrecision();
+          this->subtract(set);
+        }
+      }, set.setvar);
+    }, setvar);
+  }
+
+  TransprecSet complement() {
+    return std::visit([this](auto &&set) {
+      try {
+        using Set = std::decay_t<decltype(set)>;
+        return TransprecSet(Set::complement(set));
+      } catch (const std::overflow_error &e) {
+        increasePrecision();
+        return this->complement();
+      }
+    }, setvar);
+  }
+
+  TransprecSet eliminateExistentials() {
+    return std::visit([this](auto &&set) {
+      try {
+        using Set = std::decay_t<decltype(set)>;
+        return TransprecSet(Set::eliminateExistentials(set));
+      } catch (const std::overflow_error &e) {
+        increasePrecision();
+        return this->eliminateExistentials();
+      }
+    }, setvar);
+  }
+
   bool isIntegerEmpty() {
     return std::visit([this](auto &&set) {
       try {
         return set.isIntegerEmpty();
-      } catch (const std::overflow_error& e) {
+      } catch (const std::overflow_error &e) {
         increasePrecision();
         return this->isIntegerEmpty();
       }

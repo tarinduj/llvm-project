@@ -84,7 +84,7 @@ PresburgerBasicSet<Int> PresburgerBasicSet<Int>::makePlainBasicSet() const {
 
 template <typename Int>
 Optional<SmallVector<SafeInteger<Int>, 8>>
-PresburgerBasicSet<Int>::findIntegerSampleRemoveEqs(bool onlyEmptiness) {
+PresburgerBasicSet<Int>::findIntegerSampleRemoveEqs(bool onlyEmptiness) const {
   auto copy = *this;
   if (!ineqs.empty()) {
     Simplex<Int> simplex(copy);
@@ -130,7 +130,7 @@ PresburgerBasicSet<Int>::findIntegerSampleRemoveEqs(bool onlyEmptiness) {
 
 template <typename Int>
 Optional<SmallVector<SafeInteger<Int>, 8>>
-PresburgerBasicSet<Int>::findIntegerSample(bool onlyEmptiness) {
+PresburgerBasicSet<Int>::findIntegerSample(bool onlyEmptiness) const {
   if (!isPlainBasicSet())
     return makePlainBasicSet().findIntegerSample();
   if (!eqs.empty())
@@ -145,7 +145,7 @@ PresburgerBasicSet<Int>::findIntegerSample(bool onlyEmptiness) {
 }
 
 template <typename Int>
-bool PresburgerBasicSet<Int>::isIntegerEmpty() {
+bool PresburgerBasicSet<Int>::isIntegerEmpty() const {
   // dumpISL();
   if (ineqs.empty() && eqs.empty())
     return false;
@@ -222,7 +222,7 @@ void PresburgerBasicSet<Int>::substitute(ArrayRef<SafeInteger<Int>> values) {
 template <typename Int>
 llvm::Optional<SmallVector<SafeInteger<Int>, 8>>
 PresburgerBasicSet<Int>::findSampleUnbounded(PresburgerBasicSet &cone,
-                                        bool onlyEmptiness) {
+                                        bool onlyEmptiness) const {
   auto coeffMatrix = cone.coefficientMatrixFromEqs();
   LinearTransform<Int> U =
       LinearTransform<Int>::makeTransformToColumnEchelon(coeffMatrix);

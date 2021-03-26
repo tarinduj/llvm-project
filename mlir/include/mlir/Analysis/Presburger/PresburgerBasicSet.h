@@ -72,7 +72,7 @@ public:
   void removeEquality(unsigned i);
 
   Optional<SmallVector<SafeInteger<Int>, 8>>
-  findIntegerSampleRemoveEqs(bool onlyEmptiness = false);
+  findIntegerSampleRemoveEqs(bool onlyEmptiness = false) const;
 
   /// Find a sample point satisfying the constraints. This uses a branch and
   /// bound algorithm with generalized basis reduction, which always works if
@@ -80,9 +80,9 @@ public:
   ///
   /// Returns such a point if one exists, or an empty Optional otherwise.
   Optional<SmallVector<SafeInteger<Int>, 8>>
-  findIntegerSample(bool onlyEmptiness = false);
+  findIntegerSample(bool onlyEmptiness = false) const;
 
-  bool isIntegerEmpty();
+  bool isIntegerEmpty() const;
 
   /// Get a {denominator, sample} pair representing a rational sample point in
   /// this basic set.
@@ -134,7 +134,7 @@ private:
   /// \returns the sample point or an empty llvm::Optional if the set
   /// is empty.
   Optional<SmallVector<SafeInteger<Int>, 8>>
-  findSampleUnbounded(PresburgerBasicSet &cone, bool onlyEmptiness);
+  findSampleUnbounded(PresburgerBasicSet &cone, bool onlyEmptiness) const;
 
   Matrix<Int> coefficientMatrixFromEqs() const;
 

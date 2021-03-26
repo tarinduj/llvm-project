@@ -44,7 +44,7 @@ public:
   static PresburgerSet subtract(PresburgerBasicSet<Int> c, const PresburgerSet &set);
 
   llvm::Optional<SmallVector<SafeInteger<Int>, 8>> findIntegerSample();
-  bool isIntegerEmpty();
+  bool isIntegerEmpty() const;
   // bool containsPoint(const std::vector<INT> &values) const;
   llvm::Optional<SmallVector<SafeInteger<Int>, 8>> maybeGetCachedSample() const;
 

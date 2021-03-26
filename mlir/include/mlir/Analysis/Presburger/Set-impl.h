@@ -435,10 +435,10 @@ Optional<SmallVector<SafeInteger<Int>, 8>> PresburgerSet<Int>::findIntegerSample
 }
 
 template <typename Int>
-bool PresburgerSet<Int>::isIntegerEmpty() {
+bool PresburgerSet<Int>::isIntegerEmpty() const {
   if (markedEmpty)
     return true;
-  for (PresburgerBasicSet<Int> &bs : basicSets) {
+  for (const PresburgerBasicSet<Int> &bs : basicSets) {
     if (!bs.isIntegerEmpty())
       return false;
   }

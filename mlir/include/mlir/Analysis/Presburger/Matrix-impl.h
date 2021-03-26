@@ -56,6 +56,7 @@ void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
         data[row * newNReservedColumns + col] = unsigned(row) < nRows && unsigned(col) < nColumns ? at(row, col) : 0;
     nRows = newNRows;
     nColumns = newNColumns;
+    nReservedColumns = newNReservedColumns;
   } else {
     nRows = newNRows;
     data.resize(nRows * nReservedColumns);

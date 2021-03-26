@@ -17,6 +17,7 @@
 #include "mlir/Support/MathExtras.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/Support/raw_ostream.h"
+#include <stdexcept>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -70,7 +71,7 @@ struct SafeInteger {
 
   static void throwOverflowIf(bool cond) {
     if (cond)
-      overflow = true;
+      throw std::overflow_error("Overflow!");
   }
 };
 

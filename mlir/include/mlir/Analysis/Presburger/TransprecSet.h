@@ -38,7 +38,13 @@ public:
     harmonizePrecisions(*this, set);
     std::visit([&set](auto &&thisPS) {
       std::visit([&thisPS](auto &&oPS) {
-        thisPS.unionSet(oPS);
+        using typeA = std::decay_t<decltype(thisPS)>;
+        using typeB = std::decay_t<decltype(oPS)>;
+
+        if constexpr (std::is_same<typeA, typeB>::value)
+          thisPS.unionSet(oPS);
+        else
+          llvm_unreachable("Types not harmonized!");
       }, set.setvar);
     }, setvar);
   }
@@ -47,7 +53,13 @@ public:
     harmonizePrecisions(*this, set);
     std::visit([&](auto &&thisPS) {
       std::visit([&](auto &&oPS) {
-        thisPS.intersectSet(oPS);
+        using typeA = std::decay_t<decltype(thisPS)>;
+        using typeB = std::decay_t<decltype(oPS)>;
+
+        if constexpr (std::is_same<typeA, typeB>::value)
+          thisPS.intersectSet(oPS);
+        else
+          llvm_unreachable("Types not harmonized!");
       }, set.setvar);
     }, setvar);
   }
@@ -57,13 +69,51 @@ public:
     std::visit([&](auto &&thisPS) {
       std::visit([&](auto &&oPS) {
         try {
-          thisPS.subtract(oPS);
+          using typeA = std::decay_t<decltype(thisPS)>;
+          using typeB = std::decay_t<decltype(oPS)>;
+
+          if constexpr (std::is_same<typeA, typeB>::value)
+            thisPS.subtract(oPS);
+          else
+            llvm_unreachable("Types not harmonized!");
         } catch (const std::overflow_error &e) {
           increasePrecision();
           set.increasePrecision();
           this->subtract(set);
         }
       }, set.setvar);
+    }, setvar);
+  }
+
+  bool equal(TransprecSet &set) {
+    harmonizePrecisions(*this, set);
+    return std::visit([&](auto &&thisPS) {
+      return std::visit([&](auto &&oPS) {
+        try {
+          using typeA = std::decay_t<decltype(thisPS)>;
+          using typeB = std::decay_t<decltype(oPS)>;
+
+          if constexpr (std::is_same<typeA, typeB>::value)
+            return typeA::equal(thisPS, oPS);
+          else
+            llvm_unreachable("Types not harmonized!");
+        } catch (const std::overflow_error &e) {
+          increasePrecision();
+          set.increasePrecision();
+          return this->equal(set);
+        }
+      }, set.setvar);
+    }, setvar);
+  }
+
+  TransprecSet coalesce() {
+    return std::visit([this](auto &&set) {
+      try {
+        return TransprecSet(mlir::coalesce(set));
+      } catch (const std::overflow_error &e) {
+        increasePrecision();
+        return this->coalesce();
+      }
     }, setvar);
   }
 

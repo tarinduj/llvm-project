@@ -52,7 +52,7 @@ void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
     unsigned newNReservedColumns = nextPowOfTwo(newNColumns);
     data.resize(newNRows * newNReservedColumns);
     for (int row = newNRows - 1; row >= 0; --row)
-      for (int col = newNColumns - 1; col >= 0; --col)
+      for (int col = newNReservedColumns - 1; col >= 0; --col)
         data[row * newNReservedColumns + col] = unsigned(row) < nRows && unsigned(col) < nColumns ? at(row, col) : 0;
     nRows = newNRows;
     nColumns = newNColumns;

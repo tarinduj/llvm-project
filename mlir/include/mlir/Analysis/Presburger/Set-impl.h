@@ -93,6 +93,11 @@ template <typename Int>
 void PresburgerSet<Int>::unionSet(const PresburgerSet<Int> &set) {
   assertDimensionsCompatible(set, *this);
 
+  if (basicSets.empty()) {
+    basicSets = set.basicSets;
+    return;
+  }
+
   reserveBasicSets(basicSets.size() + set.basicSets.size());
   for (const PresburgerBasicSet<Int> &cs : set.basicSets)
     addBasicSet(cs);

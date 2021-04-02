@@ -76,6 +76,10 @@ void PresburgerSet<Int>::addBasicSet(const PresburgerBasicSet<Int> &cs) {
   markedEmpty = false;
   basicSets.push_back(cs);
 }
+template <typename Int>
+void PresburgerSet<Int>::reserveBasicSets(unsigned count) {
+  basicSets.reserve(count);
+}
 
 template <typename Int>
 void PresburgerSet<Int>::addBasicSet(PresburgerBasicSet<Int> &&cs) {
@@ -89,8 +93,9 @@ template <typename Int>
 void PresburgerSet<Int>::unionSet(const PresburgerSet<Int> &set) {
   assertDimensionsCompatible(set, *this);
 
+  reserveBasicSets(basicSets.size() + set.basicSets.size());
   for (const PresburgerBasicSet<Int> &cs : set.basicSets)
-    addBasicSet(std::move(cs));
+    addBasicSet(cs);
 }
 
 template <typename Int>
@@ -125,6 +130,7 @@ void PresburgerSet<Int>::intersectSet(const PresburgerSet<Int> &set) {
   }
 
   PresburgerSet<Int> result(nDim, nSym, true);
+  result.reserveBasicSets(basicSets.size() * set.basicSets.size());
   for (const PresburgerBasicSet<Int> &cs1 : basicSets) {
     for (const PresburgerBasicSet<Int> &cs2 : set.basicSets) {
       PresburgerBasicSet<Int> intersection(cs1);

@@ -29,6 +29,7 @@ public:
   void unionSet(const PresburgerSet &set);
   void unionSet(PresburgerSet &&set);
   void intersectSet(const PresburgerSet &set);
+  void reserveBasicSets(unsigned count);
   static bool equal(const PresburgerSet &s, const PresburgerSet &t);
   void print(raw_ostream &os) const;
   void dump() const;

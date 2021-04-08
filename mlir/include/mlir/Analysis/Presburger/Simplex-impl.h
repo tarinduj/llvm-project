@@ -37,17 +37,8 @@ inline __mmask32 negs(Vector x) {
 // We check these two conditions. If either of them don't hold then an overflow has occurred.
 inline Vector mul(Vector x, Vector y) {
   Vector lo = _mm512_mullo_epi16(x, y);
-  __mmask32 xnegs = negs(x);
-  __mmask32 ynegs = negs(y);
-  __mmask32 lonegs = negs(lo);
-
-  __mmask32 xzeros = equalMask(x, 0);
-  __mmask32 yzeros = equalMask(y, 0);
-  SafeInteger<int16_t>::throwOverflowIf(lonegs != ((xnegs ^ ynegs) & ~(xzeros | yzeros)));
-
   Vector hi = _mm512_mulhi_epi16(x, y);
-  __mmask32 zeroOrNegOneMask = equalMask(hi, 0) | equalMask(hi, -1);
-  SafeInteger<int16_t>::throwOverflowIf(~zeroOrNegOneMask);
+  SafeInteger<int16_t>::throwOverflowIf(~equalMask(lo >> 15, hi));
   return lo;
 }
 

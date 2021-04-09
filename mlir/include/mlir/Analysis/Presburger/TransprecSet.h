@@ -156,7 +156,6 @@ public:
     std::visit([](auto &&set) { set.dumpISL(); }, setvar);
   }
 
-private:
   std::variant<PresburgerSet<int16_t>, PresburgerSet<int64_t>, PresburgerSet<int128_t>> setvar;
 };
 

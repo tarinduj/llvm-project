@@ -30,6 +30,21 @@ Optional<PresburgerSet<Int>> setFromString(StringRef string) {
   return res;
 }
 
+void dumpStats(TransprecSet &a) {
+  std::visit([&](auto &&set) {
+    unsigned ids = set.getNumDims() + set.getNumSyms(), nDivs = 0, nEqs = 0, nIneqs = 0, nBS = 0;
+    for (auto &bs : set.getBasicSets()) {
+      ids = std::max(ids, bs.getNumTotalDims());
+      nDivs += bs.getDivisions().size();
+      nEqs += bs.getNumEqualities();
+      nIneqs += bs.getNumInequalities();
+      nBS += 1;
+    }
+    std::cerr << ids << ' ' << nBS << ' ' << nDivs << ' ' << nIneqs << ' ' << nEqs << '\n';
+  }, a.setvar);
+}
+
+
 TransprecSet getSetFromInput() {
   char str[1'000'000];
   std::cin.getline(str, 1'000'000);

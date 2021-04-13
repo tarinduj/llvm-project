@@ -52,6 +52,8 @@ TransprecSet getSetFromInput() {
     return TransprecSet(*set);
   else if (auto set = setFromString<int64_t>(str))
     return TransprecSet(*set);
+  else if (auto set = setFromString<__int128_t>(str))
+    return TransprecSet(*set);
   else if (auto set = setFromString<mpz_class>(str))
     return TransprecSet(*set);
   else

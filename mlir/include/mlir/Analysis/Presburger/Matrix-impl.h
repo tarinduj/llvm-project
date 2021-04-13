@@ -47,7 +47,7 @@ template <typename Int>
 void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
   if (newNColumns > nReservedColumns) {
     if constexpr (isVectorized) {
-      SafeInteger<Int>::overflow = true;
+      SafeInteger<Int>::throwOverflowIf(true);
     }
     unsigned newNReservedColumns = nextPowOfTwo(newNColumns);
     data.resize(newNRows * newNReservedColumns);

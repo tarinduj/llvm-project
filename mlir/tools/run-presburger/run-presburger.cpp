@@ -75,10 +75,6 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = a.isIntegerEmpty();
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         std::cerr << res << '\n';
@@ -93,10 +89,6 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = a.equal(b);
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         llvm::errs() << res << '\n';
@@ -111,10 +103,6 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       a.unionSet(b);
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         a.dumpISL();
@@ -129,10 +117,6 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       a.intersectSet(b);
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         a.dumpISL();
@@ -147,10 +131,6 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       a.subtract(b);
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         a.dumpISL();
@@ -163,10 +143,6 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = a.coalesce();
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         res.dumpISL();
@@ -179,10 +155,6 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = a.complement();
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         res.dumpISL();
@@ -195,10 +167,6 @@ int main(int argc, char **argv) {
       unsigned long long start = __rdtscp(&dummy);
       auto res = a.eliminateExistentials();
       unsigned long long end = __rdtscp(&dummy);
-      if (SafeInteger<DefaultInt>::overflow) {
-        std::cerr << "Overflow!\n";
-        exit(1);
-      }
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
         a.dumpISL();

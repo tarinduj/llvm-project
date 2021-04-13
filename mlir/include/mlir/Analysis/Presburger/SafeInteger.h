@@ -78,9 +78,6 @@ struct SafeInteger {
 };
 
 template <typename Int>
-bool SafeInteger<Int>::overflow = false;
-
-template <typename Int>
 inline bool operator<(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
   return x.val < y.val;
 }

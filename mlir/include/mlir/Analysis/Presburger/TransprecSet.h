@@ -8,14 +8,14 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
-using int128_t = __int128_t;
+using BigInt = mpz_class;
 
 class TransprecSet {
 public:
   TransprecSet() {};
   TransprecSet(PresburgerSet<int16_t> set) : setvar(std::move(set)) {}
   TransprecSet(PresburgerSet<int64_t> set) : setvar(std::move(set)) {}
-  TransprecSet(PresburgerSet<int128_t> set) : setvar(std::move(set)) {}
+  TransprecSet(PresburgerSet<BigInt> set) : setvar(std::move(set)) {}
 
   static void harmonizePrecisions(TransprecSet &a, TransprecSet &b) {
     while (a.setvar.index() < b.setvar.index())
@@ -28,9 +28,9 @@ public:
     if (std::holds_alternative<PresburgerSet<int16_t>>(setvar)) {
       setvar = PresburgerSet<int64_t>(std::get<PresburgerSet<int16_t>>(setvar));
     } else if (std::holds_alternative<PresburgerSet<int64_t>>(setvar)) {
-      setvar = PresburgerSet<int128_t>(std::get<PresburgerSet<int64_t>>(setvar));
+      setvar = PresburgerSet<BigInt>(std::get<PresburgerSet<int64_t>>(setvar));
     } else {
-      llvm_unreachable("Cannot expand beyond 128-bit!");
+      llvm_unreachable("GMP overflowed??");
     }
   }
 
@@ -156,7 +156,7 @@ public:
     std::visit([](auto &&set) { set.dumpISL(); }, setvar);
   }
 
-  std::variant<PresburgerSet<int16_t>, PresburgerSet<int64_t>, PresburgerSet<int128_t>> setvar;
+  std::variant<PresburgerSet<int16_t>, PresburgerSet<int64_t>, PresburgerSet<BigInt>> setvar;
 };
 
 } // namespace presburger

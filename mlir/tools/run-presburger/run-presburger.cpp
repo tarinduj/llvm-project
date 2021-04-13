@@ -52,7 +52,7 @@ TransprecSet getSetFromInput() {
     return TransprecSet(*set);
   else if (auto set = setFromString<int64_t>(str))
     return TransprecSet(*set);
-  else if (auto set = setFromString<int128_t>(str))
+  else if (auto set = setFromString<mpz_class>(str))
     return TransprecSet(*set);
   else
     llvm_unreachable("Input did not fit in 128-bits!");

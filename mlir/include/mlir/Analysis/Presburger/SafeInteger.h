@@ -21,6 +21,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <sstream>
+#include <gmpxx.h>
 
 namespace mlir {
 namespace analysis {
@@ -44,7 +46,7 @@ struct SafeInteger {
   /// Therefore we only use this when Int i snot int16_t (a hack; it should also be disabled for int8_t but we never use that anyway). For int16_t we provide a different constructor
   /// instead that takes an int32_t as argument.
   /// Because integer constants (without any suffixes) are ints by default
-  template <typename IntCopy = Int, std::enable_if_t<(std::is_integral<IntCopy>::value || std::is_same<IntCopy, __int128_t>::value) && !std::is_same<IntCopy, int16_t>::value, bool> = true>
+  template <typename IntCopy = Int, std::enable_if_t<(std::is_integral<IntCopy>::value || std::is_same<IntCopy, __int128_t>::value || std::is_same<IntCopy, mpz_class>::value) && !std::is_same<IntCopy, int16_t>::value, bool> = true>
   SafeInteger(IntCopy oVal) : val(oVal) {}
   template <typename IntCopy = Int, std::enable_if_t<std::is_same<IntCopy, int16_t>::value, bool> = true>
   SafeInteger(IntCopy oVal) {
@@ -130,45 +132,70 @@ inline bool operator>=(const SafeInteger<Int> &x, int y) {
 
 template <typename Int>
 inline SafeInteger<Int> operator+(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
-  Int result;
-  bool overflow = __builtin_add_overflow(x.val, y.val, &result);
-  SafeInteger<Int>::throwOverflowIf(overflow);
-  return SafeInteger<Int>(result);
+  if constexpr (std::is_same<Int, mpz_class>::value) {
+    Int result = x.val + y.val;
+    return SafeInteger<Int>(result);
+  } else {
+    Int result;
+    bool overflow = __builtin_add_overflow(x.val, y.val, &result);
+    SafeInteger<Int>::throwOverflowIf(overflow);
+    return SafeInteger<Int>(result);
+  }
 }
 
 template <typename Int>
 inline SafeInteger<Int> operator-(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
-  Int result;
-  bool overflow = __builtin_sub_overflow(x.val, y.val, &result);
-  SafeInteger<Int>::throwOverflowIf(overflow);
-  return SafeInteger<Int>(result);
+  if constexpr (std::is_same<Int, mpz_class>::value) {
+    Int result = x.val - y.val;
+    return SafeInteger<Int>(result);
+  } else {
+    Int result;
+    bool overflow = __builtin_sub_overflow(x.val, y.val, &result);
+    SafeInteger<Int>::throwOverflowIf(overflow);
+    return SafeInteger<Int>(result);
+  }
 }
 
 template <typename Int>
 inline SafeInteger<Int> operator-(const SafeInteger<Int> &x) {
-  return SafeInteger<Int>(0) - x;
+  if constexpr (std::is_same<Int, mpz_class>::value) {
+    Int result = -x.val;
+    return SafeInteger<Int>(result);
+  } else {
+    return SafeInteger<Int>(0) - x;
+  }
 }
 
 template <typename Int>
 inline SafeInteger<Int> operator*(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
-  Int result;
-  bool overflow = __builtin_mul_overflow(x.val, y.val, &result);
-  SafeInteger<Int>::throwOverflowIf(overflow);
-  return SafeInteger<Int>(result);
+  if constexpr (std::is_same<Int, mpz_class>::value) {
+    Int result = x.val * y.val;
+    return SafeInteger<Int>(result);
+  } else {
+    Int result;
+    bool overflow = __builtin_mul_overflow(x.val, y.val, &result);
+    SafeInteger<Int>::throwOverflowIf(overflow);
+    return SafeInteger<Int>(result);
+  }
 }
 
 template <typename Int>
 inline SafeInteger<Int> operator/(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
-  // overflow only possible if y == -1
-  if (y.val == -1)
-    return -x;
-  return x.val / y.val;
+  if constexpr (std::is_same<Int, mpz_class>::value) {
+    Int result = x.val / y.val;
+    return SafeInteger<Int>(result);
+  } else {
+    if (y.val == -1)
+      return -x;
+    Int result = x.val / y.val;
+    return SafeInteger<Int>(result);
+  }
 }
 
 template <typename Int>
 inline SafeInteger<Int> operator%(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
-  // The denominator should only become zero if an overflow occurred, in which case we return some garbage.
-  return x.val % y.val;
+  Int result = x.val % y.val;
+  return SafeInteger<Int>(result);
 }
 
 template <typename Int>
@@ -228,23 +255,31 @@ inline SafeInteger<Int> mod(SafeInteger<Int> lhs, SafeInteger<Int> rhs) {
 template <typename Int>
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                      const SafeInteger<Int> &x) {
-  if (x == 0) {
-    os << "0";
-    return os;
-  }
-  std::string out;
-  auto copy = x;
-  if (copy < 0) {
-    os << '-';
-    copy = -copy;
-  }
-  while (copy > 0) {
-    out.push_back('0' + int(copy.val % 10));
-    copy /= SafeInteger<Int>(10);
-  }
-  std::reverse(out.begin(), out.end());
+  if constexpr (std::is_same<Int, __int128_t>::value) {
+    if (x == 0) {
+      os << "0";
+      return os;
+    }
+    std::string out;
+    auto copy = x;
+    if (copy < 0) {
+      os << '-';
+      copy = -copy;
+    }
+    while (copy > 0) {
+      out.push_back('0' + int(copy.val % 10));
+      copy /= SafeInteger<Int>(10);
+    }
+    std::reverse(out.begin(), out.end());
 
-  os << out;
+    os << out;
+  } else if constexpr (std::is_same<Int, mpz_class>::value) {
+    std::stringstream ss;
+    ss << x.val;
+    os << ss.str();
+  } else {
+    os << x.val;
+  }
   return os;
 }
 

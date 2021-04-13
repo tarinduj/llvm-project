@@ -712,9 +712,17 @@ LogicalResult Parser<Int>::parseInteger(std::unique_ptr<IntegerExpr<Int>> &iExpr
   Token integerToken;
   if (failed(lexer.consumeKindOrError(Token::Kind::Integer, integerToken)))
     return failure();
-  Int value;
-  if (!llvm::to_integer(integerToken.string(), value))
+
+  constexpr bool intIsGmp = std::is_same<Int, mpz_class>::value;
+
+  typename std::conditional<intIsGmp, int64_t, Int>::type value;
+  if (!llvm::to_integer(integerToken.string(), value)) {
+    if constexpr (intIsGmp) {
+      llvm::errs() << "parsing coefficients that don't fix in 64-bits is not yet implemented!";
+      exit(1);
+    }
     return emitErrorForToken(integerToken, "expected a valid integer");
+  }
   if (negativ)
     value = -value;
 

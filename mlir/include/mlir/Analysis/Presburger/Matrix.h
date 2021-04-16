@@ -39,7 +39,7 @@ typedef int16_t Vector __attribute__((ext_vector_type(MatrixVectorColumns)));
 /// The data is stored as one big vector.
 template <typename Int>
 class Matrix {
-  static constexpr bool isVectorized = std::is_same<Int, int16_t>::value;
+  static constexpr bool isVectorized = std::is_same<Int, SafeInteger<int16_t>>::value;
 public:
   Matrix() = delete;
 
@@ -53,26 +53,26 @@ public:
   /// Access the element at the specified row and column.
 
   __attribute__((always_inline))
-  SafeInteger<Int> &at(unsigned row, unsigned column) {
+  Int &at(unsigned row, unsigned column) {
     assert(row < getNumRows() && "Row outside of range");
     assert(column < getNumColumns() && "Column outside of range");
     return data[row * nReservedColumns + column];
   }
 
   __attribute__((always_inline))
-  SafeInteger<Int> at(unsigned row, unsigned column) const {
+  Int at(unsigned row, unsigned column) const {
     assert(row < getNumRows() && "Row outside of range");
     assert(column < getNumColumns() && "Column outside of range");
     return data[row * nReservedColumns + column];
   }
 
   __attribute__((always_inline))
-  SafeInteger<Int> &operator()(unsigned row, unsigned column) {
+  Int &operator()(unsigned row, unsigned column) {
     return at(row, column);
   }
 
   __attribute__((always_inline))
-  SafeInteger<Int> operator()(unsigned row, unsigned column) const {
+  Int operator()(unsigned row, unsigned column) const {
     return at(row, column);
   }
 
@@ -100,15 +100,15 @@ public:
 
 
   /// Get an ArrayRef corresponding to the specified row.
-  ArrayRef<SafeInteger<Int>> getRow(unsigned row) const;
+  ArrayRef<Int> getRow(unsigned row) const;
 
   /// Add `scale` multiples of the source row to the target row.
-  void addToRow(unsigned sourceRow, unsigned targetRow, SafeInteger<Int> scale);
+  void addToRow(unsigned sourceRow, unsigned targetRow, Int scale);
 
-  void scaleColumn(unsigned column, SafeInteger<Int> scale);
+  void scaleColumn(unsigned column, Int scale);
 
   void addToColumn(unsigned sourceColumn, unsigned targetColumn,
-                   SafeInteger<Int> scale);
+                   Int scale);
 
   /// Resize the matrix to the specified dimensions. If a dimension is smaller,
   /// the values are truncated; if it is bigger, the new values are default
@@ -126,8 +126,8 @@ private:
   unsigned nRows, nColumns, nReservedColumns;
 
   using VectorType = typename std::conditional<isVectorized,
-      std::vector<SafeInteger<Int>, AlignedAllocator<SafeInteger<Int>, 64>>,
-      llvm::SmallVector<SafeInteger<Int>, 16>
+      std::vector<Int, AlignedAllocator<Int, 64>>,
+      llvm::SmallVector<Int, 16>
   >::type;
   /// Stores the data. data.size() is equal to nRows * nColumns.
   VectorType data;

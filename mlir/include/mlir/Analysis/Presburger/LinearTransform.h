@@ -27,8 +27,8 @@ public:
 
   FlatAffineConstraints postMultiplyBasicSet(const FlatAffineConstraints &bs);
   PresburgerBasicSet<Int> postMultiplyBasicSet(const PresburgerBasicSet<Int> &bs);
-  SmallVector<SafeInteger<Int>, 8> postMultiplyRow(ArrayRef<SafeInteger<Int>> row);
-  SmallVector<SafeInteger<Int>, 8> preMultiplyColumn(ArrayRef<SafeInteger<Int>> col);
+  SmallVector<Int, 8> postMultiplyRow(ArrayRef<Int> row);
+  SmallVector<Int, 8> preMultiplyColumn(ArrayRef<Int> col);
 
 private:
   explicit LinearTransform(Matrix<Int> oMatrix);

@@ -13,9 +13,9 @@ using BigInt = mpz_class;
 class TransprecSet {
 public:
   TransprecSet() {};
-  TransprecSet(PresburgerSet<int16_t> set) : setvar(std::move(set)) {}
-  TransprecSet(PresburgerSet<int64_t> set) : setvar(std::move(set)) {}
-  TransprecSet(PresburgerSet<__int128_t> set) : setvar(std::move(set)) {}
+  TransprecSet(PresburgerSet<SafeInteger<int16_t>> set) : setvar(std::move(set)) {}
+  TransprecSet(PresburgerSet<SafeInteger<int64_t>> set) : setvar(std::move(set)) {}
+  TransprecSet(PresburgerSet<SafeInteger<__int128_t>> set) : setvar(std::move(set)) {}
   TransprecSet(PresburgerSet<BigInt> set) : setvar(std::move(set)) {}
 
   static void harmonizePrecisions(TransprecSet &a, TransprecSet &b) {
@@ -26,11 +26,11 @@ public:
   }
 
   void increasePrecision() {
-    if (std::holds_alternative<PresburgerSet<int16_t>>(setvar)) {
-      setvar = PresburgerSet<int64_t>(std::get<PresburgerSet<int16_t>>(setvar));
-    } else if (std::holds_alternative<PresburgerSet<int64_t>>(setvar)) {
-      setvar = PresburgerSet<__int128_t>(std::get<PresburgerSet<int64_t>>(setvar));
-    } else if (std::holds_alternative<PresburgerSet<__int128_t>>(setvar)) {
+    if (std::holds_alternative<PresburgerSet<SafeInteger<int16_t>>>(setvar)) {
+      setvar = PresburgerSet<SafeInteger<int64_t>>(std::get<PresburgerSet<SafeInteger<int16_t>>>(setvar));
+    } else if (std::holds_alternative<PresburgerSet<SafeInteger<int64_t>>>(setvar)) {
+      setvar = PresburgerSet<SafeInteger<__int128_t>>(std::get<PresburgerSet<SafeInteger<int64_t>>>(setvar));
+    } else if (std::holds_alternative<PresburgerSet<SafeInteger<__int128_t>>>(setvar)) {
       setvar = PresburgerSet<BigInt>(std::get<PresburgerSet<mpz_class>>(setvar));
     } else {
       llvm_unreachable("GMP overflowed??");
@@ -159,7 +159,7 @@ public:
     std::visit([](auto &&set) { set.dumpISL(); }, setvar);
   }
 
-  std::variant<PresburgerSet<int16_t>, PresburgerSet<int64_t>, PresburgerSet<__int128_t>, PresburgerSet<BigInt>> setvar;
+  std::variant<PresburgerSet<SafeInteger<int16_t>>, PresburgerSet<SafeInteger<int64_t>>, PresburgerSet<SafeInteger<__int128_t>>, PresburgerSet<BigInt>> setvar;
 };
 
 } // namespace presburger

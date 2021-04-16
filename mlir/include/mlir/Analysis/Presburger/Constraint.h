@@ -34,7 +34,7 @@ public:
   friend class Constraint;
 
   template <typename OInt>
-  Constraint(const Constraint<OInt> &o) : coeffs(convert<SafeInteger<Int>>(o.coeffs)) {}
+  Constraint(const Constraint<OInt> &o) : coeffs(convert<Int>(o.coeffs)) {}
 
   unsigned getNumDims() const {
     // The last element of the coefficient vector is the constant term and does
@@ -56,20 +56,20 @@ public:
     coeffs.erase(coeffs.begin() + pos, coeffs.begin() + pos + count);
   }
 
-  ArrayRef<SafeInteger<Int>> getCoeffs() const { return coeffs; }
+  ArrayRef<Int> getCoeffs() const { return coeffs; }
 
   void shiftToOrigin() { coeffs.back() = 0; }
 
-  void substitute(ArrayRef<SafeInteger<Int>> values) {
+  void substitute(ArrayRef<Int> values) {
     assert(values.size() <= getNumDims() && "Too many values to substitute!");
     for (size_t i = 0; i < values.size(); i++)
       coeffs.back() += values[i] * coeffs[i];
 
-    coeffs = SmallVector<SafeInteger<Int>, 8>(coeffs.begin() + values.size(),
+    coeffs = SmallVector<Int, 8>(coeffs.begin() + values.size(),
                                          coeffs.end());
   }
 
-  void shift(SafeInteger<Int> x) { coeffs.back() += x; }
+  void shift(Int x) { coeffs.back() += x; }
 
   void appendDimension() { insertDimensions(getNumDims(), 1); }
 
@@ -116,15 +116,15 @@ public:
   }
 
 protected:
-  Constraint(ArrayRef<SafeInteger<Int>> oCoeffs)
+  Constraint(ArrayRef<Int> oCoeffs)
       : coeffs(oCoeffs.begin(), oCoeffs.end()) {}
-  SmallVector<SafeInteger<Int>, 8> coeffs;
+  SmallVector<Int, 8> coeffs;
 };
 
 template <typename Int>
 class InequalityConstraint : public Constraint<Int> {
 public:
-  InequalityConstraint(ArrayRef<SafeInteger<Int>> oCoeffs) : Constraint<Int>(oCoeffs) {}
+  InequalityConstraint(ArrayRef<Int> oCoeffs) : Constraint<Int>(oCoeffs) {}
   template <typename OInt>
   InequalityConstraint(const InequalityConstraint<OInt> &o) : Constraint<Int>(o) {}
 
@@ -138,7 +138,7 @@ public:
 template <typename Int>
 class EqualityConstraint : public Constraint<Int> {
 public:
-  EqualityConstraint(ArrayRef<SafeInteger<Int>> oCoeffs) : Constraint<Int>(oCoeffs) {}
+  EqualityConstraint(ArrayRef<Int> oCoeffs) : Constraint<Int>(oCoeffs) {}
   template <typename OInt>
   EqualityConstraint(const EqualityConstraint<OInt> &o) : Constraint<Int>(o) {}
   void print(raw_ostream &os) const {
@@ -152,7 +152,7 @@ template <typename Int>
 class DivisionConstraint : public Constraint<Int> {
 using Constraint<Int>::coeffs;
 public:
-  DivisionConstraint(ArrayRef<SafeInteger<Int>> oCoeffs, SafeInteger<Int> oDenom,
+  DivisionConstraint(ArrayRef<Int> oCoeffs, Int oDenom,
                      unsigned oVariable)
       : Constraint<Int>(oCoeffs), denom(oDenom), variable(oVariable) {}
   void print(raw_ostream &os) const {
@@ -167,18 +167,18 @@ public:
   template <typename OInt>
   DivisionConstraint(const DivisionConstraint<OInt> &o) : Constraint<Int>(o), denom(o.denom), variable(o.variable) {}
 
-  SafeInteger<Int> getDenominator() const { return denom; }
+  Int getDenominator() const { return denom; }
 
   InequalityConstraint<Int> getInequalityLowerBound() const {
-    SmallVector<SafeInteger<Int>, 8> ineqCoeffs = coeffs;
+    SmallVector<Int, 8> ineqCoeffs = coeffs;
     ineqCoeffs[variable] -= denom;
     return InequalityConstraint<Int>(ineqCoeffs);
   }
 
   InequalityConstraint<Int> getInequalityUpperBound() const {
-    SmallVector<SafeInteger<Int>, 8> ineqCoeffs;
+    SmallVector<Int, 8> ineqCoeffs;
     ineqCoeffs.reserve(coeffs.size());
-    for (SafeInteger<Int> coeff : coeffs)
+    for (Int coeff : coeffs)
       ineqCoeffs.push_back(-coeff);
     ineqCoeffs[variable] += denom;
     ineqCoeffs.back() += denom - 1;
@@ -197,14 +197,14 @@ public:
     Constraint<Int>::eraseDimensions(pos, count);
   }
 
-  void substitute(ArrayRef<SafeInteger<Int>> values) {
+  void substitute(ArrayRef<Int> values) {
     assert(variable >= values.size() && "Not yet implemented");
   }
 
   void dump() const { print(llvm::errs()); }
 
 private:
-  SafeInteger<Int> denom;
+  Int denom;
   unsigned variable;
 };
 } // namespace mlir

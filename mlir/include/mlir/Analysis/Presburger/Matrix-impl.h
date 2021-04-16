@@ -23,7 +23,7 @@ Matrix<Int>::Matrix(unsigned rows, unsigned columns)
     : nRows(rows), nColumns(columns), nReservedColumns(isVectorized ? MatrixVectorColumns : nextPowOfTwo(nColumns)), data(nRows * nReservedColumns) {
 
   if constexpr (isVectorized) {
-    SafeInteger<Int>::throwOverflowIf(columns > MatrixVectorColumns);
+    Int::throwOverflowIf(columns > MatrixVectorColumns);
     // llvm::errs() << "Cannot construct matrix with " << nColumns << " columns; limit is " << nReservedColumns << ".\n";
     // exit(1);
   }
@@ -47,7 +47,7 @@ template <typename Int>
 void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
   if (newNColumns > nReservedColumns) {
     if constexpr (isVectorized) {
-      SafeInteger<Int>::throwOverflowIf(true);
+      Int::throwOverflowIf(true);
     }
     unsigned newNReservedColumns = nextPowOfTwo(newNColumns);
     data.resize(newNRows * newNReservedColumns);
@@ -107,13 +107,13 @@ void Matrix<Int>::negateColumn(unsigned column) {
 }
 
 template <typename Int>
-ArrayRef<SafeInteger<Int>> Matrix<Int>::getRow(unsigned row) const {
+ArrayRef<Int> Matrix<Int>::getRow(unsigned row) const {
   return {&data[row * nReservedColumns], nColumns};
 }
 
 template <typename Int>
 void Matrix<Int>::addToRow(unsigned sourceRow, unsigned targetRow,
-                      SafeInteger<Int> scale) {
+                      Int scale) {
   if (scale == 0)
     return;
   for (unsigned col = 0; col < nColumns; ++col)
@@ -122,7 +122,7 @@ void Matrix<Int>::addToRow(unsigned sourceRow, unsigned targetRow,
 }
 
 template <typename Int>
-void Matrix<Int>::scaleColumn(unsigned column, SafeInteger<Int> scale) {
+void Matrix<Int>::scaleColumn(unsigned column, Int scale) {
   if (scale == 0)
     return;
   for (unsigned row = 0, e = getNumRows(); row < e; ++row)
@@ -132,7 +132,7 @@ void Matrix<Int>::scaleColumn(unsigned column, SafeInteger<Int> scale) {
 
 template <typename Int>
 void Matrix<Int>::addToColumn(unsigned sourceColumn, unsigned targetColumn,
-                         SafeInteger<Int> scale) {
+                         Int scale) {
   if (scale == 0)
     return;
   for (unsigned row = 0, e = getNumRows(); row < e; ++row)

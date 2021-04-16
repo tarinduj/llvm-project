@@ -47,10 +47,10 @@ public:
   void subtract(const PresburgerSet &set);
   static PresburgerSet subtract(PresburgerBasicSet<Int> c, const PresburgerSet &set);
 
-  llvm::Optional<SmallVector<SafeInteger<Int>, 8>> findIntegerSample();
+  llvm::Optional<SmallVector<Int, 8>> findIntegerSample();
   bool isIntegerEmpty() const;
   // bool containsPoint(const std::vector<INT> &values) const;
-  llvm::Optional<SmallVector<SafeInteger<Int>, 8>> maybeGetCachedSample() const;
+  llvm::Optional<SmallVector<Int, 8>> maybeGetCachedSample() const;
 
   template <typename OInt>
   friend class PresburgerSet;
@@ -63,9 +63,9 @@ private:
   // If this is set to true, then the set is empty, irrespective of the state
   // of basicSets.
   bool markedEmpty;
-  Optional<SmallVector<SafeInteger<Int>, 8>> maybeSample;
+  Optional<SmallVector<Int, 8>> maybeSample;
   void printBasicSet(raw_ostream &os, PresburgerBasicSet<Int> cs) const;
-  void printVar(raw_ostream &os, SafeInteger<Int> var, unsigned i,
+  void printVar(raw_ostream &os, Int var, unsigned i,
                 unsigned &countNonZero) const;
 };
 

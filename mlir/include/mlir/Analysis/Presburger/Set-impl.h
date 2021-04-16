@@ -19,7 +19,7 @@ template <typename Int>
 template <typename OInt>
 PresburgerSet<Int>::PresburgerSet(const PresburgerSet<OInt> &o) : nDim(o.nDim), nSym(o.nSym), basicSets(convert<PresburgerBasicSet<Int>>(o.basicSets)), markedEmpty(o.markedEmpty) {
   if (o.maybeSample)
-    *maybeSample = convert<SafeInteger<Int>>(*o.maybeSample);
+    *maybeSample = convert<Int>(*o.maybeSample);
 }
 
 template <typename Int>
@@ -154,11 +154,11 @@ PresburgerSet<Int> PresburgerSet<Int>::makeEmptySet(unsigned nDim, unsigned nSym
 
 /// Return `coeffs` with all the elements negated.
 template <typename Int>
-static SmallVector<SafeInteger<Int>, 8>
-getNegatedCoeffs(ArrayRef<SafeInteger<Int>> coeffs) {
-  SmallVector<SafeInteger<Int>, 8> negatedCoeffs;
+static SmallVector<Int, 8>
+getNegatedCoeffs(ArrayRef<Int> coeffs) {
+  SmallVector<Int, 8> negatedCoeffs;
   negatedCoeffs.reserve(coeffs.size());
-  for (SafeInteger<Int> coeff : coeffs)
+  for (Int coeff : coeffs)
     negatedCoeffs.emplace_back(-coeff);
   return negatedCoeffs;
 }
@@ -168,11 +168,11 @@ getNegatedCoeffs(ArrayRef<SafeInteger<Int>> coeffs) {
 /// The complement of a_1 x_1 + ... + a_n x_ + c >= 0 is
 /// a_1 x_1 + ... + a_n x_ + c < 0, i.e., -a_1 x_1 - ... - a_n x_ - c - 1 >= 0.
 template <typename Int>
-static SmallVector<SafeInteger<Int>, 8>
-getComplementIneq(ArrayRef<SafeInteger<Int>> ineq) {
-  SmallVector<SafeInteger<Int>, 8> coeffs;
+static SmallVector<Int, 8>
+getComplementIneq(ArrayRef<Int> ineq) {
+  SmallVector<Int, 8> coeffs;
   coeffs.reserve(ineq.size());
-  for (SafeInteger<Int> coeff : ineq)
+  for (Int coeff : ineq)
     coeffs.emplace_back(-coeff);
   coeffs.back() -= 1;
   return coeffs;
@@ -245,7 +245,7 @@ void subtractRecursively(PresburgerBasicSet<Int> &b, Simplex<Int> &simplex,
   // actually equal to b ^ s_i1 ^ s_i2 ^ ... ^ s_ij, and ineq is the next
   // inequality, s_{i,j+1}. This function recurses into the next level i + 1
   // with the part b ^ s_i1 ^ s_i2 ^ ... ^ s_ij ^ ~s_{i,j+1}.
-  auto recurseWithInequality = [&, i](ArrayRef<SafeInteger<Int>> ineq) {
+  auto recurseWithInequality = [&, i](ArrayRef<Int> ineq) {
     size_t snapshot = simplex.getSnapshot();
     b.addInequality(ineq);
     simplex.addInequality(ineq);
@@ -257,7 +257,7 @@ void subtractRecursively(PresburgerBasicSet<Int> &b, Simplex<Int> &simplex,
   // For each inequality ineq, we first recurse with the part where ineq
   // is not satisfied, and then add the ineq to b and simplex because
   // ineq must be satisfied by all later parts.
-  auto processInequality = [&](ArrayRef<SafeInteger<Int>> ineq) {
+  auto processInequality = [&](ArrayRef<Int> ineq) {
     recurseWithInequality(getComplementIneq(ineq));
     b.addInequality(ineq);
     simplex.addInequality(ineq);
@@ -278,7 +278,7 @@ void subtractRecursively(PresburgerBasicSet<Int> &b, Simplex<Int> &simplex,
 
   offset = sI.getNumInequalities();
   for (unsigned j = 0, e = sI.getNumEqualities(); j < e; ++j) {
-    const ArrayRef<SafeInteger<Int>> &coeffs = sI.getEquality(j).getCoeffs();
+    const ArrayRef<Int> &coeffs = sI.getEquality(j).getCoeffs();
     // Same as the above loop for inequalities, done once each for the positive
     // and negative inequalities that make up this equality.
     if (!isMarkedRedundant[offset + 2 * j])
@@ -429,19 +429,19 @@ bool PresburgerSet<Int>::equal(const PresburgerSet<Int> &s, const PresburgerSet<
 }
 
 template <typename Int>
-Optional<SmallVector<SafeInteger<Int>, 8>> PresburgerSet<Int>::findIntegerSample() {
+Optional<SmallVector<Int, 8>> PresburgerSet<Int>::findIntegerSample() {
   if (maybeSample)
     return maybeSample;
   if (markedEmpty)
     return {};
   if (isUniverse())
-    return SmallVector<SafeInteger<Int>, 8>(nDim, 0);
+    return SmallVector<Int, 8>(nDim, 0);
 
   for (PresburgerBasicSet<Int> &cs : basicSets) {
     if (auto opt = cs.findIntegerSample()) {
-      maybeSample = SmallVector<SafeInteger<Int>, 8>();
+      maybeSample = SmallVector<Int, 8>();
 
-      for (SafeInteger<Int> v : opt.getValue())
+      for (Int v : opt.getValue())
         maybeSample->push_back(v);
 
       return maybeSample;
@@ -462,10 +462,10 @@ bool PresburgerSet<Int>::isIntegerEmpty() const {
 }
 
 template <typename Int>
-llvm::Optional<SmallVector<SafeInteger<Int>, 8>>
+llvm::Optional<SmallVector<Int, 8>>
 PresburgerSet<Int>::maybeGetCachedSample() const {
   if (isUniverse())
-    return SmallVector<SafeInteger<Int>, 8>(nDim, 0);
+    return SmallVector<Int, 8>(nDim, 0);
   return maybeSample;
 }
 

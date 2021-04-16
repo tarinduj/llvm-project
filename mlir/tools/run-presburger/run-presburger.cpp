@@ -11,7 +11,7 @@ using namespace mlir;
 using namespace mlir::presburger;
 
 template <typename Int>
-Optional<PresburgerSet<Int>> setFromString(StringRef string) {
+Optional<PresburgerSet<SafeInt<Int>>> setFromString(StringRef string) {
   ErrorCallback callback = [&](SMLoc loc, const Twine &message) {
     // This is a hack to make the Parser compile
     // These have to be commented out currently because "errors" are raised
@@ -31,7 +31,7 @@ Optional<PresburgerSet<Int>> setFromString(StringRef string) {
   };
   Parser<Int> parser(string, callback);
   PresburgerParser<Int> setParser(parser);
-  PresburgerSet<Int> res;
+  PresburgerSet<SafeInt<Int>> res;
   if (failed(setParser.parsePresburgerSet(res)))
     return {};
   return res;

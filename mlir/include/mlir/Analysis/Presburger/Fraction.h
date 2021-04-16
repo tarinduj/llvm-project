@@ -32,7 +32,7 @@ struct Fraction {
   Fraction() : num(0), den(1) {}
 
   /// Construct a Fraction from a numerator and denominator.
-  Fraction(SafeInteger<Int> oNum, SafeInteger<Int> oDen) : num(oNum), den(oDen) {
+  Fraction(Int oNum, Int oDen) : num(oNum), den(oDen) {
     if (den < 0) {
       num = -num;
       den = -den;
@@ -41,11 +41,11 @@ struct Fraction {
 
   /// The numerator and denominator, respectively. The denominator is always
   /// positive.
-  SafeInteger<Int> num, den;
+  Int num, den;
 };
 
 template <typename Int>
-inline int sign(SafeInteger<Int> x) {
+inline int sign(Int x) {
   if (x > 0)
     return +1;
   if (x < 0)
@@ -58,26 +58,26 @@ inline int sign(SafeInteger<Int> x) {
 /// less than the second fraction, respectively.
 template <typename Int>
 inline int compare(Fraction<Int> x, Fraction<Int> y) {
-  SafeInteger<Int> p = x.num * y.den;
+  Int p = x.num * y.den;
   assert(sign(p) == sign(x.num) * sign(y.den));
-  SafeInteger<Int> q = y.num * x.den;
+  Int q = y.num * x.den;
   assert(sign(q) == sign(y.num) * sign(x.den));
-  SafeInteger<Int> diff = p - q;
+  Int diff = p - q;
   return sign(diff);
 }
 template <typename Int>
-inline int compare(Fraction<Int> x, SafeInteger<Int> y) {
+inline int compare(Fraction<Int> x, Int y) {
   return compare(x, Fraction<Int>(y, 1));
 }
 template <typename Int>
-inline int compare(SafeInteger<Int> x, Fraction<Int> y) {
+inline int compare(Int x, Fraction<Int> y) {
   return compare(Fraction<Int>(x, 1), y);
 }
 
 template <typename Int>
-inline SafeInteger<Int> floor(Fraction<Int> f) { return floorDiv(f.num, f.den); }
+inline Int floor(Fraction<Int> f) { return floorDiv(f.num, f.den); }
 template <typename Int>
-inline SafeInteger<Int> ceil(Fraction<Int> f) { return ceilDiv(f.num, f.den); }
+inline Int ceil(Fraction<Int> f) { return ceilDiv(f.num, f.den); }
 template <typename Int>
 inline Fraction<Int> operator-(Fraction<Int> x) { return Fraction<Int>(-x.num, x.den); }
 template <typename Int>
@@ -94,30 +94,30 @@ template <typename Int>
 inline bool operator>=(Fraction<Int> x, Fraction<Int> y) { return compare(x, y) >= 0; }
 
 template <typename Int>
-inline bool operator<(Fraction<Int> x, SafeInteger<Int> y) { return compare(x, y) < 0; }
+inline bool operator<(Fraction<Int> x, Int y) { return compare(x, y) < 0; }
 template <typename Int>
-inline bool operator<=(Fraction<Int> x, SafeInteger<Int> y) { return compare(x, y) <= 0; }
+inline bool operator<=(Fraction<Int> x, Int y) { return compare(x, y) <= 0; }
 template <typename Int>
-inline bool operator==(Fraction<Int> x, SafeInteger<Int> y) { return compare(x, y) == 0; }
+inline bool operator==(Fraction<Int> x, Int y) { return compare(x, y) == 0; }
 template <typename Int>
-inline bool operator!=(Fraction<Int> x, SafeInteger<Int> y) { return compare(x, y) != 0; }
+inline bool operator!=(Fraction<Int> x, Int y) { return compare(x, y) != 0; }
 template <typename Int>
-inline bool operator>(Fraction<Int> x, SafeInteger<Int> y) { return compare(x, y) > 0; }
+inline bool operator>(Fraction<Int> x, Int y) { return compare(x, y) > 0; }
 template <typename Int>
-inline bool operator>=(Fraction<Int> x, SafeInteger<Int> y) { return compare(x, y) >= 0; }
+inline bool operator>=(Fraction<Int> x, Int y) { return compare(x, y) >= 0; }
 
 template <typename Int>
-inline bool operator<(SafeInteger<Int> x, Fraction<Int> y) { return compare(x, y) < 0; }
+inline bool operator<(Int x, Fraction<Int> y) { return compare(x, y) < 0; }
 template <typename Int>
-inline bool operator<=(SafeInteger<Int> x, Fraction<Int> y) { return compare(x, y) <= 0; }
+inline bool operator<=(Int x, Fraction<Int> y) { return compare(x, y) <= 0; }
 template <typename Int>
-inline bool operator==(SafeInteger<Int> x, Fraction<Int> y) { return compare(x, y) == 0; }
+inline bool operator==(Int x, Fraction<Int> y) { return compare(x, y) == 0; }
 template <typename Int>
-inline bool operator!=(SafeInteger<Int> x, Fraction<Int> y) { return compare(x, y) != 0; }
+inline bool operator!=(Int x, Fraction<Int> y) { return compare(x, y) != 0; }
 template <typename Int>
-inline bool operator>(SafeInteger<Int> x, Fraction<Int> y) { return compare(x, y) > 0; }
+inline bool operator>(Int x, Fraction<Int> y) { return compare(x, y) > 0; }
 template <typename Int>
-inline bool operator>=(SafeInteger<Int> x, Fraction<Int> y) { return compare(x, y) >= 0; }
+inline bool operator>=(Int x, Fraction<Int> y) { return compare(x, y) >= 0; }
 
 template <typename Int>
 inline Fraction<Int> operator*(Fraction<Int> x, Fraction<Int> y) {

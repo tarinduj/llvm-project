@@ -36,7 +36,7 @@ SmallVector<T, S> convert(const SmallVector<U, S> &v) {
   return res;
 }
 
-using DefaultInt = __int128_t;
+using DefaultInt = mpz_class;
 
 /// A class to overflow-aware 64-bit integers.
 template <typename Int>
@@ -76,6 +76,11 @@ struct SafeInteger {
       throw std::overflow_error("Overflow!");
   }
 };
+
+template <typename Int>
+using SafeInt = typename std::conditional<std::is_same<Int, mpz_class>::value,
+mpz_class,
+SafeInteger<Int>>::type;
 
 template <typename Int>
 inline bool operator<(const SafeInteger<Int> &x, const SafeInteger<Int> &y) {
@@ -248,6 +253,10 @@ inline SafeInteger<Int> mod(SafeInteger<Int> lhs, SafeInteger<Int> rhs) {
   assert(rhs >= 1);
   return lhs % rhs < 0 ? lhs % rhs + rhs : lhs % rhs;
 }
+inline mpz_class mod(mpz_class lhs, mpz_class rhs) {
+  assert(rhs >= 1);
+  return lhs % rhs < 0 ? mpz_class(lhs % rhs + rhs) : lhs % rhs;
+}
 
 template <typename Int>
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
@@ -280,6 +289,13 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
   return os;
 }
 
+llvm::raw_ostream &operator<< (llvm::raw_ostream &os, const mpz_class &x) {
+  std::stringstream ss;
+  ss << x;
+  os << ss.str();
+  return os;
+}
+
 template <typename Int>
 inline std::ostream &operator<<(std::ostream &os, const SafeInteger<Int> &x) {
   os << "[SafeInteger<Int>::operator<<(std::ostream) NYI";
@@ -299,6 +315,16 @@ inline SafeInteger<Int> floorDiv(SafeInteger<Int> lhs, SafeInteger<Int> rhs) {
   return lhs % rhs < 0 ? lhs / rhs - 1 : lhs / rhs;
 }
 
+inline mpz_class ceilDiv(mpz_class lhs, mpz_class rhs) {
+  assert(rhs >= 1);
+  return lhs % rhs > 0 ? mpz_class(lhs / rhs + 1) : lhs / rhs;
+}
+
+inline mpz_class floorDiv(mpz_class lhs, mpz_class rhs) {
+  assert(rhs >= 1);
+  return lhs % rhs < 0 ? mpz_class(lhs / rhs - 1) : lhs / rhs;
+}
+
 template <typename Int>
 inline SafeInteger<Int>::operator bool() { return *this != 0; }
 
@@ -313,6 +339,7 @@ using SafeInteger = mlir::analysis::presburger::SafeInteger<Int>;
 
 template <typename Int>
 inline SafeInteger<Int> abs(SafeInteger<Int> x) { return x < 0 ? -x : x; }
+inline mpz_class abs(mpz_class x) { return x < 0 ? -x : x; }
 
 /// Returns the least common multiple of 'a' and 'b'.
 template <typename Int>
@@ -320,6 +347,12 @@ inline SafeInteger<Int> lcm(SafeInteger<Int> a, SafeInteger<Int> b) {
   SafeInteger<Int> x = abs(a);
   SafeInteger<Int> y = abs(b);
   SafeInteger<Int> lcm = (x * y) / llvm::greatestCommonDivisor(x, y);
+  return lcm;
+}
+inline mpz_class lcm(mpz_class a, mpz_class b) {
+  mpz_class x = abs(a);
+  mpz_class y = abs(b);
+  mpz_class lcm = (x * y) / llvm::greatestCommonDivisor(x, y);
   return lcm;
 }
 } // namespace std

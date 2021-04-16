@@ -13,14 +13,14 @@ void printConstraints(raw_ostream &os, const PresburgerSet<Int> &set);
 template <typename Int>
 void printVariableList(raw_ostream &os, unsigned nDim, unsigned nSym);
 template <typename Int>
-void printExpr(raw_ostream &os, ArrayRef<SafeInteger<Int>> coeffs,
-               SafeInteger<Int> constant, const PresburgerBasicSet<Int> &bs);
+void printExpr(raw_ostream &os, ArrayRef<Int> coeffs,
+               Int constant, const PresburgerBasicSet<Int> &bs);
 template <typename Int>
-bool printCoeff(raw_ostream &os, SafeInteger<Int> val, bool first);
+bool printCoeff(raw_ostream &os, Int val, bool first);
 template <typename Int>
 void printVarName(raw_ostream &os, unsigned i, const PresburgerBasicSet<Int> &bs);
 template <typename Int>
-void printConst(raw_ostream &os, SafeInteger<Int> c, bool first);
+void printConst(raw_ostream &os, Int c, bool first);
 
 /// Prints the '(d0, ..., dN)[s0, ... ,sM]' dimension and symbol list.
 ///
@@ -87,7 +87,7 @@ void printConstraints(raw_ostream &os, const PresburgerBasicSet<Int> &bs) {
   for (unsigned i = 0, e = bs.getNumEqualities(); i < e; ++i) {
     if (i != 0)
       os << " and ";
-    ArrayRef<SafeInteger<Int>> eq = bs.getEquality(i).getCoeffs();
+    ArrayRef<Int> eq = bs.getEquality(i).getCoeffs();
     printExpr(os, eq.take_front(numTotalDims), eq[numTotalDims], bs);
     os << " = 0";
   }
@@ -98,7 +98,7 @@ void printConstraints(raw_ostream &os, const PresburgerBasicSet<Int> &bs) {
   for (unsigned i = 0, e = bs.getNumInequalities(); i < e; ++i) {
     if (i != 0)
       os << " and ";
-    ArrayRef<SafeInteger<Int>> ineq = bs.getInequality(i).getCoeffs();
+    ArrayRef<Int> ineq = bs.getInequality(i).getCoeffs();
     printExpr(os, ineq.take_front(numTotalDims), ineq[numTotalDims], bs);
     os << " >= 0";
   }
@@ -115,7 +115,7 @@ void printConstraints(raw_ostream &os, const PresburgerBasicSet<Int> &bs) {
 /// Returns false if the coefficient value is 0 and therefore is not printed.
 ///
 template <typename Int>
-bool printCoeff(raw_ostream &os, SafeInteger<Int> val, bool first) {
+bool printCoeff(raw_ostream &os, Int val, bool first) {
   if (val == 0)
     return false;
 
@@ -177,7 +177,7 @@ void printVarName(raw_ostream &os, unsigned i,
 /// Prints a constant with an additional '+' or '-' is first = false. First
 /// indicates if this is the first summand of an expression.
 template <typename Int>
-void printConst(raw_ostream &os, SafeInteger<Int> c, bool first) {
+void printConst(raw_ostream &os, Int c, bool first) {
   if (first) {
     os << c;
   } else {
@@ -192,8 +192,8 @@ void printConst(raw_ostream &os, SafeInteger<Int> c, bool first) {
 /// dimensions followed by symbols.
 ///
 template <typename Int>
-void printExpr(raw_ostream &os, ArrayRef<SafeInteger<Int>> coeffs,
-               SafeInteger<Int> constant, const PresburgerBasicSet<Int> &bs) {
+void printExpr(raw_ostream &os, ArrayRef<Int> coeffs,
+               Int constant, const PresburgerBasicSet<Int> &bs) {
   bool first = true;
   for (unsigned i = 0, e = coeffs.size(); i < e; ++i) {
     if (printCoeff(os, coeffs[i], first)) {

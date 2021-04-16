@@ -32,7 +32,7 @@ namespace presburger {
 template <typename Int>
 struct pwaFunction {
   SmallVector<PresburgerBasicSet<Int>, 8> domain;
-  SmallVector<SmallVector<SmallVector<SafeInteger<Int>, 8>, 8>, 8> value;
+  SmallVector<SmallVector<SmallVector<Int, 8>, 8>, 8> value;
 
   void dump() {
     for (unsigned i = 0; i < value.size(); ++i) {
@@ -86,9 +86,9 @@ public:
   ParamLexSimplex(unsigned nDim, unsigned nParam);
   explicit ParamLexSimplex(const FlatAffineConstraints &constraints);
 
-  void addInequality(ArrayRef<SafeInteger<Int>> coeffs);
-  void addEquality(ArrayRef<SafeInteger<Int>> coeffs);
-  void addDivisionVariable(ArrayRef<SafeInteger<Int>> coeffs, SafeInteger<Int> denom);
+  void addInequality(ArrayRef<Int> coeffs);
+  void addEquality(ArrayRef<Int> coeffs);
+  void addDivisionVariable(ArrayRef<Int> coeffs, Int denom);
 
   pwaFunction<Int> findParamLexmin();
   void findParamLexminRecursively(Simplex<Int> &domainSimplex,
@@ -96,16 +96,16 @@ public:
                                   pwaFunction<Int> &result);
 
 private:
-  SmallVector<SafeInteger<Int>, 8> getRowParamSample(unsigned row);
+  SmallVector<Int, 8> getRowParamSample(unsigned row);
   LogicalResult moveRowUnknownToColumn(unsigned row);
   void restoreConsistency();
   unsigned getSnapshot();
-  // SmallVector<SafeInteger<Int>, 8> varCoeffsFromRowCoeffs(ArrayRef<SafeInteger<Int>>
+  // SmallVector<Int, 8> varCoeffsFromRowCoeffs(ArrayRef<Int>
   // rowCoeffs) const;
   Optional<unsigned> findPivot(unsigned row) const;
 
   unsigned nParam, nDiv;
-  SmallVector<SmallVector<SafeInteger<Int>, 8>, 8> originalCoeffs;
+  SmallVector<SmallVector<Int, 8>, 8> originalCoeffs;
 };
 } // namespace presburger
 } // namespace analysis

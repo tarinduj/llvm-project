@@ -774,13 +774,13 @@ PresburgerParser<Int>::initVariables(const SmallVector<StringRef, 8> &vars,
 ///
 /// For the exact parsing rules, see Parser<Int>::parseSet
 template <typename Int>
-LogicalResult PresburgerParser<Int>::parsePresburgerSet(PresburgerSet<Int> &set) {
+LogicalResult PresburgerParser<Int>::parsePresburgerSet(PresburgerSet<SafeInt<Int>> &set) {
   std::unique_ptr<SetExpr<Int>> setExpr;
   if (failed(parser.parseSet(setExpr)))
     return failure();
 
   if (setExpr->getConstraints() == nullptr) {
-    set = PresburgerSet<Int>(setExpr->getDims().size(), setExpr->getSyms().size());
+    set = PresburgerSet<SafeInt<Int>>(setExpr->getDims().size(), setExpr->getSyms().size());
     return success();
   }
 
@@ -792,14 +792,14 @@ LogicalResult PresburgerParser<Int>::parsePresburgerSet(PresburgerSet<Int> &set)
   return success();
 }
 
-/// Creates a PresburgerSet<Int> instance from constraints
+/// Creates a PresburgerSet<SafeInt<Int>> instance from constraints
 ///
 /// For each AndExpr<Int> contained in constraints it creates one
 /// PresburgerBasicSet<Int> object
 template <typename Int>
 LogicalResult PresburgerParser<Int>::parsePresburgerSet(Expr *constraints,
-                                                   PresburgerSet<Int> &set) {
-  set = PresburgerSet<Int>(dimNameToIndex.size(), symNameToIndex.size());
+                                                   PresburgerSet<SafeInt<Int>> &set) {
+  set = PresburgerSet<SafeInt<Int>>(dimNameToIndex.size(), symNameToIndex.size());
   if (auto orConstraints = constraints->dyn_cast<OrExpr<Int>>()) {
     for (std::unique_ptr<Expr> &basicSet : orConstraints->getConstraints()) {
       PresburgerBasicSet<Int> bs;
@@ -846,10 +846,10 @@ PresburgerParser<Int>::parsePresburgerBasicSet(Expr *constraints,
         dimNameToIndex.size() + symNameToIndex.size() + existNameToIndex.size();
     SmallVector<DivisionConstraint<Int>, 8> divs;
     for (auto &divExpr : andConstraints->getDivs()) {
-      std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> affineSum;
+      std::pair<Int, SmallVector<Int, 8>> affineSum;
       parseSum(divExpr->num.get(), affineSum);
-      SafeInteger<Int> denominator = divExpr->den->getValue();
-      SmallVector<SafeInteger<Int>, 8> coeffs(affineSum.second);
+      Int denominator = divExpr->den->getValue();
+      SmallVector<Int, 8> coeffs(affineSum.second);
       coeffs.push_back(affineSum.first);
       divs.emplace_back(coeffs, denominator, offset + divs.size());
     }
@@ -881,8 +881,8 @@ PresburgerParser<Int>::parseConstraint(ConstraintExpr<Int> *constraint,
   if (constraint == nullptr)
     llvm_unreachable("constraint was nullptr!");
 
-  std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> left;
-  std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> right;
+  std::pair<Int, SmallVector<Int, 8>> left;
+  std::pair<Int, SmallVector<Int, 8>> right;
   if (failed(parseSum(constraint->getLeftSum(), left)) ||
       failed(parseSum(constraint->getRightSum(), right)))
     return failure();
@@ -892,8 +892,8 @@ PresburgerParser<Int>::parseConstraint(ConstraintExpr<Int> *constraint,
   auto rightConst = right.first;
   auto rightCoeffs = right.second;
 
-  SafeInteger<Int> constant;
-  SmallVector<SafeInteger<Int>, 8> coeffs;
+  Int constant;
+  SmallVector<Int, 8> coeffs;
   if (constraint->getKind() == ConstraintExpr<Int>::Kind::LE) {
     constant = rightConst - leftConst;
     for (size_t i = 0; i < leftCoeffs.size(); i++)
@@ -925,9 +925,9 @@ PresburgerParser<Int>::parseConstraint(ConstraintExpr<Int> *constraint,
 ///
 template <typename Int>
 LogicalResult PresburgerParser<Int>::parseSum(
-    Expr *expr, std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> &r) {
-  SafeInteger<Int> constant = 0;
-  SmallVector<SafeInteger<Int>, 8> coeffs(
+    Expr *expr, std::pair<Int, SmallVector<Int, 8>> &r) {
+  Int constant = 0;
+  SmallVector<Int, 8> coeffs(
       dimNameToIndex.size() + symNameToIndex.size() + existNameToIndex.size() +
           divNameToIndex.size(),
       0);
@@ -950,9 +950,9 @@ LogicalResult PresburgerParser<Int>::parseSum(
 /// Fails if the variable name is unknown
 template <typename Int>
 LogicalResult
-PresburgerParser<Int>::parseAndAddTerm(TermExpr<Int> *term, SafeInteger<Int> &constant,
-                                  SmallVector<SafeInteger<Int>, 8> &coeffs) {
-  SafeInteger<Int> delta = 1;
+PresburgerParser<Int>::parseAndAddTerm(TermExpr<Int> *term, Int &constant,
+                                  SmallVector<Int, 8> &coeffs) {
+  Int delta = 1;
   if (auto coeff = term->getCoeff())
     delta = coeff->getValue();
 
@@ -1032,13 +1032,13 @@ LogicalResult PresburgerParser<Int>::parsePresburgerExpr(PresburgerExpr &res) {
 template <typename Int>
 LogicalResult PresburgerParser<Int>::parseAndAddPiece(PieceExpr *piece,
                                                  PresburgerExpr &expr) {
-  std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> affineExpr;
+  std::pair<Int, SmallVector<Int, 8>> affineExpr;
   parseSum(piece->getExpr(), affineExpr);
 
-  PresburgerSet<Int> set;
+  PresburgerSet<SafeInt<Int>> set;
 
   if (piece->getConstraints() == nullptr)
-    set = PresburgerSet<Int>(expr.getNumDims(), expr.getNumSyms());
+    set = PresburgerSet<SafeInt<Int>>(expr.getNumDims(), expr.getNumSyms());
   else
     parsePresburgerSet(piece->getConstraints(), set);
 

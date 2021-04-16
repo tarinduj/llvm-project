@@ -26,7 +26,7 @@ PresburgerBasicSet<Int>::PresburgerBasicSet(const PresburgerBasicSet<OInt> &o) :
   nDim(o.nDim), nParam(o.nParam), nExist(o.nExist) {}
 
 template <typename Int>
-void PresburgerBasicSet<Int>::addInequality(ArrayRef<SafeInteger<Int>> coeffs) {
+void PresburgerBasicSet<Int>::addInequality(ArrayRef<Int> coeffs) {
   ineqs.emplace_back(coeffs);
 }
 
@@ -74,7 +74,7 @@ void PresburgerBasicSet<Int>::removeLastDivision() {
 }
 
 template <typename Int>
-void PresburgerBasicSet<Int>::addEquality(ArrayRef<SafeInteger<Int>> coeffs) {
+void PresburgerBasicSet<Int>::addEquality(ArrayRef<Int> coeffs) {
   eqs.emplace_back(coeffs);
 }
 
@@ -91,7 +91,7 @@ PresburgerBasicSet<Int> PresburgerBasicSet<Int>::makePlainBasicSet() const {
 }
 
 template <typename Int>
-Optional<SmallVector<SafeInteger<Int>, 8>>
+Optional<SmallVector<Int, 8>>
 PresburgerBasicSet<Int>::findIntegerSampleRemoveEqs(bool onlyEmptiness) const {
   auto copy = *this;
   if (!ineqs.empty()) {
@@ -103,7 +103,7 @@ PresburgerBasicSet<Int>::findIntegerSampleRemoveEqs(bool onlyEmptiness) const {
   auto coeffMatrix = copy.coefficientMatrixFromEqs();
   LinearTransform<Int> U =
       LinearTransform<Int>::makeTransformToColumnEchelon(coeffMatrix);
-  SmallVector<SafeInteger<Int>, 8> vals;
+  SmallVector<Int, 8> vals;
   vals.reserve(copy.getNumTotalDims());
   unsigned col = 0;
   for (unsigned row = 0, e = copy.eqs.size(); row < e; ++row) {
@@ -112,7 +112,7 @@ PresburgerBasicSet<Int>::findIntegerSampleRemoveEqs(bool onlyEmptiness) const {
     const auto &coeffs = coeffMatrix.getRow(row);
     if (coeffs[col] == 0)
       continue;
-    SafeInteger<Int> val = copy.eqs[row].getCoeffs().back();
+    Int val = copy.eqs[row].getCoeffs().back();
     for (unsigned c = 0; c < col; ++c) {
       val -= vals[c] * coeffs[c];
     }
@@ -137,7 +137,7 @@ PresburgerBasicSet<Int>::findIntegerSampleRemoveEqs(bool onlyEmptiness) const {
 }
 
 template <typename Int>
-Optional<SmallVector<SafeInteger<Int>, 8>>
+Optional<SmallVector<Int, 8>>
 PresburgerBasicSet<Int>::findIntegerSample(bool onlyEmptiness) const {
   if (!isPlainBasicSet())
     return makePlainBasicSet().findIntegerSample();
@@ -145,7 +145,7 @@ PresburgerBasicSet<Int>::findIntegerSample(bool onlyEmptiness) const {
     return findIntegerSampleRemoveEqs(onlyEmptiness);
   PresburgerBasicSet cone = makeRecessionCone();
   if (cone.getNumEqualities() == 0 && onlyEmptiness)
-    return SmallVector<SafeInteger<Int>, 8>();
+    return SmallVector<Int, 8>();
   if (cone.getNumEqualities() < getNumTotalDims())
     return findSampleUnbounded(cone, onlyEmptiness);
   else
@@ -161,7 +161,7 @@ bool PresburgerBasicSet<Int>::isIntegerEmpty() const {
 }
 
 template <typename Int>
-Optional<std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>>>
+Optional<std::pair<Int, SmallVector<Int, 8>>>
 PresburgerBasicSet<Int>::findRationalSample() const {
   Simplex<Int> simplex(*this);
   if (simplex.isEmpty())
@@ -191,7 +191,7 @@ bool PresburgerBasicSet<Int>::isPlainBasicSet() const {
 }
 
 template <typename Int>
-void PresburgerBasicSet<Int>::substitute(ArrayRef<SafeInteger<Int>> values) {
+void PresburgerBasicSet<Int>::substitute(ArrayRef<Int> values) {
   assert(isPlainBasicSet());
   for (auto &ineq : ineqs)
     ineq.substitute(values);
@@ -228,7 +228,7 @@ void PresburgerBasicSet<Int>::substitute(ArrayRef<SafeInteger<Int>> values) {
 // found a sample x satisfying the transformed constraint matrix MU. Therefore,
 // Ux is a sample that satisfies M.
 template <typename Int>
-llvm::Optional<SmallVector<SafeInteger<Int>, 8>>
+llvm::Optional<SmallVector<Int, 8>>
 PresburgerBasicSet<Int>::findSampleUnbounded(PresburgerBasicSet &cone,
                                         bool onlyEmptiness) const {
   auto coeffMatrix = cone.coefficientMatrixFromEqs();
@@ -251,7 +251,7 @@ PresburgerBasicSet<Int>::findSampleUnbounded(PresburgerBasicSet &cone,
 
   // TODO change to SmallVector!
 
-  SmallVector<SafeInteger<Int>, 8> sample(*maybeBoundedSample);
+  SmallVector<Int, 8> sample(*maybeBoundedSample);
   sample.insert(sample.end(), maybeUnboundedSample->begin(),
                 maybeUnboundedSample->end());
   return U.preMultiplyColumn(std::move(sample));
@@ -270,15 +270,15 @@ PresburgerBasicSet<Int>::findSampleUnbounded(PresburgerBasicSet &cone,
 // the single constraint <a, x> + sum_{a_i < 0} a_i >= c.
 // 
 template <typename Int>
-Optional<SmallVector<SafeInteger<Int>, 8>> PresburgerBasicSet<Int>::findSampleFullCone() {
+Optional<SmallVector<Int, 8>> PresburgerBasicSet<Int>::findSampleFullCone() {
   // NOTE isl instead makes a recession cone, shifts the cone to some rational
   // point in the initial set, and then does the following on the shifted cone.
   // It is unclear why we need to do all that since the current basic set is
   // already the required shifted cone.
   for (unsigned i = 0, e = getNumInequalities(); i < e; ++i) {
-    SafeInteger<Int> shift = 0;
+    Int shift = 0;
     for (unsigned j = 0, e = getNumTotalDims(); j < e; ++j) {
-      SafeInteger<Int> coeff = ineqs[i].getCoeffs()[j];
+      Int coeff = ineqs[i].getCoeffs()[j];
       if (coeff < 0)
         shift += coeff;
     }
@@ -362,7 +362,7 @@ void PresburgerBasicSet<Int>::projectOutUnboundedDimensions(unsigned unboundedDi
 }
 
 template <typename Int>
-Optional<SmallVector<SafeInteger<Int>, 8>>
+Optional<SmallVector<Int, 8>>
 PresburgerBasicSet<Int>::findBoundedDimensionsSample(const PresburgerBasicSet &cone,
                                                 bool onlyEmptiness) const {
   assert(cone.isPlainBasicSet());
@@ -373,10 +373,10 @@ PresburgerBasicSet<Int>::findBoundedDimensionsSample(const PresburgerBasicSet &c
 }
 
 template <typename Int>
-Optional<SmallVector<SafeInteger<Int>, 8>>
+Optional<SmallVector<Int, 8>>
 PresburgerBasicSet<Int>::findSampleBounded(bool onlyEmptiness) const {
   if (getNumTotalDims() == 0)
-    return SmallVector<SafeInteger<Int>, 8>();
+    return SmallVector<Int, 8>();
   return Simplex<Int>(*this).findIntegerSample();
 }
 
@@ -441,8 +441,8 @@ void PresburgerBasicSet<Int>::insertDimensions(unsigned pos, unsigned count) {
 }
 
 template <typename Int>
-void PresburgerBasicSet<Int>::appendDivisionVariable(ArrayRef<SafeInteger<Int>> coeffs,
-                                                SafeInteger<Int> denom) {
+void PresburgerBasicSet<Int>::appendDivisionVariable(ArrayRef<Int> coeffs,
+                                                Int denom) {
   assert(coeffs.size() == getNumTotalDims() + 1);
   divs.emplace_back(coeffs, denom, /*variable = */ getNumTotalDims());
 

@@ -178,15 +178,15 @@ public:
 template <typename Int>
 class IntegerExpr : public Expr {
 public:
-  explicit IntegerExpr(SafeInteger<Int> value) : value(value) {}
+  explicit IntegerExpr(Int value) : value(value) {}
 
-  SafeInteger<Int> getValue() { return value; }
+  Int getValue() { return value; }
 
   static Type getStaticType() { return Type::Integer; }
   virtual Type getType() { return Type::Integer; }
 
 private:
-  SafeInteger<Int> value;
+  Int value;
 };
 
 class VariableExpr : public Expr {
@@ -437,7 +437,7 @@ template <typename Int>
 class PresburgerParser {
 public:
   enum class Kind { Equality, Inequality };
-  using Constraint = std::pair<SmallVector<SafeInteger<Int>, 8>, Kind>;
+  using Constraint = std::pair<SmallVector<Int, 8>, Kind>;
 
   PresburgerParser(Parser<Int> parser);
 
@@ -445,11 +445,11 @@ public:
   LogicalResult parsePresburgerExpr(PresburgerExpr &expr);
 
   /// Parse a Presburger set into set
-  LogicalResult parsePresburgerSet(PresburgerSet<Int> &set);
+  LogicalResult parsePresburgerSet(PresburgerSet<SafeInt<Int>> &set);
 
 private:
   // parsing helpers
-  LogicalResult parsePresburgerSet(Expr *constraints, PresburgerSet<Int> &set);
+  LogicalResult parsePresburgerSet(Expr *constraints, PresburgerSet<SafeInt<Int>> &set);
   LogicalResult parseAndAddPiece(PieceExpr *piece, PresburgerExpr &expr);
   LogicalResult parsePresburgerBasicSet(Expr *constraints,
                                         PresburgerBasicSet<Int> &bs);
@@ -457,9 +457,9 @@ private:
                               StringMap<size_t> &map);
   LogicalResult parseConstraint(ConstraintExpr<Int> *constraint, Constraint &c);
   LogicalResult
-  parseSum(Expr *expr, std::pair<SafeInteger<Int>, SmallVector<SafeInteger<Int>, 8>> &r);
-  LogicalResult parseAndAddTerm(TermExpr<Int> *term, SafeInteger<Int> &constant,
-                                SmallVector<SafeInteger<Int>, 8> &coeffs);
+  parseSum(Expr *expr, std::pair<Int, SmallVector<Int, 8>> &r);
+  LogicalResult parseAndAddTerm(TermExpr<Int> *term, Int &constant,
+                                SmallVector<Int, 8> &coeffs);
   void addConstraint(PresburgerBasicSet<Int> &bs, Constraint &constraint);
   InFlightDiagnostic emitError(SMLoc loc, const Twine &message = {});
   InFlightDiagnostic emitError(const Twine &message = {});

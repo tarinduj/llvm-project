@@ -31,6 +31,8 @@ Optional<PresburgerSet<Int>> setFromString(StringRef string) {
 }
 
 void dumpStats(TransprecSet &a) {
+  a.dumpISL();
+  return;
   std::visit([&](auto &&set) {
     unsigned ids = set.getNumDims() + set.getNumSyms(), nDivs = 0, nEqs = 0, nIneqs = 0, nBS = 0;
     for (auto &bs : set.getBasicSets()) {
@@ -107,7 +109,7 @@ int main(int argc, char **argv) {
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
-        a.dumpISL();
+        dumpStats(a);
     }
   } else if (op == "intersect") {
     TransprecSet setA = getSetFromInput();
@@ -121,7 +123,7 @@ int main(int argc, char **argv) {
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
-        a.dumpISL();
+        dumpStats(a);
     }
   } else if (op == "subtract") {
     TransprecSet setA = getSetFromInput();
@@ -135,7 +137,7 @@ int main(int argc, char **argv) {
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
-        a.dumpISL();
+        dumpStats(a);
     }
   } else if (op == "coalesce") {
     TransprecSet setA = getSetFromInput();
@@ -147,7 +149,7 @@ int main(int argc, char **argv) {
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
-        res.dumpISL();
+        dumpStats(res);
     }
   } else if (op == "complement") {
     TransprecSet setA = getSetFromInput();
@@ -159,7 +161,7 @@ int main(int argc, char **argv) {
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
-        res.dumpISL();
+        dumpStats(res);
     }
   } else if (op == "eliminate") {
     TransprecSet setA = getSetFromInput();
@@ -171,7 +173,7 @@ int main(int argc, char **argv) {
       unsigned long long end = __rdtscp(&dummy);
       std::cerr << end - start << '\n';
       if (i == numRuns - 1)
-        a.dumpISL();
+        dumpStats(a);
     }
   } else {
     std::cout << "Unsupported operation " << op << "!\n";

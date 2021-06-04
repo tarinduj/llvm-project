@@ -38,7 +38,7 @@ std::string Dialect::getCppClassName() const {
 static StringRef getAsStringOrEmpty(const llvm::Record &record,
                                     StringRef fieldName) {
   if (auto valueInit = record.getValueInit(fieldName)) {
-    if (llvm::isa<llvm::CodeInit, llvm::StringInit>(valueInit))
+    if (llvm::isa<llvm::StringInit>(valueInit))
       return record.getValueAsString(fieldName);
   }
   return "";
@@ -61,6 +61,10 @@ llvm::Optional<StringRef> Dialect::getExtraClassDeclaration() const {
   return value.empty() ? llvm::Optional<StringRef>() : value;
 }
 
+bool Dialect::hasCanonicalizer() const {
+  return def->getValueAsBit("hasCanonicalizer");
+}
+
 bool Dialect::hasConstantMaterializer() const {
   return def->getValueAsBit("hasConstantMaterializer");
 }
@@ -75,6 +79,10 @@ bool Dialect::hasRegionArgAttrVerify() const {
 
 bool Dialect::hasRegionResultAttrVerify() const {
   return def->getValueAsBit("hasRegionResultAttrVerify");
+}
+
+bool Dialect::hasOperationInterfaceFallback() const {
+  return def->getValueAsBit("hasOperationInterfaceFallback");
 }
 
 bool Dialect::operator==(const Dialect &other) const {

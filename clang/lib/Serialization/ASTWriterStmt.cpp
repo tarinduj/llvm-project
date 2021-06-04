@@ -115,6 +115,7 @@ void ASTStmtWriter::VisitDefaultStmt(DefaultStmt *S) {
 
 void ASTStmtWriter::VisitLabelStmt(LabelStmt *S) {
   VisitStmt(S);
+  Record.push_back(S->isSideEntry());
   Record.AddDeclRef(S->getDecl());
   Record.AddStmt(S->getSubStmt());
   Record.AddSourceLocation(S->getIdentLoc());
@@ -577,6 +578,17 @@ void ASTStmtWriter::VisitConstantExpr(ConstantExpr *E) {
 
   Record.AddStmt(E->getSubExpr());
   Code = serialization::EXPR_CONSTANT;
+}
+
+void ASTStmtWriter::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
+  VisitExpr(E);
+
+  Record.AddSourceLocation(E->getLocation());
+  Record.AddSourceLocation(E->getLParenLocation());
+  Record.AddSourceLocation(E->getRParenLocation());
+  Record.AddTypeSourceInfo(E->getTypeSourceInfo());
+
+  Code = serialization::EXPR_SYCL_UNIQUE_STABLE_NAME;
 }
 
 void ASTStmtWriter::VisitPredefinedExpr(PredefinedExpr *E) {
@@ -1900,7 +1912,7 @@ ASTStmtWriter::VisitDependentScopeDeclRefExpr(DependentScopeDeclRefExpr *E) {
 void
 ASTStmtWriter::VisitCXXUnresolvedConstructExpr(CXXUnresolvedConstructExpr *E) {
   VisitExpr(E);
-  Record.push_back(E->arg_size());
+  Record.push_back(E->getNumArgs());
   for (CXXUnresolvedConstructExpr::arg_iterator
          ArgI = E->arg_begin(), ArgE = E->arg_end(); ArgI != ArgE; ++ArgI)
     Record.AddStmt(*ArgI);
@@ -2018,6 +2030,7 @@ void ASTStmtWriter::VisitSubstNonTypeTemplateParmExpr(
                                               SubstNonTypeTemplateParmExpr *E) {
   VisitExpr(E);
   Record.AddDeclRef(E->getParameter());
+  Record.push_back(E->isReferenceParameter());
   Record.AddSourceLocation(E->getNameLoc());
   Record.AddStmt(E->getReplacement());
   Code = serialization::EXPR_SUBST_NON_TYPE_TEMPLATE_PARM;
@@ -2169,16 +2182,27 @@ void ASTStmtWriter::VisitSEHLeaveStmt(SEHLeaveStmt *S) {
 // OpenMP Directives.
 //===----------------------------------------------------------------------===//
 
+void ASTStmtWriter::VisitOMPCanonicalLoop(OMPCanonicalLoop *S) {
+  VisitStmt(S);
+  for (Stmt *SubStmt : S->SubStmts)
+    Record.AddStmt(SubStmt);
+  Code = serialization::STMT_OMP_CANONICAL_LOOP;
+}
+
 void ASTStmtWriter::VisitOMPExecutableDirective(OMPExecutableDirective *E) {
   Record.writeOMPChildren(E->Data);
   Record.AddSourceLocation(E->getBeginLoc());
   Record.AddSourceLocation(E->getEndLoc());
 }
 
-void ASTStmtWriter::VisitOMPLoopDirective(OMPLoopDirective *D) {
+void ASTStmtWriter::VisitOMPLoopBasedDirective(OMPLoopBasedDirective *D) {
   VisitStmt(D);
-  Record.writeUInt32(D->getCollapsedNumber());
+  Record.writeUInt32(D->getLoopsNumber());
   VisitOMPExecutableDirective(D);
+}
+
+void ASTStmtWriter::VisitOMPLoopDirective(OMPLoopDirective *D) {
+  VisitOMPLoopBasedDirective(D);
 }
 
 void ASTStmtWriter::VisitOMPParallelDirective(OMPParallelDirective *D) {
@@ -2191,6 +2215,11 @@ void ASTStmtWriter::VisitOMPParallelDirective(OMPParallelDirective *D) {
 void ASTStmtWriter::VisitOMPSimdDirective(OMPSimdDirective *D) {
   VisitOMPLoopDirective(D);
   Code = serialization::STMT_OMP_SIMD_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPTileDirective(OMPTileDirective *D) {
+  VisitOMPLoopBasedDirective(D);
+  Code = serialization::STMT_OMP_TILE_DIRECTIVE;
 }
 
 void ASTStmtWriter::VisitOMPForDirective(OMPForDirective *D) {
@@ -2522,6 +2551,25 @@ void ASTStmtWriter::VisitOMPTargetTeamsDistributeSimdDirective(
     OMPTargetTeamsDistributeSimdDirective *D) {
   VisitOMPLoopDirective(D);
   Code = serialization::STMT_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPInteropDirective(OMPInteropDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+  Code = serialization::STMT_OMP_INTEROP_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPDispatchDirective(OMPDispatchDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+  Record.AddSourceLocation(D->getTargetCallLoc());
+  Code = serialization::STMT_OMP_DISPATCH_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPMaskedDirective(OMPMaskedDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+  Code = serialization::STMT_OMP_MASKED_DIRECTIVE;
 }
 
 //===----------------------------------------------------------------------===//

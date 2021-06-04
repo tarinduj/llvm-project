@@ -225,6 +225,11 @@ LLVM-specific variables
   targets. Case-sensitive. Defaults to *all*. Example:
   ``-DLLVM_TARGETS_TO_BUILD="X86;PowerPC"``.
 
+**LLVM_EXPERIMENTAL_TARGETS_TO_BUILD**:STRING
+  Semicolon-separated list of experimental targets to build and linked into 
+  llvm. This will build the experimental target without needing it to add to the 
+  list of all the targets available in the LLVM's main CMakeLists.txt.
+
 **LLVM_BUILD_TOOLS**:BOOL
   Build LLVM tools. Defaults to ON. Targets for building each tool are generated
   in any case. You can build a tool separately by invoking its target. For
@@ -427,6 +432,11 @@ LLVM-specific variables
   Define the sanitizer used to build LLVM binaries and tests. Possible values
   are ``Address``, ``Memory``, ``MemoryWithOrigins``, ``Undefined``, ``Thread``,
   ``DataFlow``, and ``Address;Undefined``. Defaults to empty string.
+
+**LLVM_UBSAN_FLAGS**:STRING
+  Defines the set of compile flags used to enable UBSan. Only used if
+  ``LLVM_USE_SANITIZER`` contains ``Undefined``. This can be used to override
+  the default set of UBSan flags.
 
 **LLVM_ENABLE_LTO**:STRING
   Add ``-flto`` or ``-flto=`` flags to the compile and link command
@@ -760,7 +770,8 @@ and uses them to build a simple application ``simple-tool``.
   # for your compiler.
 
   include_directories(${LLVM_INCLUDE_DIRS})
-  add_definitions(${LLVM_DEFINITIONS})
+  separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+  add_definitions(${LLVM_DEFINITIONS_LIST})
 
   # Now build our tools
   add_executable(simple-tool tool.cpp)
@@ -860,7 +871,8 @@ Contents of ``<project dir>/CMakeLists.txt``:
 
   find_package(LLVM REQUIRED CONFIG)
 
-  add_definitions(${LLVM_DEFINITIONS})
+  separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+  add_definitions(${LLVM_DEFINITIONS_LIST})
   include_directories(${LLVM_INCLUDE_DIRS})
 
   add_subdirectory(<pass name>)

@@ -338,6 +338,7 @@ static bool findGccVersion(StringRef LibDir, std::string &GccLibDir,
       continue;
     if (CandidateVersion <= Version)
       continue;
+    Version = CandidateVersion;
     Ver = std::string(VersionText);
     GccLibDir = LI->path();
   }
@@ -491,6 +492,7 @@ SanitizerMask toolchains::MinGW::getSupportedSanitizers() const {
   Res |= SanitizerKind::Address;
   Res |= SanitizerKind::PointerCompare;
   Res |= SanitizerKind::PointerSubtract;
+  Res |= SanitizerKind::Vptr;
   return Res;
 }
 

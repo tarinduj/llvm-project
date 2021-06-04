@@ -550,6 +550,10 @@ hash_code llvm::hash_value(const APInt &Arg) {
       hash_combine_range(Arg.U.pVal, Arg.U.pVal + Arg.getNumWords()));
 }
 
+unsigned DenseMapInfo<APInt>::getHashValue(const APInt &Key) {
+  return static_cast<unsigned>(hash_value(Key));
+}
+
 bool APInt::isSplat(unsigned SplatSizeInBits) const {
   assert(getBitWidth() % SplatSizeInBits == 0 &&
          "SplatSizeInBits must divide width!");
@@ -956,6 +960,12 @@ APInt APInt::zextOrTrunc(unsigned width) const {
 APInt APInt::sextOrTrunc(unsigned width) const {
   if (BitWidth < width)
     return sext(width);
+  if (BitWidth > width)
+    return trunc(width);
+  return *this;
+}
+
+APInt APInt::truncOrSelf(unsigned width) const {
   if (BitWidth > width)
     return trunc(width);
   return *this;

@@ -328,6 +328,7 @@ namespace clang {
     void VisitTypedefDecl(TypedefDecl *TD);
     void VisitTypeAliasDecl(TypeAliasDecl *TD);
     void VisitUnresolvedUsingTypenameDecl(UnresolvedUsingTypenameDecl *D);
+    void VisitUnresolvedUsingIfExistsDecl(UnresolvedUsingIfExistsDecl *D);
     RedeclarableResult VisitTagDecl(TagDecl *TD);
     void VisitEnumDecl(EnumDecl *ED);
     RedeclarableResult VisitRecordDeclImpl(RecordDecl *RD);
@@ -369,6 +370,7 @@ namespace clang {
     void VisitFieldDecl(FieldDecl *FD);
     void VisitMSPropertyDecl(MSPropertyDecl *FD);
     void VisitMSGuidDecl(MSGuidDecl *D);
+    void VisitTemplateParamObjectDecl(TemplateParamObjectDecl *D);
     void VisitIndirectFieldDecl(IndirectFieldDecl *FD);
     RedeclarableResult VisitVarDeclImpl(VarDecl *D);
     void VisitVarDecl(VarDecl *VD) { VisitVarDeclImpl(VD); }
@@ -867,7 +869,10 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
   FD->setInlineSpecified(Record.readInt());
   FD->setImplicitlyInline(Record.readInt());
   FD->setVirtualAsWritten(Record.readInt());
-  FD->setPure(Record.readInt());
+  // We defer calling `FunctionDecl::setPure()` here as for methods of
+  // `CXXTemplateSpecializationDecl`s, we may not have connected up the
+  // definition (which is required for `setPure`).
+  const bool Pure = Record.readInt();
   FD->setHasInheritedPrototype(Record.readInt());
   FD->setHasWrittenPrototype(Record.readInt());
   FD->setDeletedAsWritten(Record.readInt());
@@ -887,7 +892,6 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
 
   FD->ODRHash = Record.readInt();
   FD->setHasODRHash(true);
-  FD->setUsesFPIntrin(Record.readInt());
 
   if (FD->isDefaulted()) {
     if (unsigned NumLookups = Record.readInt()) {
@@ -1014,6 +1018,10 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
     break;
   }
   }
+
+  // Defer calling `setPure` until merging above has guaranteed we've set
+  // `DefinitionData` (as this will need to access it).
+  FD->setPure(Pure);
 
   // Read in the parameters.
   unsigned NumParams = Record.readInt();
@@ -1377,6 +1385,17 @@ void ASTDeclReader::VisitMSGuidDecl(MSGuidDecl *D) {
     Reader.getContext().setPrimaryMergedDecl(D, Existing->getCanonicalDecl());
 }
 
+void ASTDeclReader::VisitTemplateParamObjectDecl(TemplateParamObjectDecl *D) {
+  VisitValueDecl(D);
+  D->Value = Record.readAPValue();
+
+  // Add this template parameter object to the AST context's lookup structure,
+  // and merge if needed.
+  if (TemplateParamObjectDecl *Existing =
+          Reader.getContext().TemplateParamObjectDecls.GetOrInsertNode(D))
+    Reader.getContext().setPrimaryMergedDecl(D, Existing->getCanonicalDecl());
+}
+
 void ASTDeclReader::VisitIndirectFieldDecl(IndirectFieldDecl *FD) {
   VisitValueDecl(FD);
 
@@ -1423,10 +1442,9 @@ ASTDeclReader::RedeclarableResult ASTDeclReader::VisitVarDeclImpl(VarDecl *VD) {
 
   if (uint64_t Val = Record.readInt()) {
     VD->setInit(Record.readExpr());
-    if (Val > 1) {
+    if (Val != 1) {
       EvaluatedStmt *Eval = VD->ensureEvaluatedStmt();
-      Eval->CheckedICE = true;
-      Eval->IsICE = (Val & 1) != 0;
+      Eval->HasConstantInitialization = (Val & 2) != 0;
       Eval->HasConstantDestruction = (Val & 4) != 0;
     }
   }
@@ -1690,6 +1708,11 @@ void ASTDeclReader::VisitUnresolvedUsingTypenameDecl(
   mergeMergeable(D);
 }
 
+void ASTDeclReader::VisitUnresolvedUsingIfExistsDecl(
+    UnresolvedUsingIfExistsDecl *D) {
+  VisitNamedDecl(D);
+}
+
 void ASTDeclReader::ReadCXXDefinitionData(
     struct CXXRecordDecl::DefinitionData &Data, const CXXRecordDecl *D) {
   #define FIELD(Name, Width, Merge) \
@@ -1731,6 +1754,7 @@ void ASTDeclReader::ReadCXXDefinitionData(
     Lambda.NumExplicitCaptures = Record.readInt();
     Lambda.HasKnownInternalLinkage = Record.readInt();
     Lambda.ManglingNumber = Record.readInt();
+    D->setDeviceLambdaManglingNumber(Record.readInt());
     Lambda.ContextDecl = readDeclID();
     Lambda.Captures = (Capture *)Reader.getContext().Allocate(
         sizeof(Capture) * Lambda.NumCaptures);
@@ -1936,6 +1960,7 @@ ASTDeclReader::VisitCXXRecordDeclImpl(CXXRecordDecl *D) {
 
 void ASTDeclReader::VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D) {
   D->setExplicitSpecifier(Record.readExplicitSpec());
+  D->Ctor = readDeclAs<CXXConstructorDecl>();
   VisitFunctionDecl(D);
   D->setIsCopyDeductionCandidate(Record.readInt());
 }
@@ -2410,8 +2435,10 @@ void ASTDeclReader::VisitLifetimeExtendedTemporaryDecl(
   VisitDecl(D);
   D->ExtendingDecl = readDeclAs<ValueDecl>();
   D->ExprWithTemporary = Record.readStmt();
-  if (Record.readInt())
+  if (Record.readInt()) {
     D->Value = new (D->getASTContext()) APValue(Record.readAPValue());
+    D->getASTContext().addDestruction(D->Value);
+  }
   D->ManglingNumber = Record.readInt();
   mergeMergeable(D);
 }
@@ -3829,6 +3856,9 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
   case DECL_UNRESOLVED_USING_TYPENAME:
     D = UnresolvedUsingTypenameDecl::CreateDeserialized(Context, ID);
     break;
+  case DECL_UNRESOLVED_USING_IF_EXISTS:
+    D = UnresolvedUsingIfExistsDecl::CreateDeserialized(Context, ID);
+    break;
   case DECL_CXX_RECORD:
     D = CXXRecordDecl::CreateDeserialized(Context, ID);
     break;
@@ -3983,6 +4013,9 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
     break;
   case DECL_MS_GUID:
     D = MSGuidDecl::CreateDeserialized(Context, ID);
+    break;
+  case DECL_TEMPLATE_PARAM_OBJECT:
+    D = TemplateParamObjectDecl::CreateDeserialized(Context, ID);
     break;
   case DECL_CAPTURED:
     D = CapturedDecl::CreateDeserialized(Context, ID, Record.readInt());
@@ -4438,10 +4471,10 @@ void ASTDeclReader::UpdateDecl(Decl *D,
       uint64_t Val = Record.readInt();
       if (Val && !VD->getInit()) {
         VD->setInit(Record.readExpr());
-        if (Val > 1) { // IsInitKnownICE = 1, IsInitNotICE = 2, IsInitICE = 3
+        if (Val != 1) {
           EvaluatedStmt *Eval = VD->ensureEvaluatedStmt();
-          Eval->CheckedICE = true;
-          Eval->IsICE = Val == 3;
+          Eval->HasConstantInitialization = (Val & 2) != 0;
+          Eval->HasConstantDestruction = (Val & 4) != 0;
         }
       }
       break;

@@ -31,6 +31,9 @@ bitmap_element_allocate.exit:
 }
 
 
-; CHECK:       polly.stmt.cond.end73.i:
-; CHECK-NEXT:   store %structty* undef, %structty** %b.s2a
+
+; CHECK:      polly.stmt.cond.end73.i:
+; CHECK-NEXT:   %scevgep = getelementptr i8, i8* null, i64 %a
+; CHECK-NEXT:   %scevgep1 = bitcast i8* %scevgep to %structty*
+; CHECK-NEXT:   store %structty* %scevgep1, %structty** %b.s2a, align 8
 ; CHECK-NEXT:   br label %polly.exiting

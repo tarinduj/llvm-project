@@ -72,11 +72,6 @@
 #include <f16cintrin.h>
 #endif
 
-#if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
-    defined(__VPCLMULQDQ__)
-#include <vpclmulqdqintrin.h>
-#endif
-
 /* No feature check desired due to internal checks */
 #include <bmiintrin.h>
 
@@ -143,6 +138,11 @@
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
     (defined(__AVX512VL__) && defined(__AVX512VNNI__))
 #include <avx512vlvnniintrin.h>
+#endif
+
+#if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
+    defined(__AVXVNNI__)
+#include <avxvnniintrin.h>
 #endif
 
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
@@ -223,6 +223,11 @@
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
     defined(__PKU__)
 #include <pkuintrin.h>
+#endif
+
+#if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
+    defined(__VPCLMULQDQ__)
+#include <vpclmulqdqintrin.h>
 #endif
 
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \

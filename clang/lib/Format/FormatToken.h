@@ -40,11 +40,13 @@ namespace format {
   TYPE(ConflictAlternative)                                                    \
   TYPE(ConflictEnd)                                                            \
   TYPE(ConflictStart)                                                          \
+  TYPE(ConstraintJunctions)                                                    \
   TYPE(CtorInitializerColon)                                                   \
   TYPE(CtorInitializerComma)                                                   \
   TYPE(DesignatedInitializerLSquare)                                           \
   TYPE(DesignatedInitializerPeriod)                                            \
   TYPE(DictLiteral)                                                            \
+  TYPE(FatArrow)                                                               \
   TYPE(ForEachMacro)                                                           \
   TYPE(FunctionAnnotationRParen)                                               \
   TYPE(FunctionDeclarationName)                                                \
@@ -60,14 +62,12 @@ namespace format {
   TYPE(JsComputedPropertyName)                                                 \
   TYPE(JsExponentiation)                                                       \
   TYPE(JsExponentiationEqual)                                                  \
-  TYPE(JsFatArrow)                                                             \
-  TYPE(JsNonNullAssertion)                                                     \
-  TYPE(JsNullishCoalescingOperator)                                            \
-  TYPE(JsNullPropagatingOperator)                                              \
+  TYPE(JsPipePipeEqual)                                                        \
   TYPE(JsPrivateIdentifier)                                                    \
   TYPE(JsTypeColon)                                                            \
   TYPE(JsTypeOperator)                                                         \
   TYPE(JsTypeOptionalQuestion)                                                 \
+  TYPE(JsAndAndEqual)                                                          \
   TYPE(LambdaArrow)                                                            \
   TYPE(LambdaLBrace)                                                           \
   TYPE(LambdaLSquare)                                                          \
@@ -76,6 +76,10 @@ namespace format {
   TYPE(MacroBlockBegin)                                                        \
   TYPE(MacroBlockEnd)                                                          \
   TYPE(NamespaceMacro)                                                         \
+  TYPE(NonNullAssertion)                                                       \
+  TYPE(NullCoalescingEqual)                                                    \
+  TYPE(NullCoalescingOperator)                                                 \
+  TYPE(NullPropagatingOperator)                                                \
   TYPE(ObjCBlockLBrace)                                                        \
   TYPE(ObjCBlockLParen)                                                        \
   TYPE(ObjCDecl)                                                               \
@@ -92,6 +96,7 @@ namespace format {
   TYPE(RegexLiteral)                                                           \
   TYPE(SelectorName)                                                           \
   TYPE(StartOfName)                                                            \
+  TYPE(StatementAttributeLikeMacro)                                            \
   TYPE(StatementMacro)                                                         \
   TYPE(StructuredBindingLSquare)                                               \
   TYPE(TemplateCloser)                                                         \
@@ -108,8 +113,6 @@ namespace format {
   TYPE(CSharpStringLiteral)                                                    \
   TYPE(CSharpNamedArgumentColon)                                               \
   TYPE(CSharpNullable)                                                         \
-  TYPE(CSharpNullCoalescing)                                                   \
-  TYPE(CSharpNullConditional)                                                  \
   TYPE(CSharpNullConditionalLSquare)                                           \
   TYPE(CSharpGenericTypeConstraint)                                            \
   TYPE(CSharpGenericTypeConstraintColon)                                       \
@@ -206,12 +209,11 @@ class AnnotatedLine;
 struct FormatToken {
   FormatToken()
       : HasUnescapedNewline(false), IsMultiline(false), IsFirst(false),
-        MustBreakBefore(false), MustBreakAlignBefore(false),
-        IsUnterminatedLiteral(false), CanBreakBefore(false),
-        ClosesTemplateDeclaration(false), StartsBinaryExpression(false),
-        EndsBinaryExpression(false), PartOfMultiVariableDeclStmt(false),
-        ContinuesLineCommentSection(false), Finalized(false),
-        BlockKind(BK_Unknown), Decision(FD_Unformatted),
+        MustBreakBefore(false), IsUnterminatedLiteral(false),
+        CanBreakBefore(false), ClosesTemplateDeclaration(false),
+        StartsBinaryExpression(false), EndsBinaryExpression(false),
+        PartOfMultiVariableDeclStmt(false), ContinuesLineCommentSection(false),
+        Finalized(false), BlockKind(BK_Unknown), Decision(FD_Unformatted),
         PackingKind(PPK_Inconclusive), Type(TT_Unknown) {}
 
   /// The \c Token.
@@ -247,12 +249,6 @@ struct FormatToken {
   /// This happens for example when a preprocessor directive ended directly
   /// before the token.
   unsigned MustBreakBefore : 1;
-
-  /// Whether to not align across this token
-  ///
-  /// This happens for example when a preprocessor directive ended directly
-  /// before the token, but very rarely otherwise.
-  unsigned MustBreakAlignBefore : 1;
 
   /// Set to \c true if this token is an unterminated literal.
   unsigned IsUnterminatedLiteral : 1;
@@ -594,6 +590,7 @@ public:
     case tok::kw__Atomic:
     case tok::kw___attribute:
     case tok::kw___underlying_type:
+    case tok::kw_requires:
       return true;
     default:
       return false;

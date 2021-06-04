@@ -8,6 +8,7 @@
 
 #include "clang/Tooling/Syntax/Tree.h"
 #include "TreeTestBase.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Tooling/Syntax/BuildTree.h"
 #include "clang/Tooling/Syntax/Nodes.h"
 #include "llvm/ADT/STLExtras.h"
@@ -17,6 +18,7 @@ using namespace clang;
 using namespace clang::syntax;
 
 namespace {
+using testing::ElementsAre;
 
 class TreeTest : public SyntaxTreeTest {
 private:
@@ -101,8 +103,8 @@ protected:
   }
 };
 
-INSTANTIATE_TEST_CASE_P(TreeTests, TreeTest,
-                        ::testing::ValuesIn(allTestClangConfigs()), );
+INSTANTIATE_TEST_SUITE_P(TreeTests, TreeTest,
+                        ::testing::ValuesIn(allTestClangConfigs()) );
 
 TEST_P(TreeTest, FirstLeaf) {
   buildTree("", GetParam());
@@ -122,6 +124,56 @@ TEST_P(TreeTest, LastLeaf) {
     ASSERT_TRUE(Tree->findLastLeaf() != nullptr);
     EXPECT_EQ(Tree->findLastLeaf()->getToken()->kind(), tok::r_paren);
   }
+}
+
+TEST_F(TreeTest, Iterators) {
+  buildTree("", allTestClangConfigs().front());
+  std::vector<Node *> Children = {createLeaf(*Arena, tok::identifier, "a"),
+                                  createLeaf(*Arena, tok::identifier, "b"),
+                                  createLeaf(*Arena, tok::identifier, "c")};
+  auto *Tree = syntax::createTree(*Arena,
+                                  {{Children[0], NodeRole::LeftHandSide},
+                                   {Children[1], NodeRole::OperatorToken},
+                                   {Children[2], NodeRole::RightHandSide}},
+                                  NodeKind::TranslationUnit);
+  const auto *ConstTree = Tree;
+
+  auto Range = Tree->getChildren();
+  EXPECT_THAT(Range, ElementsAre(role(NodeRole::LeftHandSide),
+                                 role(NodeRole::OperatorToken),
+                                 role(NodeRole::RightHandSide)));
+
+  auto ConstRange = ConstTree->getChildren();
+  EXPECT_THAT(ConstRange, ElementsAre(role(NodeRole::LeftHandSide),
+                                      role(NodeRole::OperatorToken),
+                                      role(NodeRole::RightHandSide)));
+
+  // FIXME: mutate and observe no invalidation. Mutations are private for now...
+  auto It = Range.begin();
+  auto CIt = ConstRange.begin();
+  static_assert(std::is_same<decltype(*It), syntax::Node &>::value,
+                "mutable range");
+  static_assert(std::is_same<decltype(*CIt), const syntax::Node &>::value,
+                "const range");
+
+  for (unsigned I = 0; I < 3; ++I) {
+    EXPECT_EQ(It, CIt);
+    EXPECT_TRUE(It);
+    EXPECT_TRUE(CIt);
+    EXPECT_EQ(It.asPointer(), Children[I]);
+    EXPECT_EQ(CIt.asPointer(), Children[I]);
+    EXPECT_EQ(&*It, Children[I]);
+    EXPECT_EQ(&*CIt, Children[I]);
+    ++It;
+    ++CIt;
+  }
+  EXPECT_EQ(It, CIt);
+  EXPECT_EQ(It, Tree::ChildIterator());
+  EXPECT_EQ(CIt, Tree::ConstChildIterator());
+  EXPECT_FALSE(It);
+  EXPECT_FALSE(CIt);
+  EXPECT_EQ(nullptr, It.asPointer());
+  EXPECT_EQ(nullptr, CIt.asPointer());
 }
 
 class ListTest : public SyntaxTreeTest {
@@ -170,8 +222,8 @@ protected:
   }
 };
 
-INSTANTIATE_TEST_CASE_P(TreeTests, ListTest,
-                        ::testing::ValuesIn(allTestClangConfigs()), );
+INSTANTIATE_TEST_SUITE_P(TreeTests, ListTest,
+                        ::testing::ValuesIn(allTestClangConfigs()) );
 
 /// "a, b, c"  <=> [("a", ","), ("b", ","), ("c", null)]
 TEST_P(ListTest, List_Separated_WellFormed) {

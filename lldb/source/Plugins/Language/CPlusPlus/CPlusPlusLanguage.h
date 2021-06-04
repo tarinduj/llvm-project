@@ -88,6 +88,10 @@ public:
   HardcodedFormatters::HardcodedSyntheticFinder
   GetHardcodedSynthetics() override;
 
+  bool IsNilReference(ValueObject &valobj) override;
+
+  llvm::StringRef GetNilReferenceSummaryString() override { return "nullptr"; }
+
   bool IsSourceFile(llvm::StringRef file_path) const override;
 
   const Highlighter *GetHighlighter() const override { return &m_highlighter; }
@@ -100,6 +104,8 @@ public:
   static lldb_private::Language *CreateInstance(lldb::LanguageType language);
 
   static lldb_private::ConstString GetPluginNameStatic();
+
+  bool SymbolNameFitsToLanguage(Mangled mangled) const override;
 
   static bool IsCPPMangledName(llvm::StringRef name);
 

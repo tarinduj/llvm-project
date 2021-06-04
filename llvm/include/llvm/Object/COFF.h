@@ -576,10 +576,21 @@ struct coff_tls_directory {
 
   uint32_t getAlignment() const {
     // Bit [20:24] contains section alignment.
-    uint32_t Shift = (Characteristics & 0x00F00000) >> 20;
+    uint32_t Shift = (Characteristics & COFF::IMAGE_SCN_ALIGN_MASK) >> 20;
     if (Shift > 0)
       return 1U << (Shift - 1);
     return 0;
+  }
+
+  void setAlignment(uint32_t Align) {
+    uint32_t AlignBits = 0;
+    if (Align) {
+      assert(llvm::isPowerOf2_32(Align) && "alignment is not a power of 2");
+      assert(llvm::Log2_32(Align) <= 13 && "alignment requested is too large");
+      AlignBits = (llvm::Log2_32(Align) + 1) << 20;
+    }
+    Characteristics =
+        (Characteristics & ~COFF::IMAGE_SCN_ALIGN_MASK) | AlignBits;
   }
 };
 
@@ -593,6 +604,7 @@ enum class coff_guard_flags : uint32_t {
   ProtectDelayLoadIAT = 0x00001000,
   DelayLoadIATSection = 0x00002000, // Delay load in separate section
   HasLongJmpTable = 0x00010000,
+  HasEHContTable = 0x00400000,
   FidTableHasFlags = 0x10000000, // Indicates that fid tables are 5 bytes
 };
 
@@ -650,6 +662,17 @@ struct coff_load_configuration32 {
   support::ulittle16_t Reserved2;
   support::ulittle32_t GuardRFVerifyStackPointerFunctionPointer;
   support::ulittle32_t HotPatchTableOffset;
+
+  // Added in MSVC 2019
+  support::ulittle32_t Reserved3;
+  support::ulittle32_t EnclaveConfigurationPointer;
+  support::ulittle32_t VolatileMetadataPointer;
+  support::ulittle32_t GuardEHContinuationTable;
+  support::ulittle32_t GuardEHContinuationCount;
+  support::ulittle32_t GuardXFGCheckFunctionPointer;
+  support::ulittle32_t GuardXFGDispatchFunctionPointer;
+  support::ulittle32_t GuardXFGTableDispatchFunctionPointer;
+  support::ulittle32_t CastGuardOsDeterminedFailureMode;
 };
 
 /// 64-bit load config (IMAGE_LOAD_CONFIG_DIRECTORY64)
@@ -697,6 +720,17 @@ struct coff_load_configuration64 {
   support::ulittle16_t Reserved2;
   support::ulittle64_t GuardRFVerifyStackPointerFunctionPointer;
   support::ulittle32_t HotPatchTableOffset;
+
+  // Added in MSVC 2019
+  support::ulittle32_t Reserved3;
+  support::ulittle64_t EnclaveConfigurationPointer;
+  support::ulittle64_t VolatileMetadataPointer;
+  support::ulittle64_t GuardEHContinuationTable;
+  support::ulittle64_t GuardEHContinuationCount;
+  support::ulittle64_t GuardXFGCheckFunctionPointer;
+  support::ulittle64_t GuardXFGDispatchFunctionPointer;
+  support::ulittle64_t GuardXFGTableDispatchFunctionPointer;
+  support::ulittle64_t CastGuardOsDeterminedFailureMode;
 };
 
 struct coff_runtime_function_x64 {
@@ -925,7 +959,7 @@ protected:
   bool isSectionData(DataRefImpl Sec) const override;
   bool isSectionBSS(DataRefImpl Sec) const override;
   bool isSectionVirtual(DataRefImpl Sec) const override;
-  bool isDebugSection(StringRef SectionName) const override;
+  bool isDebugSection(DataRefImpl Sec) const override;
   relocation_iterator section_rel_begin(DataRefImpl Sec) const override;
   relocation_iterator section_rel_end(DataRefImpl Sec) const override;
 

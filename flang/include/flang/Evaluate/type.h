@@ -81,15 +81,16 @@ static constexpr bool IsValidKindOfIntrinsicType(
 // directly hold anything requiring a destructor, such as an arbitrary
 // CHARACTER length type parameter expression.  Those must be derived
 // via LEN() member functions, packaged elsewhere (e.g. as in
-// ArrayConstructor), or copied from a parameter spec in the symbol table
-// if one is supplied.
+// ArrayConstructor), copied from a parameter spec in the symbol table
+// if one is supplied, or a known integer value.
 class DynamicType {
 public:
   constexpr DynamicType(TypeCategory cat, int k) : category_{cat}, kind_{k} {
     CHECK(IsValidKindOfIntrinsicType(category_, kind_));
   }
-  constexpr DynamicType(int k, const semantics::ParamValue &pv)
-      : category_{TypeCategory::Character}, kind_{k}, charLength_{&pv} {
+  DynamicType(int charKind, const semantics::ParamValue &len);
+  constexpr DynamicType(int k, std::int64_t len)
+      : category_{TypeCategory::Character}, kind_{k}, knownLength_{len} {
     CHECK(IsValidKindOfIntrinsicType(category_, kind_));
   }
   explicit constexpr DynamicType(
@@ -103,7 +104,8 @@ public:
 
   // A rare use case used for representing the characteristics of an
   // intrinsic function like REAL() that accepts a typeless BOZ literal
-  // argument, which is something that real user Fortran can't do.
+  // argument and for typeless pointers -- things that real user Fortran can't
+  // do.
   static constexpr DynamicType TypelessIntrinsicArgument() {
     DynamicType result;
     result.category_ = TypeCategory::Integer;
@@ -136,12 +138,17 @@ public:
     CHECK(kind_ > 0);
     return kind_;
   }
-  constexpr const semantics::ParamValue *charLength() const {
-    return charLength_;
+  constexpr const semantics::ParamValue *charLengthParamValue() const {
+    return charLengthParamValue_;
+  }
+  constexpr std::optional<std::int64_t> knownLength() const {
+    return knownLength_;
   }
   std::optional<Expr<SubscriptInteger>> GetCharLength() const;
+
+  std::size_t GetAlignment(const FoldingContext &) const;
   std::optional<Expr<SubscriptInteger>> MeasureSizeInBytes(
-      FoldingContext * = nullptr) const;
+      FoldingContext &, bool aligned) const;
 
   std::string AsFortran() const;
   std::string AsFortran(std::string &&charLenExpr) const;
@@ -199,7 +206,8 @@ public:
 private:
   // Special kind codes are used to distinguish the following Fortran types.
   enum SpecialKind {
-    TypelessKind = -1, // BOZ actual argument to intrinsic function
+    TypelessKind = -1, // BOZ actual argument to intrinsic function or pointer
+                       // argument to ASSOCIATED
     ClassKind = -2, // CLASS(T) or CLASS(*)
     AssumedTypeKind = -3, // TYPE(*)
   };
@@ -208,7 +216,8 @@ private:
 
   TypeCategory category_{TypeCategory::Derived}; // overridable default
   int kind_{0};
-  const semantics::ParamValue *charLength_{nullptr};
+  const semantics::ParamValue *charLengthParamValue_{nullptr};
+  std::optional<std::int64_t> knownLength_;
   const semantics::DerivedTypeSpec *derived_{nullptr}; // TYPE(T), CLASS(T)
 };
 
@@ -336,6 +345,9 @@ constexpr bool IsLengthlessIntrinsicType{
 template <TypeCategory CATEGORY> struct SomeKind {
   static constexpr TypeCategory category{CATEGORY};
   constexpr bool operator==(const SomeKind &) const { return true; }
+  static std::string AsFortran() {
+    return "Some"s + common::EnumToString(category);
+  }
 };
 
 using NumericCategoryTypes = std::tuple<SomeKind<TypeCategory::Integer>,
@@ -346,7 +358,9 @@ using AllIntrinsicCategoryTypes = std::tuple<SomeKind<TypeCategory::Integer>,
 
 // Represents a completely generic type (or, for Expr<SomeType>, a typeless
 // value like a BOZ literal or NULL() pointer).
-struct SomeType {};
+struct SomeType {
+  static std::string AsFortran() { return "SomeType"s; }
+};
 
 class StructureConstructor;
 
@@ -418,9 +432,6 @@ int SelectedCharKind(const std::string &, int defaultKind);
 int SelectedIntKind(std::int64_t precision = 0);
 int SelectedRealKind(
     std::int64_t precision = 0, std::int64_t range = 0, std::int64_t radix = 2);
-
-// Utilities
-bool IsKindTypeParameter(const semantics::Symbol &);
 
 // For generating "[extern] template class", &c. boilerplate
 #define EXPAND_FOR_EACH_INTEGER_KIND(M, P, S) \

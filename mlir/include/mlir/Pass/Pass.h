@@ -9,8 +9,8 @@
 #ifndef MLIR_PASS_PASS_H
 #define MLIR_PASS_PASS_H
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Function.h"
 #include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/LogicalResult.h"
@@ -56,13 +56,12 @@ public:
   TypeID getTypeID() const { return passID; }
 
   /// Returns the pass info for the specified pass class or null if unknown.
-  static const PassInfo *lookupPassInfo(TypeID passID);
-  template <typename PassT> static const PassInfo *lookupPassInfo() {
-    return lookupPassInfo(TypeID::get<PassT>());
-  }
+  static const PassInfo *lookupPassInfo(StringRef passArg);
 
-  /// Returns the pass info for this pass.
-  const PassInfo *lookupPassInfo() const { return lookupPassInfo(getTypeID()); }
+  /// Returns the pass info for this pass, or null if unknown.
+  const PassInfo *lookupPassInfo() const {
+    return lookupPassInfo(getArgument());
+  }
 
   /// Returns the derived pass name.
   virtual StringRef getName() const = 0;
@@ -76,11 +75,7 @@ public:
 
   /// Returns the command line argument used when registering this pass. Return
   /// an empty string if one does not exist.
-  virtual StringRef getArgument() const {
-    if (const PassInfo *passInfo = lookupPassInfo())
-      return passInfo->getPassArgument();
-    return "";
-  }
+  virtual StringRef getArgument() const { return ""; }
 
   /// Returns the name of the operation that this pass operates on, or None if
   /// this is a generic OperationPass.
@@ -95,7 +90,7 @@ public:
             typename OptionParser = detail::PassOptions::OptionParser<DataType>>
   struct Option : public detail::PassOptions::Option<DataType, OptionParser> {
     template <typename... Args>
-    Option(Pass &parent, StringRef arg, Args &&... args)
+    Option(Pass &parent, StringRef arg, Args &&...args)
         : detail::PassOptions::Option<DataType, OptionParser>(
               parent.passOptions, arg, std::forward<Args>(args)...) {}
     using detail::PassOptions::Option<DataType, OptionParser>::operator=;
@@ -107,18 +102,21 @@ public:
   struct ListOption
       : public detail::PassOptions::ListOption<DataType, OptionParser> {
     template <typename... Args>
-    ListOption(Pass &parent, StringRef arg, Args &&... args)
+    ListOption(Pass &parent, StringRef arg, Args &&...args)
         : detail::PassOptions::ListOption<DataType, OptionParser>(
               parent.passOptions, arg, std::forward<Args>(args)...) {}
     using detail::PassOptions::ListOption<DataType, OptionParser>::operator=;
   };
 
   /// Attempt to initialize the options of this pass from the given string.
-  LogicalResult initializeOptions(StringRef options);
+  /// Derived classes may override this method to hook into the point at which
+  /// options are initialized, but should generally always invoke this base
+  /// class variant.
+  virtual LogicalResult initializeOptions(StringRef options);
 
   /// Prints out the pass in the textual representation of pipelines. If this is
   /// an adaptor pass, print with the op_name(sub_pass,...) format.
-  void printAsTextualPipeline(raw_ostream &os, bool filterVerifier = true);
+  void printAsTextualPipeline(raw_ostream &os);
 
   //===--------------------------------------------------------------------===//
   // Statistics
@@ -136,15 +134,26 @@ public:
 
     /// Assign the statistic to the given value.
     Statistic &operator=(unsigned value);
-
-  private:
-    /// Hide some of the details of llvm::Statistic that we don't use.
-    using llvm::Statistic::getDebugType;
   };
 
   /// Returns the main statistics for this pass instance.
   ArrayRef<Statistic *> getStatistics() const { return statistics; }
   MutableArrayRef<Statistic *> getStatistics() { return statistics; }
+
+  /// Returns the thread sibling of this pass.
+  ///
+  /// If this pass was cloned by the pass manager for the sake of
+  /// multi-threading, this function returns the original pass it was cloned
+  /// from. This is useful for diagnostic purposes to distinguish passes that
+  /// were replicated for threading purposes from passes instantiated by the
+  /// user. Used to collapse passes in timing statistics.
+  const Pass *getThreadingSibling() const { return threadingSibling; }
+
+  /// Returns the thread sibling of this pass, or the pass itself it has no
+  /// sibling. See `getThreadingSibling()` for details.
+  const Pass *getThreadingSiblingOrThis() const {
+    return threadingSibling ? threadingSibling : this;
+  }
 
 protected:
   explicit Pass(TypeID passID, Optional<StringRef> opName = llvm::None)
@@ -162,6 +171,14 @@ protected:
 
   /// The polymorphic API that runs the pass over the currently held operation.
   virtual void runOnOperation() = 0;
+
+  /// Initialize any complex state necessary for running this pass. This hook
+  /// should not rely on any state accessible during the execution of a pass.
+  /// For example, `getContext`/`getOperation`/`getAnalysis`/etc. should not be
+  /// invoked within this hook.
+  /// Returns a LogicalResult to indicate failure, in which case the pass
+  /// pipeline won't execute.
+  virtual LogicalResult initialize(MLIRContext *context) { return success(); }
 
   /// Schedule an arbitrary pass pipeline on the provided operation.
   /// This can be invoke any time in a pass to dynamic schedule more passes.
@@ -265,7 +282,6 @@ protected:
   void copyOptionValuesFrom(const Pass *other);
 
 private:
-
   /// Out of line virtual method to ensure vtables and metadata are emitted to a
   /// single .o file.
   virtual void anchor();
@@ -285,6 +301,10 @@ private:
 
   /// The pass options registered to this pass instance.
   detail::PassOptions passOptions;
+
+  /// A pointer to the pass this pass was cloned from, if the clone was made by
+  /// the pass manager for the sake of multi-threading.
+  const Pass *threadingSibling = nullptr;
 
   /// Allow access to 'clone'.
   friend class OpPassManager;

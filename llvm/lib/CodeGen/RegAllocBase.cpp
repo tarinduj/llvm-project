@@ -35,7 +35,7 @@ using namespace llvm;
 
 #define DEBUG_TYPE "regalloc"
 
-STATISTIC(NumNewQueued    , "Number of new live ranges queued");
+STATISTIC(NumNewQueued, "Number of new live ranges queued");
 
 // Temporary verification option until we can put verification inside
 // MachineVerifier.
@@ -54,8 +54,7 @@ bool RegAllocBase::VerifyEnabled = false;
 // Pin the vtable to this file.
 void RegAllocBase::anchor() {}
 
-void RegAllocBase::init(VirtRegMap &vrm,
-                        LiveIntervals &lis,
+void RegAllocBase::init(VirtRegMap &vrm, LiveIntervals &lis,
                         LiveRegMatrix &mat) {
   TRI = &vrm.getTargetRegInfo();
   MRI = &vrm.getRegInfo();
@@ -73,7 +72,7 @@ void RegAllocBase::seedLiveRegs() {
   NamedRegionTimer T("seed", "Seed Live Regs", TimerGroupName,
                      TimerGroupDescription, TimePassesIsEnabled);
   for (unsigned i = 0, e = MRI->getNumVirtRegs(); i != e; ++i) {
-    unsigned Reg = Register::index2VirtReg(i);
+    Register Reg = Register::index2VirtReg(i);
     if (MRI->reg_nodbg_empty(Reg))
       continue;
     enqueue(&LIS->getInterval(Reg));
@@ -124,7 +123,12 @@ void RegAllocBase::allocatePhysRegs() {
         if (MI->isInlineAsm())
           break;
       }
-      if (MI && MI->isInlineAsm()) {
+
+      const TargetRegisterClass *RC = MRI->getRegClass(VirtReg->reg());
+      ArrayRef<MCPhysReg> AllocOrder = RegClassInfo.getOrder(RC);
+      if (AllocOrder.empty())
+        report_fatal_error("no registers from class available to allocate");
+      else if (MI && MI->isInlineAsm()) {
         MI->emitError("inline assembly requires more registers than available");
       } else if (MI) {
         LLVMContext &Context =
@@ -133,17 +137,16 @@ void RegAllocBase::allocatePhysRegs() {
       } else {
         report_fatal_error("ran out of registers during register allocation");
       }
+
       // Keep going after reporting the error.
-      VRM->assignVirt2Phys(
-          VirtReg->reg(),
-          RegClassInfo.getOrder(MRI->getRegClass(VirtReg->reg())).front());
+      VRM->assignVirt2Phys(VirtReg->reg(), AllocOrder.front());
       continue;
     }
 
     if (AvailablePhysReg)
       Matrix->assign(*VirtReg, AvailablePhysReg);
 
-    for (unsigned Reg : SplitVRegs) {
+    for (Register Reg : SplitVRegs) {
       assert(LIS->hasInterval(Reg));
 
       LiveInterval *SplitVirtReg = &LIS->getInterval(Reg);

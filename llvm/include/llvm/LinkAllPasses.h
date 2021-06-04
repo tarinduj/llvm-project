@@ -71,7 +71,7 @@ namespace {
       (void) llvm::createAggressiveDCEPass();
       (void) llvm::createAggressiveInstCombinerPass();
       (void) llvm::createBitTrackingDCEPass();
-      (void) llvm::createOpenMPOptLegacyPass();
+      (void)llvm::createOpenMPOptCGSCCLegacyPass();
       (void) llvm::createArgumentPromotionPass();
       (void) llvm::createAlignmentFromAssumptionsPass();
       (void) llvm::createBasicAAWrapperPass();
@@ -197,6 +197,7 @@ namespace {
       (void) llvm::createMergeFunctionsPass();
       (void) llvm::createMergeICmpsLegacyPass();
       (void) llvm::createExpandMemCmpPass();
+      (void) llvm::createExpandVectorPredicationPass();
       std::string buf;
       llvm::raw_string_ostream os(buf);
       (void) llvm::createPrintModulePass(os);
@@ -224,7 +225,7 @@ namespace {
       (void) llvm::createMustBeExecutedContextPrinter();
       (void) llvm::createFloat2IntPass();
       (void) llvm::createEliminateAvailableExternallyPass();
-      (void) llvm::createScalarizeMaskedMemIntrinPass();
+      (void)llvm::createScalarizeMaskedMemIntrinLegacyPass();
       (void) llvm::createWarnMissedTransformationsPass();
       (void) llvm::createHardwareLoopsPass();
       (void) llvm::createInjectTLIMappingsLegacyPass();
@@ -239,7 +240,7 @@ namespace {
       llvm::TargetLibraryInfo TLI(TLII);
       llvm::AliasAnalysis AA(TLI);
       llvm::AliasSetTracker X(AA);
-      X.add(nullptr, llvm::LocationSize::unknown(),
+      X.add(nullptr, llvm::LocationSize::beforeOrAfterPointer(),
             llvm::AAMDNodes()); // for -print-alias-sets
       (void) llvm::AreStatisticsEnabled();
       (void) llvm::sys::RunningOnValgrind();

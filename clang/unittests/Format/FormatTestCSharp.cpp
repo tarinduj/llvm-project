@@ -247,6 +247,37 @@ TEST_F(FormatTestCSharp, Attributes) {
   verifyFormat("[TestMethod]\n"
                "public string Host { set; get; }");
 
+  // Adjacent properties should not cause line wrapping issues
+  verifyFormat("[JsonProperty(\"foo\")]\n"
+               "public string Foo { set; get; }\n"
+               "[JsonProperty(\"bar\")]\n"
+               "public string Bar { set; get; }\n"
+               "[JsonProperty(\"bar\")]\n"
+               "protected string Bar { set; get; }\n"
+               "[JsonProperty(\"bar\")]\n"
+               "internal string Bar { set; get; }");
+
+  // Multiple attributes should always be split (not just the first ones)
+  verifyFormat("[XmlIgnore]\n"
+               "[JsonProperty(\"foo\")]\n"
+               "public string Foo { set; get; }");
+
+  verifyFormat("[XmlIgnore]\n"
+               "[JsonProperty(\"foo\")]\n"
+               "public string Foo { set; get; }\n"
+               "[XmlIgnore]\n"
+               "[JsonProperty(\"bar\")]\n"
+               "public string Bar { set; get; }");
+
+  verifyFormat("[XmlIgnore]\n"
+               "[ScriptIgnore]\n"
+               "[JsonProperty(\"foo\")]\n"
+               "public string Foo { set; get; }\n"
+               "[XmlIgnore]\n"
+               "[ScriptIgnore]\n"
+               "[JsonProperty(\"bar\")]\n"
+               "public string Bar { set; get; }");
+
   verifyFormat("[TestMethod(\"start\", HelpText = \"Starts the server "
                "listening on provided host\")]\n"
                "public string Host { set; get; }");
@@ -268,6 +299,34 @@ TEST_F(FormatTestCSharp, Attributes) {
 
   // Attributes in a method declaration do not cause line wrapping.
   verifyFormat("void MethodA([In][Out] ref double x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("void MethodA([In, Out] ref double x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("void MethodA([In, Out] double[] x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("void MethodA([In] double[] x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("void MethodA(int[] x)\n"
+               "{\n"
+               "}");
+  verifyFormat("void MethodA(int[][] x)\n"
+               "{\n"
+               "}");
+  verifyFormat("void MethodA([] x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("public void Log([CallerLineNumber] int line = -1, "
+               "[CallerFilePath] string path = null,\n"
+               "                [CallerMemberName] string name = null)\n"
                "{\n"
                "}");
 
@@ -356,6 +415,39 @@ TEST_F(FormatTestCSharp, CSharpNullCoalescing) {
   verifyFormat("var test = ABC ?? DEF");
   verifyFormat("string myname = name ?? \"ABC\";");
   verifyFormat("return _name ?? \"DEF\";");
+}
+
+TEST_F(FormatTestCSharp, CSharpNullCoalescingAssignment) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.SpaceBeforeAssignmentOperators = true;
+
+  verifyFormat(R"(test ??= ABC;)", Style);
+  verifyFormat(R"(test ??= true;)", Style);
+
+  Style.SpaceBeforeAssignmentOperators = false;
+
+  verifyFormat(R"(test??= ABC;)", Style);
+  verifyFormat(R"(test??= true;)", Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpNullForgiving) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat("var test = null!;", Style);
+  verifyFormat("string test = someFunctionCall()! + \"ABC\"!", Style);
+  verifyFormat("int test = (1! + 2 + bar! + foo())!", Style);
+  verifyFormat(R"(test ??= !foo!;)", Style);
+  verifyFormat("test = !bar! ?? !foo!;", Style);
+  verifyFormat("bool test = !(!true && !true! || !null && !null! || !false && "
+               "!false! && !bar()! + (!foo()))!",
+               Style);
+
+  // Check that line break keeps identifier with the bang.
+  Style.ColumnLimit = 14;
+
+  verifyFormat("var test =\n"
+               "    foo!;",
+               Style);
 }
 
 TEST_F(FormatTestCSharp, AttributesIndentation) {
@@ -815,6 +907,21 @@ public class A {
   verifyFormat(R"(var x = (int?)y;)", Style); // Cast to a nullable type.
 
   verifyFormat(R"(var x = new MyContainer<int?>();)", Style); // Generics.
+
+  verifyFormat(R"(//
+public interface I {
+  int? Function();
+})",
+               Style); // Interface methods.
+
+  Style.ColumnLimit = 10;
+  verifyFormat(R"(//
+public VeryLongType? Function(
+    int arg1,
+    int arg2) {
+  //
+})",
+               Style); // ? sticks with identifier.
 }
 
 TEST_F(FormatTestCSharp, CSharpArraySubscripts) {
@@ -835,25 +942,27 @@ if (someThings[i][j][k].Contains(myThing)) {
 TEST_F(FormatTestCSharp, CSharpGenericTypeConstraints) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
 
-  verifyFormat(R"(//
-class ItemFactory<T>
-    where T : new() {})",
+  EXPECT_TRUE(Style.BraceWrapping.SplitEmptyRecord);
+
+  verifyFormat("class ItemFactory<T>\n"
+               "    where T : new() {\n"
+               "}",
                Style);
 
-  verifyFormat(R"(//
-class Dictionary<TKey, TVal>
-    where TKey : IComparable<TKey>
-    where TVal : IMyInterface {
-  public void MyMethod<T>(T t)
-      where T : IMyInterface {
-    doThing();
-  }
-})",
+  verifyFormat("class Dictionary<TKey, TVal>\n"
+               "    where TKey : IComparable<TKey>\n"
+               "    where TVal : IMyInterface {\n"
+               "  public void MyMethod<T>(T t)\n"
+               "      where T : IMyInterface {\n"
+               "    doThing();\n"
+               "  }\n"
+               "}",
                Style);
 
-  verifyFormat(R"(//
-class ItemFactory<T>
-    where T : new(), IAnInterface<T>, IAnotherInterface<T>, IAnotherInterfaceStill<T> {})",
+  verifyFormat("class ItemFactory<T>\n"
+               "    where T : new(), IAnInterface<T>, IAnotherInterface<T>, "
+               "IAnotherInterfaceStill<T> {\n"
+               "}",
                Style);
 
   Style.ColumnLimit = 50; // Force lines to be wrapped.
@@ -862,7 +971,8 @@ class ItemFactory<T, U>
     where T : new(),
               IAnInterface<T>,
               IAnotherInterface<T, U>,
-              IAnotherInterfaceStill<T, U> {})",
+              IAnotherInterfaceStill<T, U> {
+})",
                Style);
 
   // In other languages `where` can be used as a normal identifier.

@@ -1,104 +1,71 @@
 // RUN: mlir-opt -split-input-file %s -verify-diagnostics
 
-// CHECK-LABEL: test_index_cast_shape_error
 func @test_index_cast_shape_error(%arg0 : tensor<index>) -> tensor<2xi64> {
-  // expected-error @+1 {{requires the same shape for all operands and results}}
+  // expected-error @+1 {{all non-scalar operands/results must have the same shape and base type}}
   %0 = index_cast %arg0 : tensor<index> to tensor<2xi64>
   return %0 : tensor<2xi64>
 }
 
 // -----
 
-// CHECK-LABEL: test_index_cast_tensor_error
 func @test_index_cast_tensor_error(%arg0 : tensor<index>) -> i64 {
-  // expected-error @+1 {{requires the same shape for all operands and results}}
+  // expected-error @+1 {{if an operand is non-scalar, then there must be at least one non-scalar result}}
   %0 = index_cast %arg0 : tensor<index> to i64
   return %0 : i64
 }
 
 // -----
 
-func @dynamic_tensor_from_elements(%m : index)
-    -> tensor<?x3x?xf32> {
-  // expected-error @+1 {{must have as many index operands as dynamic extents in the result type}}
-  %tnsr = dynamic_tensor_from_elements %m {
-    ^bb0(%i : index, %j : index, %k : index):
-      %elem = constant 8.0 : f32
-      yield %elem : f32
-  } : tensor<?x3x?xf32>
-  return %tnsr : tensor<?x3x?xf32>
+func @non_signless_constant() {
+  // expected-error @+1 {{requires integer result types to be signless}}
+  %0 = constant 0 : ui32
+  return
 }
 
 // -----
 
-func @dynamic_tensor_from_elements(%m : index, %n : index)
-    -> tensor<?x3x?xf32> {
-  // expected-error @+1 {{must have one body argument per input dimension}}
-  %tnsr = dynamic_tensor_from_elements %m, %n {
-    ^bb0(%i : index, %j : index):
-      %elem = constant 8.0 : f32
-      yield %elem : f32
-  } : tensor<?x3x?xf32>
-  return %tnsr : tensor<?x3x?xf32>
+func @non_signless_constant() {
+  // expected-error @+1 {{requires integer result types to be signless}}
+  %0 = constant 0 : si32
+  return
 }
 
 // -----
 
-func @dynamic_tensor_from_elements(%m : index, %n : index)
-    -> tensor<?x3x?xf32> {
-  // expected-error @+1 {{all body arguments must be index}}
-  %tnsr = dynamic_tensor_from_elements %m, %n {
-    ^bb0(%i : index, %j : index, %k : i64):
-      %elem = constant 8.0 : f32
-      yield %elem : f32
-  } : tensor<?x3x?xf32>
-  return %tnsr : tensor<?x3x?xf32>
+func @unsupported_attribute() {
+  // expected-error @+1 {{unsupported 'value' attribute: "" : index}}
+  %0 = constant "" : index
+  return
 }
 
 // -----
 
-func @dynamic_tensor_from_elements(%m : index, %n : index)
-    -> tensor<?x3x?xf32> {
-  // expected-error @+2 {{op expects regions to end with 'std.yield', found 'std.return'}}
-  // expected-note @+1 {{in custom textual format, the absence of terminator implies 'std.yield'}}
-  %tnsr = dynamic_tensor_from_elements %m, %n {
-    ^bb0(%i : index, %j : index, %k : index):
-      %elem = constant 8.0 : f32
-      return %elem : f32
-  } : tensor<?x3x?xf32>
-  return %tnsr : tensor<?x3x?xf32>
+func @complex_constant_wrong_array_attribute_length() {
+  // expected-error @+1 {{requires 'value' to be a complex constant, represented as array of two values}}
+  %0 = constant [1.0 : f32] : complex<f32>
+  return
 }
 
 // -----
 
-func @dynamic_tensor_from_elements(%m : index, %n : index)
-    -> tensor<?x3x?xf32> {
-  // expected-error @+1 {{body must be terminated with a `yield` operation of the tensor element type}}
-  %tnsr = dynamic_tensor_from_elements %m, %n {
-    ^bb0(%i : index, %j : index, %k : index):
-      %elem = constant 8 : i32
-      yield %elem : i32
-  } : tensor<?x3x?xf32>
-  return %tnsr : tensor<?x3x?xf32>
+func @complex_constant_wrong_attribute_type() {
+  // expected-error @+1 {{requires attribute's type ('f32') to match op's return type ('complex<f32>')}}
+  %0 = "std.constant" () {value = 1.0 : f32} : () -> complex<f32>
+  return
 }
 
 // -----
 
-func @transpose_not_permutation(%v : memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>) {
-  // expected-error @+1 {{expected a permutation map}}
-  transpose %v (i, j) -> (i, i) : memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>> to memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>
+func @complex_constant_wrong_element_types() {
+  // expected-error @+1 {{requires attribute's element types ('f32', 'f32') to match the element type of the op's return type ('f64')}}
+  %0 = constant [1.0 : f32, -1.0 : f32] : complex<f64>
+  return
 }
 
 // -----
 
-func @transpose_bad_rank(%v : memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>) {
-  // expected-error @+1 {{expected a permutation map of same rank as the input}}
-  transpose %v (i) -> (i) : memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>> to memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>
-}
-
-// -----
-
-func @transpose_wrong_type(%v : memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>) {
-  // expected-error @+1 {{output type 'memref<?x?xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' does not match transposed input type 'memref<?x?xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>'}}
-  transpose %v (i, j) -> (j, i) : memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>> to memref<?x?xf32, affine_map<(i, j)[off, M]->(off + M * i + j)>>
+func @complex_constant_two_different_element_types() {
+  // expected-error @+1 {{requires attribute's element types ('f32', 'f64') to match the element type of the op's return type ('f64')}}
+  %0 = constant [1.0 : f32, -1.0 : f64] : complex<f64>
+  return
 }

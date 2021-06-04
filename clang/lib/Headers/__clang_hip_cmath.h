@@ -14,11 +14,15 @@
 #error "This file is for HIP and OpenMP AMDGCN device compilation only."
 #endif
 
+#if !defined(__HIPCC_RTC__)
 #if defined(__cplusplus)
 #include <limits>
+#include <type_traits>
+#include <utility>
 #endif
 #include <limits.h>
 #include <stdint.h>
+#endif // !defined(__HIPCC_RTC__)
 
 #pragma push_macro("__DEVICE__")
 #define __DEVICE__ static __device__ inline __attribute__((always_inline))
@@ -32,6 +36,9 @@ __DEVICE__ long abs(long __n) { return ::labs(__n); }
 __DEVICE__ float fma(float __x, float __y, float __z) {
   return ::fmaf(__x, __y, __z);
 }
+#if !defined(__HIPCC_RTC__)
+// The value returned by fpclassify is platform dependent, therefore it is not
+// supported by hipRTC.
 __DEVICE__ int fpclassify(float __x) {
   return __builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL, FP_SUBNORMAL,
                               FP_ZERO, __x);
@@ -40,6 +47,8 @@ __DEVICE__ int fpclassify(double __x) {
   return __builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL, FP_SUBNORMAL,
                               FP_ZERO, __x);
 }
+#endif // !defined(__HIPCC_RTC__)
+
 __DEVICE__ float frexp(float __arg, int *__exp) {
   return ::frexpf(__arg, __exp);
 }
@@ -205,31 +214,214 @@ template <bool __B, class __T = void> struct __hip_enable_if {};
 
 template <class __T> struct __hip_enable_if<true, __T> { typedef __T type; };
 
+namespace __hip {
+template <class _Tp> struct is_integral {
+  enum { value = 0 };
+};
+template <> struct is_integral<bool> {
+  enum { value = 1 };
+};
+template <> struct is_integral<char> {
+  enum { value = 1 };
+};
+template <> struct is_integral<signed char> {
+  enum { value = 1 };
+};
+template <> struct is_integral<unsigned char> {
+  enum { value = 1 };
+};
+template <> struct is_integral<wchar_t> {
+  enum { value = 1 };
+};
+template <> struct is_integral<short> {
+  enum { value = 1 };
+};
+template <> struct is_integral<unsigned short> {
+  enum { value = 1 };
+};
+template <> struct is_integral<int> {
+  enum { value = 1 };
+};
+template <> struct is_integral<unsigned int> {
+  enum { value = 1 };
+};
+template <> struct is_integral<long> {
+  enum { value = 1 };
+};
+template <> struct is_integral<unsigned long> {
+  enum { value = 1 };
+};
+template <> struct is_integral<long long> {
+  enum { value = 1 };
+};
+template <> struct is_integral<unsigned long long> {
+  enum { value = 1 };
+};
+
+// ToDo: specializes is_arithmetic<_Float16>
+template <class _Tp> struct is_arithmetic {
+  enum { value = 0 };
+};
+template <> struct is_arithmetic<bool> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<char> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<signed char> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<unsigned char> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<wchar_t> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<short> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<unsigned short> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<int> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<unsigned int> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<long> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<unsigned long> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<long long> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<unsigned long long> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<float> {
+  enum { value = 1 };
+};
+template <> struct is_arithmetic<double> {
+  enum { value = 1 };
+};
+
+struct true_type {
+  static const __constant__ bool value = true;
+};
+struct false_type {
+  static const __constant__ bool value = false;
+};
+
+template <typename __T, typename __U> struct is_same : public false_type {};
+template <typename __T> struct is_same<__T, __T> : public true_type {};
+
+template <typename __T> struct add_rvalue_reference { typedef __T &&type; };
+
+template <typename __T> typename add_rvalue_reference<__T>::type declval();
+
+// decltype is only available in C++11 and above.
+#if __cplusplus >= 201103L
+// __hip_promote
+template <class _Tp> struct __numeric_type {
+  static void __test(...);
+  static _Float16 __test(_Float16);
+  static float __test(float);
+  static double __test(char);
+  static double __test(int);
+  static double __test(unsigned);
+  static double __test(long);
+  static double __test(unsigned long);
+  static double __test(long long);
+  static double __test(unsigned long long);
+  static double __test(double);
+  // No support for long double, use double instead.
+  static double __test(long double);
+
+  typedef decltype(__test(declval<_Tp>())) type;
+  static const bool value = !is_same<type, void>::value;
+};
+
+template <> struct __numeric_type<void> { static const bool value = true; };
+
+template <class _A1, class _A2 = void, class _A3 = void,
+          bool = __numeric_type<_A1>::value &&__numeric_type<_A2>::value
+              &&__numeric_type<_A3>::value>
+class __promote_imp {
+public:
+  static const bool value = false;
+};
+
+template <class _A1, class _A2, class _A3>
+class __promote_imp<_A1, _A2, _A3, true> {
+private:
+  typedef typename __promote_imp<_A1>::type __type1;
+  typedef typename __promote_imp<_A2>::type __type2;
+  typedef typename __promote_imp<_A3>::type __type3;
+
+public:
+  typedef decltype(__type1() + __type2() + __type3()) type;
+  static const bool value = true;
+};
+
+template <class _A1, class _A2> class __promote_imp<_A1, _A2, void, true> {
+private:
+  typedef typename __promote_imp<_A1>::type __type1;
+  typedef typename __promote_imp<_A2>::type __type2;
+
+public:
+  typedef decltype(__type1() + __type2()) type;
+  static const bool value = true;
+};
+
+template <class _A1> class __promote_imp<_A1, void, void, true> {
+public:
+  typedef typename __numeric_type<_A1>::type type;
+  static const bool value = true;
+};
+
+template <class _A1, class _A2 = void, class _A3 = void>
+class __promote : public __promote_imp<_A1, _A2, _A3> {};
+#endif //__cplusplus >= 201103L
+} // namespace __hip
+
 // __HIP_OVERLOAD1 is used to resolve function calls with integer argument to
 // avoid compilation error due to ambibuity. e.g. floor(5) is resolved with
 // floor(double).
 #define __HIP_OVERLOAD1(__retty, __fn)                                         \
   template <typename __T>                                                      \
-  __DEVICE__ typename __hip_enable_if<std::numeric_limits<__T>::is_integer,    \
-                                      __retty>::type                           \
-  __fn(__T __x) {                                                              \
+  __DEVICE__                                                                   \
+      typename __hip_enable_if<__hip::is_integral<__T>::value, __retty>::type  \
+      __fn(__T __x) {                                                          \
     return ::__fn((double)__x);                                                \
   }
 
 // __HIP_OVERLOAD2 is used to resolve function calls with mixed float/double
 // or integer argument to avoid compilation error due to ambibuity. e.g.
 // max(5.0f, 6.0) is resolved with max(double, double).
+#if __cplusplus >= 201103L
 #define __HIP_OVERLOAD2(__retty, __fn)                                         \
   template <typename __T1, typename __T2>                                      \
-  __DEVICE__                                                                   \
-      typename __hip_enable_if<std::numeric_limits<__T1>::is_specialized &&    \
-                                   std::numeric_limits<__T2>::is_specialized,  \
-                               __retty>::type                                  \
-      __fn(__T1 __x, __T2 __y) {                                               \
+  __DEVICE__ typename __hip_enable_if<                                         \
+      __hip::is_arithmetic<__T1>::value && __hip::is_arithmetic<__T2>::value,  \
+      typename __hip::__promote<__T1, __T2>::type>::type                       \
+  __fn(__T1 __x, __T2 __y) {                                                   \
+    typedef typename __hip::__promote<__T1, __T2>::type __result_type;         \
+    return __fn((__result_type)__x, (__result_type)__y);                       \
+  }
+#else
+#define __HIP_OVERLOAD2(__retty, __fn)                                         \
+  template <typename __T1, typename __T2>                                      \
+  __DEVICE__ typename __hip_enable_if<__hip::is_arithmetic<__T1>::value &&     \
+                                          __hip::is_arithmetic<__T2>::value,   \
+                                      __retty>::type                           \
+  __fn(__T1 __x, __T2 __y) {                                                   \
     return __fn((double)__x, (double)__y);                                     \
   }
+#endif
 
-__HIP_OVERLOAD1(double, abs)
 __HIP_OVERLOAD1(double, acos)
 __HIP_OVERLOAD1(double, acosh)
 __HIP_OVERLOAD1(double, asin)
@@ -253,7 +445,9 @@ __HIP_OVERLOAD1(double, floor)
 __HIP_OVERLOAD2(double, fmax)
 __HIP_OVERLOAD2(double, fmin)
 __HIP_OVERLOAD2(double, fmod)
+#if !defined(__HIPCC_RTC__)
 __HIP_OVERLOAD1(int, fpclassify)
+#endif // !defined(__HIPCC_RTC__)
 __HIP_OVERLOAD2(double, hypot)
 __HIP_OVERLOAD1(int, ilogb)
 __HIP_OVERLOAD1(bool, isfinite)
@@ -296,56 +490,78 @@ __HIP_OVERLOAD2(double, max)
 __HIP_OVERLOAD2(double, min)
 
 // Additional Overloads that don't quite match HIP_OVERLOAD.
+#if __cplusplus >= 201103L
 template <typename __T1, typename __T2, typename __T3>
-__DEVICE__
-    typename __hip_enable_if<std::numeric_limits<__T1>::is_specialized &&
-                                 std::numeric_limits<__T2>::is_specialized &&
-                                 std::numeric_limits<__T3>::is_specialized,
-                             double>::type
-    fma(__T1 __x, __T2 __y, __T3 __z) {
+__DEVICE__ typename __hip_enable_if<
+    __hip::is_arithmetic<__T1>::value && __hip::is_arithmetic<__T2>::value &&
+        __hip::is_arithmetic<__T3>::value,
+    typename __hip::__promote<__T1, __T2, __T3>::type>::type
+fma(__T1 __x, __T2 __y, __T3 __z) {
+  typedef typename __hip::__promote<__T1, __T2, __T3>::type __result_type;
+  return ::fma((__result_type)__x, (__result_type)__y, (__result_type)__z);
+}
+#else
+template <typename __T1, typename __T2, typename __T3>
+__DEVICE__ typename __hip_enable_if<__hip::is_arithmetic<__T1>::value &&
+                                        __hip::is_arithmetic<__T2>::value &&
+                                        __hip::is_arithmetic<__T3>::value,
+                                    double>::type
+fma(__T1 __x, __T2 __y, __T3 __z) {
   return ::fma((double)__x, (double)__y, (double)__z);
 }
+#endif
 
 template <typename __T>
 __DEVICE__
-    typename __hip_enable_if<std::numeric_limits<__T>::is_integer, double>::type
+    typename __hip_enable_if<__hip::is_integral<__T>::value, double>::type
     frexp(__T __x, int *__exp) {
   return ::frexp((double)__x, __exp);
 }
 
 template <typename __T>
 __DEVICE__
-    typename __hip_enable_if<std::numeric_limits<__T>::is_integer, double>::type
+    typename __hip_enable_if<__hip::is_integral<__T>::value, double>::type
     ldexp(__T __x, int __exp) {
   return ::ldexp((double)__x, __exp);
 }
 
 template <typename __T>
 __DEVICE__
-    typename __hip_enable_if<std::numeric_limits<__T>::is_integer, double>::type
+    typename __hip_enable_if<__hip::is_integral<__T>::value, double>::type
     modf(__T __x, double *__exp) {
   return ::modf((double)__x, __exp);
 }
 
+#if __cplusplus >= 201103L
 template <typename __T1, typename __T2>
 __DEVICE__
-    typename __hip_enable_if<std::numeric_limits<__T1>::is_specialized &&
-                                 std::numeric_limits<__T2>::is_specialized,
-                             double>::type
+    typename __hip_enable_if<__hip::is_arithmetic<__T1>::value &&
+                                 __hip::is_arithmetic<__T2>::value,
+                             typename __hip::__promote<__T1, __T2>::type>::type
     remquo(__T1 __x, __T2 __y, int *__quo) {
+  typedef typename __hip::__promote<__T1, __T2>::type __result_type;
+  return ::remquo((__result_type)__x, (__result_type)__y, __quo);
+}
+#else
+template <typename __T1, typename __T2>
+__DEVICE__ typename __hip_enable_if<__hip::is_arithmetic<__T1>::value &&
+                                        __hip::is_arithmetic<__T2>::value,
+                                    double>::type
+remquo(__T1 __x, __T2 __y, int *__quo) {
   return ::remquo((double)__x, (double)__y, __quo);
 }
+#endif
 
 template <typename __T>
 __DEVICE__
-    typename __hip_enable_if<std::numeric_limits<__T>::is_integer, double>::type
+    typename __hip_enable_if<__hip::is_integral<__T>::value, double>::type
     scalbln(__T __x, long int __exp) {
   return ::scalbln((double)__x, __exp);
 }
 
 template <typename __T>
 __DEVICE__
-    typename __hip_enable_if<std::numeric_limits<__T>::is_integer, double>::type
+    typename __hip_enable_if<__hip::is_integral<__T>::value, double>::type
     scalbn(__T __x, int __exp) {
   return ::scalbn((double)__x, __exp);
 }
@@ -360,14 +576,15 @@ __DEVICE__
 #endif // defined(__cplusplus)
 
 // Define these overloads inside the namespace our standard library uses.
+#if !defined(__HIPCC_RTC__)
 #ifdef _LIBCPP_BEGIN_NAMESPACE_STD
 _LIBCPP_BEGIN_NAMESPACE_STD
 #else
 namespace std {
 #ifdef _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
-#endif
-#endif
+#endif // _GLIBCXX_BEGIN_NAMESPACE_VERSION
+#endif // _LIBCPP_BEGIN_NAMESPACE_STD
 
 // Pull the new overloads we defined above into namespace std.
 // using ::abs; - This may be considered for C++.
@@ -512,9 +729,47 @@ _LIBCPP_END_NAMESPACE_STD
 #else
 #ifdef _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_END_NAMESPACE_VERSION
-#endif
+#endif // _GLIBCXX_BEGIN_NAMESPACE_VERSION
 } // namespace std
-#endif
+#endif // _LIBCPP_END_NAMESPACE_STD
+#endif // !defined(__HIPCC_RTC__)
+
+// Define device-side math functions from <ymath.h> on MSVC.
+#if !defined(__HIPCC_RTC__)
+#if defined(_MSC_VER)
+
+// Before VS2019, `<ymath.h>` is also included in `<limits>` and other headers.
+// But, from VS2019, it's only included in `<complex>`. Need to include
+// `<ymath.h>` here to ensure C functions declared there won't be markded as
+// `__host__` and `__device__` through `<complex>` wrapper.
+#include <ymath.h>
+
+#if defined(__cplusplus)
+extern "C" {
+#endif // defined(__cplusplus)
+__DEVICE__ __attribute__((overloadable)) double _Cosh(double x, double y) {
+  return cosh(x) * y;
+}
+__DEVICE__ __attribute__((overloadable)) float _FCosh(float x, float y) {
+  return coshf(x) * y;
+}
+__DEVICE__ __attribute__((overloadable)) short _Dtest(double *p) {
+  return fpclassify(*p);
+}
+__DEVICE__ __attribute__((overloadable)) short _FDtest(float *p) {
+  return fpclassify(*p);
+}
+__DEVICE__ __attribute__((overloadable)) double _Sinh(double x, double y) {
+  return sinh(x) * y;
+}
+__DEVICE__ __attribute__((overloadable)) float _FSinh(float x, float y) {
+  return sinhf(x) * y;
+}
+#if defined(__cplusplus)
+}
+#endif // defined(__cplusplus)
+#endif // defined(_MSC_VER)
+#endif // !defined(__HIPCC_RTC__)
 
 #pragma pop_macro("__DEVICE__")
 

@@ -18,8 +18,9 @@ namespace scudo {
 
 class ScopedString {
 public:
-  explicit ScopedString(uptr MaxLength) : String(MaxLength), Length(0) {
-    String[0] = '\0';
+  explicit ScopedString() : String() {
+    if (String.capacity() > 0)
+      String[0] = '\0';
   }
   uptr length() { return Length; }
   const char *data() { return String.data(); }
@@ -33,9 +34,10 @@ public:
 
 private:
   Vector<char> String;
-  uptr Length;
+  uptr Length = 0;
 };
 
+int formatString(char *Buffer, uptr BufferLength, const char *Format, ...);
 void Printf(const char *Format, ...);
 
 } // namespace scudo

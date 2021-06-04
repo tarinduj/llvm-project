@@ -326,18 +326,6 @@ uint32_t Breakpoint::GetIgnoreCount() const {
   return m_options_up->GetIgnoreCount();
 }
 
-bool Breakpoint::IgnoreCountShouldStop() {
-  uint32_t ignore = GetIgnoreCount();
-  if (ignore != 0) {
-    // When we get here we know the location that caused the stop doesn't have
-    // an ignore count, since by contract we call it first...  So we don't have
-    // to find & decrement it, we only have to decrement our own ignore count.
-    DecrementIgnoreCount();
-    return false;
-  } else
-    return true;
-}
-
 uint32_t Breakpoint::GetHitCount() const { return m_hit_counter.GetValue(); }
 
 bool Breakpoint::IsOneShot() const { return m_options_up->IsOneShot(); }
@@ -508,7 +496,6 @@ void Breakpoint::ModulesChanged(ModuleList &module_list, bool load,
             "delete_locations: %i\n",
             module_list.GetSize(), load, delete_locations);
 
-  std::lock_guard<std::recursive_mutex> guard(module_list.GetMutex());
   if (load) {
     // The logic for handling new modules is:
     // 1) If the filter rejects this module, then skip it. 2) Run through the
@@ -525,7 +512,7 @@ void Breakpoint::ModulesChanged(ModuleList &module_list, bool load,
     // them after the locations pass.  Have to do it this way because resolving
     // breakpoints will add new locations potentially.
 
-    for (ModuleSP module_sp : module_list.ModulesNoLocking()) {
+    for (ModuleSP module_sp : module_list.Modules()) {
       bool seen = false;
       if (!m_filter_sp->ModulePasses(module_sp))
         continue;
@@ -589,9 +576,7 @@ void Breakpoint::ModulesChanged(ModuleList &module_list, bool load,
     else
       removed_locations_event = nullptr;
 
-    size_t num_modules = module_list.GetSize();
-    for (size_t i = 0; i < num_modules; i++) {
-      ModuleSP module_sp(module_list.GetModuleAtIndexUnlocked(i));
+    for (ModuleSP module_sp : module_list.Modules()) {
       if (m_filter_sp->ModulePasses(module_sp)) {
         size_t loc_idx = 0;
         size_t num_locations = m_locations.GetSize();
@@ -983,9 +968,12 @@ bool Breakpoint::GetMatchingFileLine(ConstString filename,
   if (m_resolver_sp) {
     BreakpointResolverFileLine *resolverFileLine =
         dyn_cast<BreakpointResolverFileLine>(m_resolver_sp.get());
+
+    // TODO: Handle SourceLocationSpec column information
     if (resolverFileLine &&
-        resolverFileLine->m_file_spec.GetFilename() == filename &&
-        resolverFileLine->m_line_number == line_number) {
+        resolverFileLine->m_location_spec.GetFileSpec().GetFilename() ==
+            filename &&
+        resolverFileLine->m_location_spec.GetLine() == line_number) {
       return true;
     }
   }

@@ -33,8 +33,7 @@
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/DataBufferLLVM.h"
 #include "lldb/Utility/StreamString.h"
-
-
+#include "llvm/Support/MathExtras.h"
 #include <cinttypes>
 #include <memory>
 
@@ -357,8 +356,8 @@ protected:
       result.AppendErrorWithFormat("%s takes a start address expression with "
                                    "an optional end address expression.\n",
                                    m_cmd_name.c_str());
-      result.AppendRawWarning("Expressions should be quoted if they contain "
-                              "spaces or other special characters.\n");
+      result.AppendWarning("Expressions should be quoted if they contain "
+                           "spaces or other special characters.");
       result.SetStatus(eReturnStatusFailed);
       return false;
     }
@@ -609,7 +608,7 @@ protected:
       } else if (end_addr <= addr) {
         result.AppendErrorWithFormat(
             "end address (0x%" PRIx64
-            ") must be greater that the start address (0x%" PRIx64 ").\n",
+            ") must be greater than the start address (0x%" PRIx64 ").\n",
             end_addr, addr);
         result.SetStatus(eReturnStatusFailed);
         return false;
@@ -670,8 +669,8 @@ protected:
       }
 
       Address address(addr, nullptr);
-      bytes_read = target->ReadMemory(address, false, data_sp->GetBytes(),
-                                      data_sp->GetByteSize(), error);
+      bytes_read = target->ReadMemory(address, data_sp->GetBytes(),
+                                      data_sp->GetByteSize(), error, true);
       if (bytes_read == 0) {
         const char *error_cstr = error.AsCString();
         if (error_cstr && error_cstr[0]) {
@@ -768,10 +767,11 @@ protected:
     std::string path = outfile_spec.GetPath();
     if (outfile_spec) {
 
-      auto open_options = File::eOpenOptionWrite | File::eOpenOptionCanCreate;
+      File::OpenOptions open_options =
+          File::eOpenOptionWrite | File::eOpenOptionCanCreate;
       const bool append = m_outfile_options.GetAppend().GetCurrentValue();
-      if (append)
-        open_options |= File::eOpenOptionAppend;
+      open_options |=
+          append ? File::eOpenOptionAppend : File::eOpenOptionTruncate;
 
       auto outfile = FileSystem::Instance().Open(outfile_spec, open_options);
 
@@ -1281,29 +1281,6 @@ public:
 
   Options *GetOptions() override { return &m_option_group; }
 
-  bool UIntValueIsValidForSize(uint64_t uval64, size_t total_byte_size) {
-    if (total_byte_size > 8)
-      return false;
-
-    if (total_byte_size == 8)
-      return true;
-
-    const uint64_t max = ((uint64_t)1 << (uint64_t)(total_byte_size * 8)) - 1;
-    return uval64 <= max;
-  }
-
-  bool SIntValueIsValidForSize(int64_t sval64, size_t total_byte_size) {
-    if (total_byte_size > 8)
-      return false;
-
-    if (total_byte_size == 8)
-      return true;
-
-    const int64_t max = ((int64_t)1 << (uint64_t)(total_byte_size * 8 - 1)) - 1;
-    const int64_t min = ~(max);
-    return min <= sval64 && sval64 <= max;
-  }
-
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     // No need to check "process" for validity as eCommandRequiresProcess
@@ -1449,7 +1426,7 @@ protected:
               "'%s' is not a valid hex string value.\n", entry.c_str());
           result.SetStatus(eReturnStatusFailed);
           return false;
-        } else if (!UIntValueIsValidForSize(uval64, item_byte_size)) {
+        } else if (!llvm::isUIntN(item_byte_size * 8, uval64)) {
           result.AppendErrorWithFormat("Value 0x%" PRIx64
                                        " is too large to fit in a %" PRIu64
                                        " byte unsigned integer value.\n",
@@ -1477,7 +1454,7 @@ protected:
               "'%s' is not a valid binary string value.\n", entry.c_str());
           result.SetStatus(eReturnStatusFailed);
           return false;
-        } else if (!UIntValueIsValidForSize(uval64, item_byte_size)) {
+        } else if (!llvm::isUIntN(item_byte_size * 8, uval64)) {
           result.AppendErrorWithFormat("Value 0x%" PRIx64
                                        " is too large to fit in a %" PRIu64
                                        " byte unsigned integer value.\n",
@@ -1516,7 +1493,7 @@ protected:
               "'%s' is not a valid signed decimal value.\n", entry.c_str());
           result.SetStatus(eReturnStatusFailed);
           return false;
-        } else if (!SIntValueIsValidForSize(sval64, item_byte_size)) {
+        } else if (!llvm::isIntN(item_byte_size * 8, sval64)) {
           result.AppendErrorWithFormat(
               "Value %" PRIi64 " is too large or small to fit in a %" PRIu64
               " byte signed integer value.\n",
@@ -1529,13 +1506,13 @@ protected:
 
       case eFormatUnsigned:
 
-        if (!entry.ref().getAsInteger(0, uval64)) {
+        if (entry.ref().getAsInteger(0, uval64)) {
           result.AppendErrorWithFormat(
               "'%s' is not a valid unsigned decimal string value.\n",
               entry.c_str());
           result.SetStatus(eReturnStatusFailed);
           return false;
-        } else if (!UIntValueIsValidForSize(uval64, item_byte_size)) {
+        } else if (!llvm::isUIntN(item_byte_size * 8, uval64)) {
           result.AppendErrorWithFormat("Value %" PRIu64
                                        " is too large to fit in a %" PRIu64
                                        " byte unsigned integer value.\n",
@@ -1552,7 +1529,7 @@ protected:
               "'%s' is not a valid octal string value.\n", entry.c_str());
           result.SetStatus(eReturnStatusFailed);
           return false;
-        } else if (!UIntValueIsValidForSize(uval64, item_byte_size)) {
+        } else if (!llvm::isUIntN(item_byte_size * 8, uval64)) {
           result.AppendErrorWithFormat("Value %" PRIo64
                                        " is too large to fit in a %" PRIu64
                                        " byte unsigned integer value.\n",
@@ -1733,12 +1710,18 @@ protected:
           section_name = section_sp->GetName();
         }
       }
+
       result.AppendMessageWithFormatv(
-          "[{0:x16}-{1:x16}) {2:r}{3:w}{4:x}{5}{6}{7}{8}\n",
+          "[{0:x16}-{1:x16}) {2:r}{3:w}{4:x}{5}{6}{7}{8}",
           range_info.GetRange().GetRangeBase(),
           range_info.GetRange().GetRangeEnd(), range_info.GetReadable(),
           range_info.GetWritable(), range_info.GetExecutable(), name ? " " : "",
           name, section_name ? " " : "", section_name);
+      MemoryRegionInfo::OptionalBool memory_tagged =
+          range_info.GetMemoryTagged();
+      if (memory_tagged == MemoryRegionInfo::OptionalBool::eYes)
+        result.AppendMessage("memory tagging: enabled");
+
       m_prev_end_addr = range_info.GetRange().GetRangeEnd();
       result.SetStatus(eReturnStatusSuccessFinishResult);
       return true;

@@ -69,29 +69,38 @@ def : Pat<(X86callseq_start timm:$amt1, timm:$amt2),
 let SchedRW = [WriteSystem] in {
 
 // x86-64 va_start lowering magic.
-let usesCustomInserter = 1, Defs = [EFLAGS] in {
+let hasSideEffects = 1, Defs = [EFLAGS] in {
 def VASTART_SAVE_XMM_REGS : I<0, Pseudo,
                               (outs),
                               (ins GR8:$al,
-                                   i64imm:$regsavefi, i64imm:$offset,
+                                   i32imm:$regsavefi, i32imm:$offset,
                                    variable_ops),
                               "#VASTART_SAVE_XMM_REGS $al, $regsavefi, $offset",
                               [(X86vastart_save_xmm_regs GR8:$al,
-                                                         imm:$regsavefi,
-                                                         imm:$offset),
+                                                         timm:$regsavefi,
+                                                         timm:$offset),
                                (implicit EFLAGS)]>;
+}
 
-// The VAARG_64 pseudo-instruction takes the address of the va_list,
-// and places the address of the next argument into a register.
-let Defs = [EFLAGS] in
+let usesCustomInserter = 1, Defs = [EFLAGS] in {
+// The VAARG_64 and VAARG_X32 pseudo-instructions take the address of the
+// va_list, and place the address of the next argument into a register.
+let Defs = [EFLAGS] in {
 def VAARG_64 : I<0, Pseudo,
                  (outs GR64:$dst),
                  (ins i8mem:$ap, i32imm:$size, i8imm:$mode, i32imm:$align),
                  "#VAARG_64 $dst, $ap, $size, $mode, $align",
                  [(set GR64:$dst,
-                    (X86vaarg64 addr:$ap, imm:$size, imm:$mode, imm:$align)),
-                  (implicit EFLAGS)]>;
-
+                    (X86vaarg64 addr:$ap, timm:$size, timm:$mode, timm:$align)),
+                  (implicit EFLAGS)]>, Requires<[In64BitMode, IsLP64]>;
+def VAARG_X32 : I<0, Pseudo,
+                 (outs GR32:$dst),
+                 (ins i8mem:$ap, i32imm:$size, i8imm:$mode, i32imm:$align),
+                 "#VAARG_X32 $dst, $ap, $size, $mode, $align",
+                 [(set GR32:$dst,
+                    (X86vaargx32 addr:$ap, timm:$size, timm:$mode, timm:$align)),
+                  (implicit EFLAGS)]>, Requires<[In64BitMode, NotLP64]>;
+}
 
 // When using segmented stacks these are lowered into instructions which first
 // check if the current stacklet has enough free memory. If it does, memory is
@@ -467,11 +476,19 @@ let Defs = [RAX, RCX, RDX, RSI, RDI, R8, R9, R10, R11,
 def TLS_addr64 : I<0, Pseudo, (outs), (ins i64mem:$sym),
                    "# TLS_addr64",
                   [(X86tlsaddr tls64addr:$sym)]>,
-                  Requires<[In64BitMode]>;
+                  Requires<[In64BitMode, IsLP64]>;
 def TLS_base_addr64 : I<0, Pseudo, (outs), (ins i64mem:$sym),
                    "# TLS_base_addr64",
                   [(X86tlsbaseaddr tls64baseaddr:$sym)]>,
-                  Requires<[In64BitMode]>;
+                  Requires<[In64BitMode, IsLP64]>;
+def TLS_addrX32 : I<0, Pseudo, (outs), (ins i32mem:$sym),
+                   "# TLS_addrX32",
+                  [(X86tlsaddr tls32addr:$sym)]>,
+                  Requires<[In64BitMode, NotLP64]>;
+def TLS_base_addrX32 : I<0, Pseudo, (outs), (ins i32mem:$sym),
+                   "# TLS_base_addrX32",
+                  [(X86tlsbaseaddr tls32baseaddr:$sym)]>,
+                  Requires<[In64BitMode, NotLP64]>;
 }
 
 // Darwin TLS Support
@@ -915,10 +932,10 @@ def MWAITX :
 defm LCMPXCHG : LCMPXCHG_BinOp<0xB0, 0xB1, MRMDestMem, "cmpxchg", X86cas>;
 
 // Atomic exchange and add
-multiclass ATOMIC_LOAD_BINOP<bits<8> opc8, bits<8> opc, string mnemonic,
-                             string frag> {
-  let Constraints = "$val = $dst", Defs = [EFLAGS], isCodeGenOnly = 1,
-      SchedRW = [WriteALURMW] in {
+multiclass ATOMIC_RMW_BINOP<bits<8> opc8, bits<8> opc, string mnemonic,
+                            string frag> {
+  let Constraints = "$val = $dst", Defs = [EFLAGS], mayLoad = 1, mayStore = 1,
+      isCodeGenOnly = 1, SchedRW = [WriteALURMW] in {
     def NAME#8  : I<opc8, MRMSrcMem, (outs GR8:$dst),
                     (ins GR8:$val, i8mem:$ptr),
                     !strconcat(mnemonic, "{b}\t{$val, $ptr|$ptr, $val}"),
@@ -947,7 +964,7 @@ multiclass ATOMIC_LOAD_BINOP<bits<8> opc8, bits<8> opc, string mnemonic,
   }
 }
 
-defm LXADD : ATOMIC_LOAD_BINOP<0xc0, 0xc1, "xadd", "atomic_load_add">, TB, LOCK;
+defm LXADD : ATOMIC_RMW_BINOP<0xc0, 0xc1, "xadd", "atomic_load_add">, TB, LOCK;
 
 /* The following multiclass tries to make sure that in code like
  *    x.store (immediate op x.load(acquire), release)
@@ -1180,6 +1197,12 @@ def : Pat<(X86call (i64 tglobaladdr:$dst)),
 def : Pat<(X86call (i64 texternalsym:$dst)),
           (CALL64pcrel32 texternalsym:$dst)>;
 
+def : Pat<(X86call_rvmarker (timm:$sel), (i64 texternalsym:$dst)),
+          (CALL64pcrel32_RVMARKER timm:$sel, texternalsym:$dst)>;
+def : Pat<(X86call_rvmarker (timm:$sel), (i64 tglobaladdr:$dst)),
+          (CALL64pcrel32_RVMARKER timm:$sel, tglobaladdr:$dst)>;
+
+
 // Tailcall stuff. The TCRETURN instructions execute after the epilog, so they
 // can never use callee-saved registers. That is the purpose of the GR64_TC
 // register classes.
@@ -1198,49 +1221,49 @@ def X86tcret_6regs : PatFrag<(ops node:$ptr, node:$off),
   return true;
 }]>;
 
-def : Pat<(X86tcret ptr_rc_tailcall:$dst, imm:$off),
-          (TCRETURNri ptr_rc_tailcall:$dst, imm:$off)>,
+def : Pat<(X86tcret ptr_rc_tailcall:$dst, timm:$off),
+          (TCRETURNri ptr_rc_tailcall:$dst, timm:$off)>,
           Requires<[Not64BitMode, NotUseIndirectThunkCalls]>;
 
 // FIXME: This is disabled for 32-bit PIC mode because the global base
 // register which is part of the address mode may be assigned a
 // callee-saved register.
-def : Pat<(X86tcret (load addr:$dst), imm:$off),
-          (TCRETURNmi addr:$dst, imm:$off)>,
+def : Pat<(X86tcret (load addr:$dst), timm:$off),
+          (TCRETURNmi addr:$dst, timm:$off)>,
           Requires<[Not64BitMode, IsNotPIC, NotUseIndirectThunkCalls]>;
 
-def : Pat<(X86tcret (i32 tglobaladdr:$dst), imm:$off),
-          (TCRETURNdi tglobaladdr:$dst, imm:$off)>,
+def : Pat<(X86tcret (i32 tglobaladdr:$dst), timm:$off),
+          (TCRETURNdi tglobaladdr:$dst, timm:$off)>,
           Requires<[NotLP64]>;
 
-def : Pat<(X86tcret (i32 texternalsym:$dst), imm:$off),
-          (TCRETURNdi texternalsym:$dst, imm:$off)>,
+def : Pat<(X86tcret (i32 texternalsym:$dst), timm:$off),
+          (TCRETURNdi texternalsym:$dst, timm:$off)>,
           Requires<[NotLP64]>;
 
-def : Pat<(X86tcret ptr_rc_tailcall:$dst, imm:$off),
-          (TCRETURNri64 ptr_rc_tailcall:$dst, imm:$off)>,
+def : Pat<(X86tcret ptr_rc_tailcall:$dst, timm:$off),
+          (TCRETURNri64 ptr_rc_tailcall:$dst, timm:$off)>,
           Requires<[In64BitMode, NotUseIndirectThunkCalls]>;
 
 // Don't fold loads into X86tcret requiring more than 6 regs.
 // There wouldn't be enough scratch registers for base+index.
-def : Pat<(X86tcret_6regs (load addr:$dst), imm:$off),
-          (TCRETURNmi64 addr:$dst, imm:$off)>,
+def : Pat<(X86tcret_6regs (load addr:$dst), timm:$off),
+          (TCRETURNmi64 addr:$dst, timm:$off)>,
           Requires<[In64BitMode, NotUseIndirectThunkCalls]>;
 
-def : Pat<(X86tcret ptr_rc_tailcall:$dst, imm:$off),
-          (INDIRECT_THUNK_TCRETURN64 ptr_rc_tailcall:$dst, imm:$off)>,
+def : Pat<(X86tcret ptr_rc_tailcall:$dst, timm:$off),
+          (INDIRECT_THUNK_TCRETURN64 ptr_rc_tailcall:$dst, timm:$off)>,
           Requires<[In64BitMode, UseIndirectThunkCalls]>;
 
-def : Pat<(X86tcret ptr_rc_tailcall:$dst, imm:$off),
-          (INDIRECT_THUNK_TCRETURN32 ptr_rc_tailcall:$dst, imm:$off)>,
+def : Pat<(X86tcret ptr_rc_tailcall:$dst, timm:$off),
+          (INDIRECT_THUNK_TCRETURN32 ptr_rc_tailcall:$dst, timm:$off)>,
           Requires<[Not64BitMode, UseIndirectThunkCalls]>;
 
-def : Pat<(X86tcret (i64 tglobaladdr:$dst), imm:$off),
-          (TCRETURNdi64 tglobaladdr:$dst, imm:$off)>,
+def : Pat<(X86tcret (i64 tglobaladdr:$dst), timm:$off),
+          (TCRETURNdi64 tglobaladdr:$dst, timm:$off)>,
           Requires<[IsLP64]>;
 
-def : Pat<(X86tcret (i64 texternalsym:$dst), imm:$off),
-          (TCRETURNdi64 texternalsym:$dst, imm:$off)>,
+def : Pat<(X86tcret (i64 texternalsym:$dst), timm:$off),
+          (TCRETURNdi64 texternalsym:$dst, timm:$off)>,
           Requires<[IsLP64]>;
 
 // Normal calls, with various flavors of addresses.

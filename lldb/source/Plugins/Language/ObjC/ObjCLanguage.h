@@ -105,6 +105,8 @@ public:
   std::vector<ConstString>
   GetMethodNameVariants(ConstString method_name) const override;
 
+  bool SymbolNameFitsToLanguage(Mangled mangled) const override;
+
   lldb::TypeCategoryImplSP GetFormatters() override;
 
   std::vector<ConstString>
@@ -118,6 +120,8 @@ public:
                                 std::string &suffix) override;
 
   bool IsNilReference(ValueObject &valobj) override;
+
+  llvm::StringRef GetNilReferenceSummaryString() override { return "nil"; }
 
   bool IsSourceFile(llvm::StringRef file_path) const override;
 

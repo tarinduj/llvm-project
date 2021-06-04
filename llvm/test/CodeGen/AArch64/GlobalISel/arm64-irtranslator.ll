@@ -2353,8 +2353,9 @@ declare { <4 x i32>, <4 x i32>, <4 x i32> } @llvm.aarch64.neon.ld3.v4i32.p0i32(i
 define void @test_i1_arg_zext(void (i1)* %f) {
 ; CHECK-LABEL: name: test_i1_arg_zext
 ; CHECK: [[I1:%[0-9]+]]:_(s1) = G_CONSTANT i1 true
-; CHECK: [[ZEXT:%[0-9]+]]:_(s32) = G_ZEXT [[I1]](s1)
-; CHECK: $w0 = COPY [[ZEXT]](s32)
+; CHECK: [[ZEXT0:%[0-9]+]]:_(s8) = G_ZEXT [[I1]](s1)
+; CHECK: [[ZEXT1:%[0-9]+]]:_(s32) = G_ZEXT [[ZEXT0]](s8)
+; CHECK: $w0 = COPY [[ZEXT1]](s32)
   call void %f(i1 true)
   ret void
 }
@@ -2388,6 +2389,20 @@ define void @test_assume(i1 %x) {
   ret void
 }
 
+declare void @llvm.experimental.noalias.scope.decl(metadata)
+define void @test.llvm.noalias.scope.decl(i8* %P, i8* %Q) nounwind ssp {
+  tail call void @llvm.experimental.noalias.scope.decl(metadata !3)
+  ; CHECK-LABEL: name: test.llvm.noalias.scope.decl
+  ; CHECK-NOT: llvm.experimental.noalias.scope.decl
+  ; CHECK: RET_ReallyLR
+  ret void
+}
+
+!3 = !{ !4 }
+!4 = distinct !{ !4, !5, !"test1: var" }
+!5 = distinct !{ !5, !"test1" }
+
+
 declare void @llvm.sideeffect()
 define void @test_sideeffect() {
   ; CHECK-LABEL: name:            test_sideeffect
@@ -2397,12 +2412,12 @@ define void @test_sideeffect() {
   ret void
 }
 
-declare void @llvm.var.annotation(i8*, i8*, i8*, i32)
+declare void @llvm.var.annotation(i8*, i8*, i8*, i32, i8*)
 define void @test_var_annotation(i8*, i8*, i8*, i32) {
   ; CHECK-LABEL: name:            test_var_annotation
   ; CHECK-NOT: llvm.var.annotation
   ; CHECK: RET_ReallyLR
-  call void @llvm.var.annotation(i8* %0, i8* %1, i8* %2, i32 %3)
+  call void @llvm.var.annotation(i8* %0, i8* %1, i8* %2, i32 %3, i8* null)
   ret void
 }
 

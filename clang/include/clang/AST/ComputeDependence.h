@@ -78,6 +78,7 @@ class MaterializeTemporaryExpr;
 class CXXFoldExpr;
 class TypeTraitExpr;
 class ConceptSpecializationExpr;
+class SYCLUniqueStableNameExpr;
 class PredefinedExpr;
 class CallExpr;
 class OffsetOfExpr;
@@ -107,7 +108,7 @@ class ObjCMessageExpr;
 ExprDependence computeDependence(FullExpr *E);
 ExprDependence computeDependence(OpaqueValueExpr *E);
 ExprDependence computeDependence(ParenExpr *E);
-ExprDependence computeDependence(UnaryOperator *E);
+ExprDependence computeDependence(UnaryOperator *E, const ASTContext &Ctx);
 ExprDependence computeDependence(UnaryExprOrTypeTraitExpr *E);
 ExprDependence computeDependence(ArraySubscriptExpr *E);
 ExprDependence computeDependence(MatrixSubscriptExpr *E);
@@ -165,6 +166,7 @@ ExprDependence computeDependence(TypeTraitExpr *E);
 ExprDependence computeDependence(ConceptSpecializationExpr *E,
                                  bool ValueDependent);
 
+ExprDependence computeDependence(SYCLUniqueStableNameExpr *E);
 ExprDependence computeDependence(PredefinedExpr *E);
 ExprDependence computeDependence(CallExpr *E, llvm::ArrayRef<Expr *> PreArgs);
 ExprDependence computeDependence(OffsetOfExpr *E);

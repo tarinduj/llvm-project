@@ -65,6 +65,7 @@ option(LLDB_BUILD_FRAMEWORK "Build LLDB.framework (Darwin only)" OFF)
 option(LLDB_NO_INSTALL_DEFAULT_RPATH "Disable default RPATH settings in binaries" OFF)
 option(LLDB_USE_SYSTEM_DEBUGSERVER "Use the system's debugserver for testing (Darwin only)." OFF)
 option(LLDB_SKIP_STRIP "Whether to skip stripping of binaries when installing lldb." OFF)
+option(LLDB_SKIP_DSYM "Whether to skip generating a dSYM when installing lldb." OFF)
 
 if (LLDB_USE_SYSTEM_DEBUGSERVER)
   # The custom target for the system debugserver has no install target, so we
@@ -228,7 +229,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     DESTINATION include
     FILES_MATCHING
     PATTERN "*.h"
-    PATTERN ".svn" EXCLUDE
     PATTERN ".cmake" EXCLUDE
     )
 
@@ -237,7 +237,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     DESTINATION include
     FILES_MATCHING
     PATTERN "*.h"
-    PATTERN ".svn" EXCLUDE
     PATTERN ".cmake" EXCLUDE
     )
 

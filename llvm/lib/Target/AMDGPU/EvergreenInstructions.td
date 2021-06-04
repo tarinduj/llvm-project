@@ -78,7 +78,7 @@ multiclass RAT_ATOMIC<bits<6> op_ret, bits<6> op_noret, string name> {
   def  _RTN: CF_MEM_RAT <op_ret, 0, 0xf,
              (ins R600_Reg128:$rw_gpr, R600_TReg32_X:$index_gpr),
              (outs R600_Reg128:$out_gpr),
-             name # "_RTN" # " $rw_gpr, $index_gpr", [] >;
+             name # "_RTN $rw_gpr, $index_gpr", [] >;
   def _NORET: CF_MEM_RAT <op_noret, 0, 0xf,
               (ins R600_Reg128:$rw_gpr, R600_TReg32_X:$index_gpr),
               (outs R600_Reg128:$out_gpr),
@@ -532,7 +532,10 @@ def MULADD_UINT24_eg : R600_3OP <0x10, "MULADD_UINT24",
 def : UMad24Pat<MULADD_UINT24_eg>;
 
 def BIT_ALIGN_INT_eg : R600_3OP <0xC, "BIT_ALIGN_INT", [], VecALU>;
-def : FSHRPattern <BIT_ALIGN_INT_eg>;
+def : AMDGPUPat <
+  (fshr i32:$src0, i32:$src1, i32:$src2),
+  (BIT_ALIGN_INT_eg $src0, $src1, $src2)
+>;
 def : ROTRPattern <BIT_ALIGN_INT_eg>;
 def MULADD_eg : MULADD_Common<0x14>;
 def MULADD_IEEE_eg : MULADD_IEEE_Common<0x18>;

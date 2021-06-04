@@ -6,6 +6,7 @@ add_mlir_conversion_library(MLIRLinalgToLLVM
 
   DEPENDS
   MLIRConversionPassIncGen
+  MLIRLinalgPassIncGen
   intrinsics_gen
 
   LINK_COMPONENTS
@@ -13,7 +14,6 @@ add_mlir_conversion_library(MLIRLinalgToLLVM
 
   LINK_LIBS PUBLIC
   MLIRAffineToStandard
-  MLIREDSC
   MLIRIR
   MLIRLinalg
   MLIRLLVMIR

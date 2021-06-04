@@ -66,7 +66,7 @@ def SDT_ARMMEMBARRIER     : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
 def SDT_ARMPREFETCH : SDTypeProfile<0, 3, [SDTCisPtrTy<0>, SDTCisSameAs<1, 2>,
                                            SDTCisInt<1>]>;
 
-def SDT_ARMTCRET : SDTypeProfile<0, 1, [SDTCisPtrTy<0>]>;
+def SDT_ARMTCRET : SDTypeProfile<0, 2, [SDTCisPtrTy<0>]>;
 
 def SDT_ARMBFI : SDTypeProfile<1, 3, [SDTCisVT<0, i32>, SDTCisVT<1, i32>,
                                       SDTCisVT<2, i32>, SDTCisVT<3, i32>]>;
@@ -103,11 +103,6 @@ def SDT_ARMIntShiftParts : SDTypeProfile<2, 3, [SDTCisSameAs<0, 1>,
                                               SDTCisSameAs<0, 3>,
                                               SDTCisInt<0>,
                                               SDTCisInt<4>]>;
-
-// TODO Add another operand for 'Size' so that we can re-use this node when we
-// start supporting *TP versions.
-def SDT_ARMLoLoop : SDTypeProfile<0, 2, [SDTCisVT<0, i32>,
-                                         SDTCisVT<1, OtherVT>]>;
 
 def ARMSmlald        : SDNode<"ARMISD::SMLALD", SDT_LongMac>;
 def ARMSmlaldx       : SDNode<"ARMISD::SMLALDX", SDT_LongMac>;
@@ -261,6 +256,10 @@ def ARMvduplane  : SDNode<"ARMISD::VDUPLANE",
                           SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisVec<1>,
                                                SDTCisVT<2, i32>]>>;
 
+def SDTARMVIDUP  : SDTypeProfile<2, 2, [SDTCisVec<0>, SDTCisVT<1, i32>,
+                                          SDTCisVT<2, i32>, SDTCisVT<3, i32>]>;
+def ARMvidup    : SDNode<"ARMISD::VIDUP", SDTARMVIDUP>;
+
 def SDTARMVSHUF   : SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisSameAs<0, 1>]>;
 def ARMvrev64    : SDNode<"ARMISD::VREV64", SDTARMVSHUF>;
 def ARMvrev32    : SDNode<"ARMISD::VREV32", SDTARMVSHUF>;
@@ -302,10 +301,6 @@ def SDTARMVCMPZ   : SDTypeProfile<1, 2, [SDTCisInt<2>]>;
 
 def ARMvcmp      : SDNode<"ARMISD::VCMP", SDTARMVCMP>;
 def ARMvcmpz     : SDNode<"ARMISD::VCMPZ", SDTARMVCMPZ>;
-
-def ARMWLS      : SDNode<"ARMISD::WLS", SDT_ARMLoLoop, [SDNPHasChain]>;
-def ARMLE       : SDNode<"ARMISD::LE", SDT_ARMLoLoop, [SDNPHasChain]>;
-def ARMLoopDec  : SDNode<"ARMISD::LOOP_DEC", SDTIntBinOp, [SDNPHasChain]>;
 
 // 'VECTOR_REG_CAST' is an operation that reinterprets the contents of a
 // vector register as a different vector type, without changing the contents of
@@ -2501,23 +2496,29 @@ let isCall = 1,
   }
 
   // ARMv5T and above
-  def BLX : AXI<(outs), (ins GPR:$func), BrMiscFrm,
-                IIC_Br, "blx\t$func",
-                [(ARMcall GPR:$func)]>,
+  def BLX : AXI<(outs), (ins GPR:$func), BrMiscFrm, IIC_Br, "blx\t$func", []>,
             Requires<[IsARM, HasV5T]>, Sched<[WriteBrL]> {
     bits<4> func;
     let Inst{31-4} = 0b1110000100101111111111110011;
     let Inst{3-0}  = func;
   }
+  def BLX_noip :  ARMPseudoExpand<(outs), (ins GPRnoip:$func),
+                   4, IIC_Br, [], (BLX GPR:$func)>,
+                  Requires<[IsARM, HasV5T]>, Sched<[WriteBrL]>;
+
 
   def BLX_pred : AI<(outs), (ins GPR:$func), BrMiscFrm,
-                    IIC_Br, "blx", "\t$func",
-                    [(ARMcall_pred GPR:$func)]>,
+                    IIC_Br, "blx", "\t$func", []>,
                  Requires<[IsARM, HasV5T]>, Sched<[WriteBrL]> {
     bits<4> func;
     let Inst{27-4} = 0b000100101111111111110011;
     let Inst{3-0}  = func;
   }
+  def BLX_pred_noip :  ARMPseudoExpand<(outs), (ins GPRnoip:$func),
+                   4, IIC_Br, [],
+                   (BLX_pred GPR:$func, (ops 14, zero_reg))>,
+                   Requires<[IsARM, HasV5T]>, Sched<[WriteBrL]>;
+
 
   // ARMv4T
   // Note: Restrict $func to the tGPR regclass to prevent it being in LR.
@@ -2542,6 +2543,16 @@ let isCall = 1,
                   []>,
              Requires<[IsARM]>, Sched<[WriteBr]>;
 }
+
+def : ARMPat<(ARMcall GPR:$func), (BLX $func)>,
+      Requires<[IsARM, HasV5T, NoSLSBLRMitigation]>;
+def : ARMPat<(ARMcall GPRnoip:$func), (BLX_noip $func)>,
+      Requires<[IsARM, HasV5T, SLSBLRMitigation]>;
+def : ARMPat<(ARMcall_pred GPR:$func), (BLX_pred $func)>,
+      Requires<[IsARM, HasV5T, NoSLSBLRMitigation]>;
+def : ARMPat<(ARMcall_pred GPRnoip:$func), (BLX_pred_noip $func)>,
+      Requires<[IsARM, HasV5T, SLSBLRMitigation]>;
+
 
 let isBranch = 1, isTerminator = 1 in {
   // FIXME: should be able to write a pattern for ARMBrcond, but can't use
@@ -2612,15 +2623,16 @@ def BXJ : ABI<0b0001, (outs), (ins GPR:$func), NoItinerary, "bxj", "\t$func",
   let Inst{7-4} = 0b0010;
   let Inst{3-0} = func;
   let isBranch = 1;
+  let isIndirectBranch = 1;
 }
 
 // Tail calls.
 
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [SP] in {
-  def TCRETURNdi : PseudoInst<(outs), (ins i32imm:$dst), IIC_Br, []>,
+  def TCRETURNdi : PseudoInst<(outs), (ins i32imm:$dst, i32imm:$SPDiff), IIC_Br, []>,
                    Sched<[WriteBr]>;
 
-  def TCRETURNri : PseudoInst<(outs), (ins tcGPR:$dst), IIC_Br, []>,
+  def TCRETURNri : PseudoInst<(outs), (ins tcGPR:$dst, i32imm:$SPDiff), IIC_Br, []>,
                    Sched<[WriteBr]>;
 
   def TAILJMPd : ARMPseudoExpand<(outs), (ins arm_br_target:$dst),
@@ -5991,9 +6003,12 @@ def : ARMPat<(ARMWrapperJT tjumptable:$dst),
 // TODO: add,sub,and, 3-instr forms?
 
 // Tail calls. These patterns also apply to Thumb mode.
-def : Pat<(ARMtcret tcGPR:$dst), (TCRETURNri tcGPR:$dst)>;
-def : Pat<(ARMtcret (i32 tglobaladdr:$dst)), (TCRETURNdi texternalsym:$dst)>;
-def : Pat<(ARMtcret (i32 texternalsym:$dst)), (TCRETURNdi texternalsym:$dst)>;
+def : Pat<(ARMtcret tcGPR:$dst, (i32 timm:$SPDiff)),
+          (TCRETURNri tcGPR:$dst, timm:$SPDiff)>;
+def : Pat<(ARMtcret (i32 tglobaladdr:$dst), (i32 timm:$SPDiff)),
+          (TCRETURNdi texternalsym:$dst, (i32 timm:$SPDiff))>;
+def : Pat<(ARMtcret (i32 texternalsym:$dst), (i32 timm:$SPDiff)),
+          (TCRETURNdi texternalsym:$dst, i32imm:$SPDiff)>;
 
 // Direct calls
 def : ARMPat<(ARMcall texternalsym:$func), (BL texternalsym:$func)>;
@@ -6373,6 +6388,15 @@ let mayLoad = 1, mayStore =1, hasSideEffects = 1, hasNoSchedulingInfo = 1 in
 def SPACE : PseudoInst<(outs GPR:$Rd), (ins i32imm:$size, GPR:$Rn),
                        NoItinerary,
                        [(set GPR:$Rd, (int_arm_space timm:$size, GPR:$Rn))]>;
+
+// SpeculationBarrierEndBB must only be used after an unconditional control
+// flow, i.e. after a terminator for which isBarrier is True.
+let hasSideEffects = 1, isCodeGenOnly = 1, isTerminator = 1, isBarrier = 1 in {
+  def SpeculationBarrierISBDSBEndBB
+      : PseudoInst<(outs), (ins), NoItinerary, []>, Sched<[]>;
+  def SpeculationBarrierSBEndBB
+      : PseudoInst<(outs), (ins), NoItinerary, []>, Sched<[]>;
+}
 
 //===----------------------------------
 // Atomic cmpxchg for -O0

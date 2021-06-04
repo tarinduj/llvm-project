@@ -334,6 +334,90 @@ SDValue AVRTargetLowering::LowerShifts(SDValue Op, SelectionDAG &DAG) const {
     llvm_unreachable("Invalid shift opcode");
   }
 
+  // Optimize int8/int16 shifts.
+  if (VT.getSizeInBits() == 8) {
+    if (Op.getOpcode() == ISD::SHL && 4 <= ShiftAmount && ShiftAmount < 7) {
+      // Optimize LSL when 4 <= ShiftAmount <= 6.
+      Victim = DAG.getNode(AVRISD::SWAP, dl, VT, Victim);
+      Victim =
+          DAG.getNode(ISD::AND, dl, VT, Victim, DAG.getConstant(0xf0, dl, VT));
+      ShiftAmount -= 4;
+    } else if (Op.getOpcode() == ISD::SRL && 4 <= ShiftAmount &&
+               ShiftAmount < 7) {
+      // Optimize LSR when 4 <= ShiftAmount <= 6.
+      Victim = DAG.getNode(AVRISD::SWAP, dl, VT, Victim);
+      Victim =
+          DAG.getNode(ISD::AND, dl, VT, Victim, DAG.getConstant(0x0f, dl, VT));
+      ShiftAmount -= 4;
+    } else if (Op.getOpcode() == ISD::SHL && ShiftAmount == 7) {
+      // Optimize LSL when ShiftAmount == 7.
+      Victim = DAG.getNode(AVRISD::LSLBN, dl, VT, Victim,
+                           DAG.getConstant(7, dl, VT));
+      ShiftAmount = 0;
+    } else if (Op.getOpcode() == ISD::SRL && ShiftAmount == 7) {
+      // Optimize LSR when ShiftAmount == 7.
+      Victim = DAG.getNode(AVRISD::LSRBN, dl, VT, Victim,
+                           DAG.getConstant(7, dl, VT));
+      ShiftAmount = 0;
+    } else if (Op.getOpcode() == ISD::SRA && ShiftAmount == 7) {
+      // Optimize ASR when ShiftAmount == 7.
+      Victim = DAG.getNode(AVRISD::ASRBN, dl, VT, Victim,
+                           DAG.getConstant(7, dl, VT));
+      ShiftAmount = 0;
+    }
+  } else if (VT.getSizeInBits() == 16) {
+    if (4 <= ShiftAmount && ShiftAmount < 8)
+      switch (Op.getOpcode()) {
+      case ISD::SHL:
+        Victim = DAG.getNode(AVRISD::LSLWN, dl, VT, Victim,
+                             DAG.getConstant(4, dl, VT));
+        ShiftAmount -= 4;
+        break;
+      case ISD::SRL:
+        Victim = DAG.getNode(AVRISD::LSRWN, dl, VT, Victim,
+                             DAG.getConstant(4, dl, VT));
+        ShiftAmount -= 4;
+        break;
+      default:
+        break;
+      }
+    else if (8 <= ShiftAmount && ShiftAmount < 12)
+      switch (Op.getOpcode()) {
+      case ISD::SHL:
+        Victim = DAG.getNode(AVRISD::LSLWN, dl, VT, Victim,
+                             DAG.getConstant(8, dl, VT));
+        ShiftAmount -= 8;
+        break;
+      case ISD::SRL:
+        Victim = DAG.getNode(AVRISD::LSRWN, dl, VT, Victim,
+                             DAG.getConstant(8, dl, VT));
+        ShiftAmount -= 8;
+        break;
+      case ISD::SRA:
+        Victim = DAG.getNode(AVRISD::ASRWN, dl, VT, Victim,
+                             DAG.getConstant(8, dl, VT));
+        ShiftAmount -= 8;
+        break;
+      default:
+        break;
+      }
+    else if (12 <= ShiftAmount)
+      switch (Op.getOpcode()) {
+      case ISD::SHL:
+        Victim = DAG.getNode(AVRISD::LSLWN, dl, VT, Victim,
+                             DAG.getConstant(12, dl, VT));
+        ShiftAmount -= 12;
+        break;
+      case ISD::SRL:
+        Victim = DAG.getNode(AVRISD::LSRWN, dl, VT, Victim,
+                             DAG.getConstant(12, dl, VT));
+        ShiftAmount -= 12;
+        break;
+      default:
+        break;
+      }
+  }
+
   while (ShiftAmount--) {
     Victim = DAG.getNode(Opc8, dl, VT, Victim);
   }
@@ -435,6 +519,36 @@ static AVRCC::CondCodes intCCToAVRCC(ISD::CondCode CC) {
   case ISD::SETULT:
     return AVRCC::COND_LO;
   }
+}
+
+/// Returns appropriate CP/CPI/CPC nodes code for the given 8/16-bit operands.
+SDValue AVRTargetLowering::getAVRCmp(SDValue LHS, SDValue RHS,
+                                     SelectionDAG &DAG, SDLoc DL) const {
+  assert((LHS.getSimpleValueType() == RHS.getSimpleValueType()) &&
+         "LHS and RHS have different types");
+  assert(((LHS.getSimpleValueType() == MVT::i16) ||
+          (LHS.getSimpleValueType() == MVT::i8)) && "invalid comparison type");
+
+  SDValue Cmp;
+
+  if (LHS.getSimpleValueType() == MVT::i16 && isa<ConstantSDNode>(RHS)) {
+    // Generate a CPI/CPC pair if RHS is a 16-bit constant.
+    SDValue LHSlo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, LHS,
+                                DAG.getIntPtrConstant(0, DL));
+    SDValue LHShi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, LHS,
+                                DAG.getIntPtrConstant(1, DL));
+    SDValue RHSlo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, RHS,
+                                DAG.getIntPtrConstant(0, DL));
+    SDValue RHShi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8, RHS,
+                                DAG.getIntPtrConstant(1, DL));
+    Cmp = DAG.getNode(AVRISD::CMP, DL, MVT::Glue, LHSlo, RHSlo);
+    Cmp = DAG.getNode(AVRISD::CMPC, DL, MVT::Glue, LHShi, RHShi, Cmp);
+  } else {
+    // Generate ordinary 16-bit comparison.
+    Cmp = DAG.getNode(AVRISD::CMP, DL, MVT::Glue, LHS, RHS);
+  }
+
+  return Cmp;
 }
 
 /// Returns appropriate AVR CMP/CMPC nodes and corresponding condition code for
@@ -549,7 +663,7 @@ SDValue AVRTargetLowering::getAVRCmp(SDValue LHS, SDValue RHS, ISD::CondCode CC,
                                 DAG.getIntPtrConstant(1, DL));
       Cmp = DAG.getNode(AVRISD::TST, DL, MVT::Glue, Top);
     } else {
-      Cmp = DAG.getNode(AVRISD::CMP, DL, MVT::Glue, LHSlo, RHSlo);
+      Cmp = getAVRCmp(LHSlo, RHSlo, DAG, DL);
       Cmp = DAG.getNode(AVRISD::CMPC, DL, MVT::Glue, LHShi, RHShi, Cmp);
     }
   } else if (VT == MVT::i64) {
@@ -587,7 +701,7 @@ SDValue AVRTargetLowering::getAVRCmp(SDValue LHS, SDValue RHS, ISD::CondCode CC,
                                 DAG.getIntPtrConstant(1, DL));
       Cmp = DAG.getNode(AVRISD::TST, DL, MVT::Glue, Top);
     } else {
-      Cmp = DAG.getNode(AVRISD::CMP, DL, MVT::Glue, LHS0, RHS0);
+      Cmp = getAVRCmp(LHS0, RHS0, DAG, DL);
       Cmp = DAG.getNode(AVRISD::CMPC, DL, MVT::Glue, LHS1, RHS1, Cmp);
       Cmp = DAG.getNode(AVRISD::CMPC, DL, MVT::Glue, LHS2, RHS2, Cmp);
       Cmp = DAG.getNode(AVRISD::CMPC, DL, MVT::Glue, LHS3, RHS3, Cmp);
@@ -601,7 +715,7 @@ SDValue AVRTargetLowering::getAVRCmp(SDValue LHS, SDValue RHS, ISD::CondCode CC,
                             : DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i8,
                                           LHS, DAG.getIntPtrConstant(1, DL)));
     } else {
-      Cmp = DAG.getNode(AVRISD::CMP, DL, MVT::Glue, LHS, RHS);
+      Cmp = getAVRCmp(LHS, RHS, DAG, DL);
     }
   } else {
     llvm_unreachable("Invalid comparison size");
@@ -1458,9 +1572,11 @@ MachineBasicBlock *AVRTargetLowering::insertShift(MachineInstr &MI,
 
   // Create loop block.
   MachineBasicBlock *LoopBB = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *CheckBB = F->CreateMachineBasicBlock(LLVM_BB);
   MachineBasicBlock *RemBB = F->CreateMachineBasicBlock(LLVM_BB);
 
   F->insert(I, LoopBB);
+  F->insert(I, CheckBB);
   F->insert(I, RemBB);
 
   // Update machine-CFG edges by transferring all successors of the current
@@ -1469,14 +1585,14 @@ MachineBasicBlock *AVRTargetLowering::insertShift(MachineInstr &MI,
                 BB->end());
   RemBB->transferSuccessorsAndUpdatePHIs(BB);
 
-  // Add adges BB => LoopBB => RemBB, BB => RemBB, LoopBB => LoopBB.
-  BB->addSuccessor(LoopBB);
-  BB->addSuccessor(RemBB);
-  LoopBB->addSuccessor(RemBB);
-  LoopBB->addSuccessor(LoopBB);
+  // Add edges BB => LoopBB => CheckBB => RemBB, CheckBB => LoopBB.
+  BB->addSuccessor(CheckBB);
+  LoopBB->addSuccessor(CheckBB);
+  CheckBB->addSuccessor(LoopBB);
+  CheckBB->addSuccessor(RemBB);
 
-  Register ShiftAmtReg = RI.createVirtualRegister(&AVR::LD8RegClass);
-  Register ShiftAmtReg2 = RI.createVirtualRegister(&AVR::LD8RegClass);
+  Register ShiftAmtReg = RI.createVirtualRegister(&AVR::GPR8RegClass);
+  Register ShiftAmtReg2 = RI.createVirtualRegister(&AVR::GPR8RegClass);
   Register ShiftReg = RI.createVirtualRegister(RC);
   Register ShiftReg2 = RI.createVirtualRegister(RC);
   Register ShiftAmtSrcReg = MI.getOperand(2).getReg();
@@ -1484,43 +1600,40 @@ MachineBasicBlock *AVRTargetLowering::insertShift(MachineInstr &MI,
   Register DstReg = MI.getOperand(0).getReg();
 
   // BB:
-  // cpi N, 0
-  // breq RemBB
-  BuildMI(BB, dl, TII.get(AVR::CPIRdK)).addReg(ShiftAmtSrcReg).addImm(0);
-  BuildMI(BB, dl, TII.get(AVR::BREQk)).addMBB(RemBB);
+  // rjmp CheckBB
+  BuildMI(BB, dl, TII.get(AVR::RJMPk)).addMBB(CheckBB);
 
   // LoopBB:
-  // ShiftReg = phi [%SrcReg, BB], [%ShiftReg2, LoopBB]
-  // ShiftAmt = phi [%N, BB],      [%ShiftAmt2, LoopBB]
   // ShiftReg2 = shift ShiftReg
-  // ShiftAmt2 = ShiftAmt - 1;
-  BuildMI(LoopBB, dl, TII.get(AVR::PHI), ShiftReg)
-      .addReg(SrcReg)
-      .addMBB(BB)
-      .addReg(ShiftReg2)
-      .addMBB(LoopBB);
-  BuildMI(LoopBB, dl, TII.get(AVR::PHI), ShiftAmtReg)
-      .addReg(ShiftAmtSrcReg)
-      .addMBB(BB)
-      .addReg(ShiftAmtReg2)
-      .addMBB(LoopBB);
-
   auto ShiftMI = BuildMI(LoopBB, dl, TII.get(Opc), ShiftReg2).addReg(ShiftReg);
   if (HasRepeatedOperand)
     ShiftMI.addReg(ShiftReg);
 
-  BuildMI(LoopBB, dl, TII.get(AVR::SUBIRdK), ShiftAmtReg2)
-      .addReg(ShiftAmtReg)
-      .addImm(1);
-  BuildMI(LoopBB, dl, TII.get(AVR::BRNEk)).addMBB(LoopBB);
-
-  // RemBB:
-  // DestReg = phi [%SrcReg, BB], [%ShiftReg, LoopBB]
-  BuildMI(*RemBB, RemBB->begin(), dl, TII.get(AVR::PHI), DstReg)
+  // CheckBB:
+  // ShiftReg = phi [%SrcReg, BB], [%ShiftReg2, LoopBB]
+  // ShiftAmt = phi [%N,      BB], [%ShiftAmt2, LoopBB]
+  // DestReg  = phi [%SrcReg, BB], [%ShiftReg,  LoopBB]
+  // ShiftAmt2 = ShiftAmt - 1;
+  // if (ShiftAmt2 >= 0) goto LoopBB;
+  BuildMI(CheckBB, dl, TII.get(AVR::PHI), ShiftReg)
       .addReg(SrcReg)
       .addMBB(BB)
       .addReg(ShiftReg2)
       .addMBB(LoopBB);
+  BuildMI(CheckBB, dl, TII.get(AVR::PHI), ShiftAmtReg)
+      .addReg(ShiftAmtSrcReg)
+      .addMBB(BB)
+      .addReg(ShiftAmtReg2)
+      .addMBB(LoopBB);
+  BuildMI(CheckBB, dl, TII.get(AVR::PHI), DstReg)
+      .addReg(SrcReg)
+      .addMBB(BB)
+      .addReg(ShiftReg2)
+      .addMBB(LoopBB);
+
+  BuildMI(CheckBB, dl, TII.get(AVR::DECRd), ShiftAmtReg2)
+      .addReg(ShiftAmtReg);
+  BuildMI(CheckBB, dl, TII.get(AVR::BRPLk)).addMBB(LoopBB);
 
   MI.eraseFromParent(); // The pseudo instruction is gone now.
   return RemBB;
@@ -1812,44 +1925,65 @@ std::pair<unsigned, const TargetRegisterClass *>
 AVRTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                                 StringRef Constraint,
                                                 MVT VT) const {
-  // We only support i8 and i16.
-  //
-  //:FIXME: remove this assert for now since it gets sometimes executed
-  // assert((VT == MVT::i16 || VT == MVT::i8) && "Wrong operand type.");
-
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     case 'a': // Simple upper registers r16..r23.
-      return std::make_pair(0U, &AVR::LD8loRegClass);
+      if (VT == MVT::i8)
+        return std::make_pair(0U, &AVR::LD8loRegClass);
+      else if (VT == MVT::i16)
+        return std::make_pair(0U, &AVR::DREGSLD8loRegClass);
+      break;
     case 'b': // Base pointer registers: y, z.
-      return std::make_pair(0U, &AVR::PTRDISPREGSRegClass);
+      if (VT == MVT::i8 || VT == MVT::i16)
+        return std::make_pair(0U, &AVR::PTRDISPREGSRegClass);
+      break;
     case 'd': // Upper registers r16..r31.
-      return std::make_pair(0U, &AVR::LD8RegClass);
+      if (VT == MVT::i8)
+        return std::make_pair(0U, &AVR::LD8RegClass);
+      else if (VT == MVT::i16)
+        return std::make_pair(0U, &AVR::DLDREGSRegClass);
+      break;
     case 'l': // Lower registers r0..r15.
-      return std::make_pair(0U, &AVR::GPR8loRegClass);
+      if (VT == MVT::i8)
+        return std::make_pair(0U, &AVR::GPR8loRegClass);
+      else if (VT == MVT::i16)
+        return std::make_pair(0U, &AVR::DREGSloRegClass);
+      break;
     case 'e': // Pointer register pairs: x, y, z.
-      return std::make_pair(0U, &AVR::PTRREGSRegClass);
+      if (VT == MVT::i8 || VT == MVT::i16)
+        return std::make_pair(0U, &AVR::PTRREGSRegClass);
+      break;
     case 'q': // Stack pointer register: SPH:SPL.
       return std::make_pair(0U, &AVR::GPRSPRegClass);
     case 'r': // Any register: r0..r31.
       if (VT == MVT::i8)
         return std::make_pair(0U, &AVR::GPR8RegClass);
-
-      assert(VT == MVT::i16 && "inline asm constraint too large");
-      return std::make_pair(0U, &AVR::DREGSRegClass);
+      else if (VT == MVT::i16)
+        return std::make_pair(0U, &AVR::DREGSRegClass);
+      break;
     case 't': // Temporary register: r0.
-      return std::make_pair(unsigned(AVR::R0), &AVR::GPR8RegClass);
+      if (VT == MVT::i8)
+        return std::make_pair(unsigned(AVR::R0), &AVR::GPR8RegClass);
+      break;
     case 'w': // Special upper register pairs: r24, r26, r28, r30.
-      return std::make_pair(0U, &AVR::IWREGSRegClass);
+      if (VT == MVT::i8 || VT == MVT::i16)
+        return std::make_pair(0U, &AVR::IWREGSRegClass);
+      break;
     case 'x': // Pointer register pair X: r27:r26.
     case 'X':
-      return std::make_pair(unsigned(AVR::R27R26), &AVR::PTRREGSRegClass);
+      if (VT == MVT::i8 || VT == MVT::i16)
+        return std::make_pair(unsigned(AVR::R27R26), &AVR::PTRREGSRegClass);
+      break;
     case 'y': // Pointer register pair Y: r29:r28.
     case 'Y':
-      return std::make_pair(unsigned(AVR::R29R28), &AVR::PTRREGSRegClass);
+      if (VT == MVT::i8 || VT == MVT::i16)
+        return std::make_pair(unsigned(AVR::R29R28), &AVR::PTRREGSRegClass);
+      break;
     case 'z': // Pointer register pair Z: r31:r30.
     case 'Z':
-      return std::make_pair(unsigned(AVR::R31R30), &AVR::PTRREGSRegClass);
+      if (VT == MVT::i8 || VT == MVT::i16)
+        return std::make_pair(unsigned(AVR::R31R30), &AVR::PTRREGSRegClass);
+      break;
     default:
       break;
     }

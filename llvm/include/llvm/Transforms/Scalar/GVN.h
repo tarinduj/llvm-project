@@ -21,7 +21,6 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/InstructionPrecedenceTracking.h"
-#include "llvm/Analysis/MemoryDependenceAnalysis.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
@@ -35,6 +34,7 @@
 namespace llvm {
 
 class AAResults;
+class AssumeInst;
 class AssumptionCache;
 class BasicBlock;
 class BranchInst;
@@ -46,8 +46,11 @@ class FunctionPass;
 class IntrinsicInst;
 class LoadInst;
 class LoopInfo;
+class MemDepResult;
+class MemoryDependenceResults;
 class MemorySSA;
 class MemorySSAUpdater;
+class NonLocalDepResult;
 class OptimizationRemarkEmitter;
 class PHINode;
 class TargetLibraryInfo;
@@ -73,6 +76,7 @@ struct GVNOptions {
   Optional<bool> AllowPRE = None;
   Optional<bool> AllowLoadPRE = None;
   Optional<bool> AllowLoadInLoopPRE = None;
+  Optional<bool> AllowLoadPRESplitBackedge = None;
   Optional<bool> AllowMemDep = None;
 
   GVNOptions() = default;
@@ -91,6 +95,12 @@ struct GVNOptions {
 
   GVNOptions &setLoadInLoopPRE(bool LoadInLoopPRE) {
     AllowLoadInLoopPRE = LoadInLoopPRE;
+    return *this;
+  }
+
+  /// Enables or disables PRE of loads in GVN.
+  GVNOptions &setLoadPRESplitBackedge(bool LoadPRESplitBackedge) {
+    AllowLoadPRESplitBackedge = LoadPRESplitBackedge;
     return *this;
   }
 
@@ -130,6 +140,7 @@ public:
   bool isPREEnabled() const;
   bool isLoadPREEnabled() const;
   bool isLoadInLoopPREEnabled() const;
+  bool isLoadPRESplitBackedgeEnabled() const;
   bool isMemDepEnabled() const;
 
   /// This class holds the mapping between values and value numbers.  It is used
@@ -301,23 +312,35 @@ private:
   // Helper functions of redundant load elimination
   bool processLoad(LoadInst *L);
   bool processNonLocalLoad(LoadInst *L);
-  bool processAssumeIntrinsic(IntrinsicInst *II);
+  bool processAssumeIntrinsic(AssumeInst *II);
 
   /// Given a local dependency (Def or Clobber) determine if a value is
   /// available for the load.  Returns true if an value is known to be
   /// available and populates Res.  Returns false otherwise.
-  bool AnalyzeLoadAvailability(LoadInst *LI, MemDepResult DepInfo,
+  bool AnalyzeLoadAvailability(LoadInst *Load, MemDepResult DepInfo,
                                Value *Address, gvn::AvailableValue &Res);
 
   /// Given a list of non-local dependencies, determine if a value is
   /// available for the load in each specified block.  If it is, add it to
   /// ValuesPerBlock.  If not, add it to UnavailableBlocks.
-  void AnalyzeLoadAvailability(LoadInst *LI, LoadDepVect &Deps,
+  void AnalyzeLoadAvailability(LoadInst *Load, LoadDepVect &Deps,
                                AvailValInBlkVect &ValuesPerBlock,
                                UnavailBlkVect &UnavailableBlocks);
 
-  bool PerformLoadPRE(LoadInst *LI, AvailValInBlkVect &ValuesPerBlock,
+  bool PerformLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
                       UnavailBlkVect &UnavailableBlocks);
+
+  /// Try to replace a load which executes on each loop iteraiton with Phi
+  /// translation of load in preheader and load(s) in conditionally executed
+  /// paths.
+  bool performLoopLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
+                          UnavailBlkVect &UnavailableBlocks);
+
+  /// Eliminates partially redundant \p Load, replacing it with \p
+  /// AvailableLoads (connected by Phis if needed).
+  void eliminatePartiallyRedundantLoad(
+      LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
+      MapVector<BasicBlock *, Value *> &AvailableLoads);
 
   // Other helper routines
   bool processInstruction(Instruction *I);
@@ -330,7 +353,6 @@ private:
                                  BasicBlock *Curr, unsigned int ValNo);
   Value *findLeader(const BasicBlock *BB, uint32_t num);
   void cleanupGlobalSets();
-  void fillImplicitControlFlowInfo(BasicBlock *BB);
   void verifyRemoved(const Instruction *I) const;
   bool splitCriticalEdges();
   BasicBlock *splitCriticalEdges(BasicBlock *Pred, BasicBlock *Succ);

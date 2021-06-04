@@ -27,8 +27,29 @@ public:
 
   void print(raw_ostream &OS) const;
 
+  void testFunc(raw_ostream &OS) const;
+
   /// Number of basic blocks
   int64_t BasicBlockCount = 0;
+
+  /// Number of Basic Blocks with specific successors.
+  int64_t BasicBlockWithSingleSuccessor = 0;
+  int64_t BasicBlockWithTwoSuccessors = 0;
+  int64_t BasicBlockWithMoreThanTwoSuccessors = 0;
+
+  /// Number of Basic Blocks with specific predecessors.
+  int64_t BasicBlockWithSinglePredecessor = 0;
+  int64_t BasicBlockWithTwoPredecessors = 0;
+  int64_t BasicBlockWithMoreThanTwoPredecessors = 0;
+
+  // Number of basic blocks with more than 500 instructions.
+  int64_t BigBasicBlock = 0;
+
+  // Number of basic blocks with 15 ~ 500 instructions.
+  int64_t MediumBasicBlock = 0;
+
+  // Number of basic blocks with less than 15 instructions.
+  int64_t SmallBasicBlock = 0;
 
   /// Number of blocks reached from a conditional instruction, or that are
   /// 'cases' of a SwitchInstr.
@@ -46,17 +67,35 @@ public:
   /// defined in this module.
   int64_t DirectCallsToDefinedFunctions = 0;
 
-  // Load Instruction Count
-  int64_t LoadInstCount = 0;
-
-  // Store Instruction Count
-  int64_t StoreInstCount = 0;
-
   // Maximum Loop Depth in the Function
   int64_t MaxLoopDepth = 0;
 
   // Number of Top Level Loops in the Function
   int64_t TopLevelLoopCount = 0;
+
+  /// Number of Occurences of Constants
+  int64_t IntegerConstantOccurrences = 0;
+  int64_t FloatingConstantOccurrences = 0;
+
+  /// Number of all instuctions.
+  int64_t InstructionCount = 0;
+
+  /// Number of Cast-like Instruction Count in the Function.
+  int64_t CastInstCount = 0;
+
+  /// Number of Floating Point Instruction Count.
+  int64_t FloatingPointInstCount = 0;
+
+  /// Number of Integer Instruction Count.
+  int64_t IntegerInstCount = 0;
+
+  // Different Instruction (Opcode) Type Counts
+  int64_t LoadInstCount = 0;
+  int64_t StoreInstCount = 0;
+  int64_t CallInstCount = 0;
+  int64_t PHIInstCount = 0;
+  int64_t AllocaInstCount = 0;
+  int64_t GEPInstCount = 0;
 };
 
 // Analysis pass

@@ -16,11 +16,8 @@ class FunctionPropertiesAnalysisPassInstrument {
   std::unique_ptr<LoopInfo> LI;
 
   FunctionPropertiesInfo buildFPI(Function *F) {
-    //dbgs() << "test BITCH 1\n";
     DT.reset(new DominatorTree(*F));
-    //dbgs() << "test BITCH 2\n";
     LI.reset(new LoopInfo(*DT));
-    //dbgs() << "test BITCH 3\n";
     return FunctionPropertiesInfo::getFunctionPropertiesInfo(*F, *LI);
   }
 
@@ -43,7 +40,7 @@ class FunctionPropertiesAnalysisPassInstrument {
         moduleName.erase(0, moduleName.find(delimiter) + delimiter.length());
         replace(moduleName.begin(), moduleName.end(), '/', '_');
         std::string outFilePath = dirPath + moduleName + "l.txt";
-        dbgs() << outFilePath << "\n";
+        //dbgs() << outFilePath << "\n";
 
         std::ofstream outFile;
         outFile.open(outFilePath, std::ios_base::app);

@@ -24,6 +24,7 @@ FunctionPropertiesInfo::getFunctionPropertiesInfo(const Function &F,
 
   FPI.Uses = ((!F.hasLocalLinkage()) ? 1 : 0) + F.getNumUses();
 
+  FPI.InstructionCount = F.getInstructionCount();
   for (const auto &BB : F) {
     ++FPI.BasicBlockCount;
 
@@ -35,16 +36,67 @@ FunctionPropertiesInfo::getFunctionPropertiesInfo(const Function &F,
           (SI->getNumCases() + (nullptr != SI->getDefaultDest()));
     }
 
+    unsigned SuccSize = succ_size(&BB);
+    unsigned PredSize = pred_size(&BB);
+    if (SuccSize == 1)
+      ++FPI.BasicBlockWithSingleSuccessor;
+    else if (SuccSize == 2)
+      ++FPI.BasicBlockWithTwoSuccessors;
+    else if (SuccSize > 2)
+      ++FPI.BasicBlockWithMoreThanTwoSuccessors;
+
+    if (PredSize == 1)
+      ++FPI.BasicBlockWithSinglePredecessor;
+    else if (PredSize == 2)
+      ++FPI.BasicBlockWithTwoPredecessors;
+    else if (PredSize > 2)
+      ++FPI.BasicBlockWithMoreThanTwoPredecessors;
+
+    if (BB.size() > 500)
+      ++FPI.BigBasicBlock;
+    else if (BB.size() >= 15)
+      ++FPI.MediumBasicBlock;
+    else
+      ++FPI.SmallBasicBlock;
+
     for (const auto &I : BB) {
       if (auto *CS = dyn_cast<CallBase>(&I)) {
         const auto *Callee = CS->getCalledFunction();
         if (Callee && !Callee->isIntrinsic() && !Callee->isDeclaration())
           ++FPI.DirectCallsToDefinedFunctions;
       }
-      if (I.getOpcode() == Instruction::Load) {
-        ++FPI.LoadInstCount;
-      } else if (I.getOpcode() == Instruction::Store) {
-        ++FPI.StoreInstCount;
+
+      if (I.isBinaryOp() && I.getType()->isFloatTy())
+        ++FPI.FloatingPointInstCount;
+      else if (I.isBinaryOp() && I.getType()->isIntegerTy())
+        ++FPI.IntegerInstCount;
+
+      for (unsigned int i = 0; i < I.getNumOperands(); i++)
+        if (auto *C = dyn_cast<Constant>(I.getOperand(i))) {
+          if (C->getType()->isIntegerTy())
+            ++FPI.IntegerConstantOccurrences;
+          else if (C->getType()->isFloatTy())
+            ++FPI.FloatingConstantOccurrences;
+        }
+
+      if (I.isCast())
+        ++FPI.CastInstCount;
+
+      switch (I.getOpcode()) {
+      case Instruction::Load:
+        ++FPI.LoadInstCount; break;
+      case Instruction::Store:
+        ++FPI.StoreInstCount; break;
+      case Instruction::Call:
+        ++FPI.CallInstCount; break;
+      case Instruction::PHI:
+        ++FPI.PHIInstCount; break;
+      case Instruction::Alloca:
+        ++FPI.AllocaInstCount; break;
+      case Instruction::GetElementPtr:
+        ++FPI.GEPInstCount; break;
+      default:
+        break;
       }
     }
     // Loop Depth of the Basic Block
@@ -58,16 +110,65 @@ FunctionPropertiesInfo::getFunctionPropertiesInfo(const Function &F,
 }
 
 void FunctionPropertiesInfo::print(raw_ostream &OS) const {
+  
   OS << "BasicBlockCount: " << BasicBlockCount << "\n"
-     << "BlocksReachedFromConditionalInstruction: "
-     << BlocksReachedFromConditionalInstruction << "\n"
+     << "BasicBlockWithSingleSuccessor: " << BasicBlockWithSingleSuccessor << "\n"
+     << "BasicBlockWithTwoSuccessors: " << BasicBlockWithTwoSuccessors << "\n"
+     << "BasicBlockWithMoreThanTwoSuccessors: " << BasicBlockWithMoreThanTwoSuccessors << "\n"
+     << "BasicBlockWithSinglePredecessor: " << BasicBlockWithSinglePredecessor << "\n"
+     << "BasicBlockWithTwoPredecessors: " << BasicBlockWithTwoPredecessors << "\n"
+     << "BasicBlockWithMoreThanTwoPredecessors: " << BasicBlockWithMoreThanTwoPredecessors << "\n"
+     << "BigBasicBlock: " << BigBasicBlock << "\n"
+     << "MediumBasicBlock: " << MediumBasicBlock << "\n"
+     << "SmallBasicBlock: " << SmallBasicBlock << "\n"
+     << "BlocksReachedFromConditionalInstruction: " << BlocksReachedFromConditionalInstruction << "\n"
      << "Uses: " << Uses << "\n"
-     << "DirectCallsToDefinedFunctions: " << DirectCallsToDefinedFunctions
-     << "\n"
+     << "DirectCallsToDefinedFunctions: " << DirectCallsToDefinedFunctions<< "\n"
+     << "MaxLoopDepth: " << MaxLoopDepth << "\n"
+     << "TopLevelLoopCount: " << TopLevelLoopCount << "\n"
+     << "IntegerConstantOccurrences: " << IntegerConstantOccurrences << "\n"
+     << "FloatingConstantOccurrences: " << FloatingConstantOccurrences << "\n"
+     << "InstructionCount: " << InstructionCount << "\n"
+     << "CastInstCount: " << CastInstCount << "\n"
+     << "FloatingPointInstCount: " << FloatingPointInstCount << "\n"
+     << "IntegerInstCount: " << IntegerInstCount << "\n"
      << "LoadInstCount: " << LoadInstCount << "\n"
      << "StoreInstCount: " << StoreInstCount << "\n"
+     << "CallInstCount: " << CallInstCount << "\n"
+     << "PHIInstCount: " << PHIInstCount << "\n"
+     << "AllocaInstCount: " << AllocaInstCount << "\n"
+     << "GEPInstCount: " << GEPInstCount << "\n\n";
+}
+
+void FunctionPropertiesInfo::testFunc(raw_ostream &OS) const {
+  
+  OS << "BasicBlockCount: " << BasicBlockCount << "\n"
+     << "BasicBlockWithSingleSuccessor: " << BasicBlockWithSingleSuccessor << "\n"
+     << "BasicBlockWithTwoSuccessors: " << BasicBlockWithTwoSuccessors << "\n"
+     << "BasicBlockWithMoreThanTwoSuccessors: " << BasicBlockWithMoreThanTwoSuccessors << "\n"
+     << "BasicBlockWithSinglePredecessor: " << BasicBlockWithSinglePredecessor << "\n"
+     << "BasicBlockWithTwoPredecessors: " << BasicBlockWithTwoPredecessors << "\n"
+     << "BasicBlockWithMoreThanTwoPredecessors: " << BasicBlockWithMoreThanTwoPredecessors << "\n"
+     << "BigBasicBlock: " << BigBasicBlock << "\n"
+     << "MediumBasicBlock: " << MediumBasicBlock << "\n"
+     << "SmallBasicBlock: " << SmallBasicBlock << "\n"
+     << "BlocksReachedFromConditionalInstruction: " << BlocksReachedFromConditionalInstruction << "\n"
+     << "Uses: " << Uses << "\n"
+     << "DirectCallsToDefinedFunctions: " << DirectCallsToDefinedFunctions<< "\n"
      << "MaxLoopDepth: " << MaxLoopDepth << "\n"
-     << "TopLevelLoopCount: " << TopLevelLoopCount << "\n\n";
+     << "TopLevelLoopCount: " << TopLevelLoopCount << "\n"
+     << "IntegerConstantOccurrences: " << IntegerConstantOccurrences << "\n"
+     << "FloatingConstantOccurrences: " << FloatingConstantOccurrences << "\n"
+     << "InstructionCount: " << InstructionCount << "\n"
+     << "CastInstCount: " << CastInstCount << "\n"
+     << "FloatingPointInstCount: " << FloatingPointInstCount << "\n"
+     << "IntegerInstCount: " << IntegerInstCount << "\n"
+     << "LoadInstCount: " << LoadInstCount << "\n"
+     << "StoreInstCount: " << StoreInstCount << "\n"
+     << "CallInstCount: " << CallInstCount << "\n"
+     << "PHIInstCount: " << PHIInstCount << "\n"
+     << "AllocaInstCount: " << AllocaInstCount << "\n"
+     << "GEPInstCount: " << GEPInstCount << "\n\n";
 }
 
 AnalysisKey FunctionPropertiesAnalysis::Key;

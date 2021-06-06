@@ -14,6 +14,13 @@ template <typename Int>
 Optional<PresburgerSet<Int>> setFromString(StringRef string) {
   ErrorCallback callback = [&](SMLoc loc, const Twine &message) {
     // This is a hack to make the Parser compile
+    // These have to be commented out currently because "errors" are raised
+    // When an integer that can't fit in 32 bits appears in the input.
+    // This is detected and handled by the transprecision infrastructures.
+    // Unfortunately we do not yet check if it is an integer overflow error or
+    // some other error, and all errors are assumed to be integer overflow errors.
+    // If modifying something that might cause a different error here, note that
+    // you have to uncomment the following to make the error be printed.
     // llvm::errs() << "Parsing error " << message << " at " << loc.getPointer()
     //              << '\n';
     // llvm::errs() << "invalid input " << string << '\n';
@@ -46,10 +53,22 @@ void dumpStats(TransprecSet &a) {
   }, a.setvar);
 }
 
+void consumeLine(unsigned cnt = 1) {
+  while (cnt--) {
+    char str[1'000'000];
+    std::cin.getline(str, 1'000'000);
+  //   std::cerr << "Consumed '" << str << "'\n";
+  }
+}
 
+// Exits the program if cin reached EOF.
 TransprecSet getSetFromInput() {
   char str[1'000'000];
   std::cin.getline(str, 1'000'000);
+  // std::cerr << "Read '" << str << "'\n";
+  if (std::cin.eof()) {
+    exit(0);
+  }
   if (auto set = setFromString<int16_t>(str))
     return TransprecSet(*set);
   else if (auto set = setFromString<int64_t>(str))
@@ -71,112 +90,117 @@ int main(int argc, char **argv) {
 
   const unsigned numRuns = 5;
   std::string op = argv[1];
-  if (op == "empty") {
-    TransprecSet setA = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      auto res = a.isIntegerEmpty();
-      unsigned long long end = __rdtscp(&dummy);
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        std::cerr << res << '\n';
+  for (int i = 0; ; ++i) {
+    if (i % 50000 == 0)
+      std::cerr << "i = " << i << '\n';
+    if (op == "empty") {
+      TransprecSet setA = getSetFromInput();
+      for (unsigned i = 0; i < numRuns; ++i) {
+        auto a = setA;
+        unsigned int dummy;
+        unsigned long long start = __rdtscp(&dummy);
+        auto res = a.isIntegerEmpty();
+        unsigned long long end = __rdtscp(&dummy);
+        if (i == numRuns - 1)
+          std::cout << end - start << '\n';
+          // std::cout << res << '\n';
+      }
+    } else if (op == "equal") {
+      TransprecSet setA = getSetFromInput();
+      TransprecSet setB = getSetFromInput();
+      for (unsigned i = 0; i < numRuns; ++i) {
+        auto a = setA;
+        auto b = setB;
+        unsigned int dummy;
+        unsigned long long start = __rdtscp(&dummy);
+        auto res = a.equal(b);
+        unsigned long long end = __rdtscp(&dummy);
+        if (i == numRuns - 1)
+          std::cout << end - start << '\n';
+          // llvm::errs() << res << '\n';
+      }
+    } else if (op == "union") {
+      TransprecSet setA = getSetFromInput();
+      TransprecSet setB = getSetFromInput();
+      for (unsigned i = 0; i < numRuns; ++i) {
+        auto a = setA;
+        auto b = setB;
+        unsigned int dummy;
+        unsigned long long start = __rdtscp(&dummy);
+        a.unionSet(b);
+        unsigned long long end = __rdtscp(&dummy);
+        if (i == numRuns - 1)
+          std::cout << end - start << '\n';
+          // dumpStats(a);
+      }
+    } else if (op == "intersect") {
+      TransprecSet setA = getSetFromInput();
+      TransprecSet setB = getSetFromInput();
+      for (unsigned i = 0; i < numRuns; ++i) {
+        auto a = setA;
+        auto b = setB;
+        unsigned int dummy;
+        unsigned long long start = __rdtscp(&dummy);
+        a.intersectSet(b);
+        unsigned long long end = __rdtscp(&dummy);
+        if (i == numRuns - 1)
+          std::cout << end - start << '\n';
+          // dumpStats(a);
+      }
+    } else if (op == "subtract") {
+      TransprecSet setA = getSetFromInput();
+      TransprecSet setB = getSetFromInput();
+      for (unsigned i = 0; i < numRuns; ++i) {
+        auto a = setA;
+        auto b = setB;
+        unsigned int dummy;
+        unsigned long long start = __rdtscp(&dummy);
+        a.subtract(b);
+        unsigned long long end = __rdtscp(&dummy);
+        if (i == numRuns - 1)
+          std::cout << end - start << '\n';
+          // dumpStats(a);
+      }
+    } else if (op == "coalesce") {
+      TransprecSet setA = getSetFromInput();
+      for (unsigned i = 0; i < numRuns; ++i) {
+        auto a = setA;
+        unsigned int dummy;
+        unsigned long long start = __rdtscp(&dummy);
+        auto res = a.coalesce();
+        unsigned long long end = __rdtscp(&dummy);
+        if (i == numRuns - 1)
+          std::cout << end - start << '\n';
+          // dumpStats(res);
+      }
+    } else if (op == "complement") {
+      TransprecSet setA = getSetFromInput();
+      for (unsigned i = 0; i < numRuns; ++i) {
+        auto a = setA;
+        unsigned int dummy;
+        unsigned long long start = __rdtscp(&dummy);
+        auto res = a.complement();
+        unsigned long long end = __rdtscp(&dummy);
+        if (i == numRuns - 1)
+          std::cout << end - start << '\n';
+          // dumpStats(res);
+      }
+    } else if (op == "eliminate") {
+      TransprecSet setA = getSetFromInput();
+      for (unsigned i = 0; i < numRuns; ++i) {
+        auto a = setA;
+        unsigned int dummy;
+        unsigned long long start = __rdtscp(&dummy);
+        auto res = a.eliminateExistentials();
+        unsigned long long end = __rdtscp(&dummy);
+        if (i == numRuns - 1)
+          std::cout << end - start << '\n';
+          // dumpStats(a);
+      }
+    } else {
+      std::cerr << "Unsupported operation " << op << "!\n";
+      return 1;
     }
-  } else if (op == "equal") {
-    TransprecSet setA = getSetFromInput();
-    TransprecSet setB = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      auto b = setB;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      auto res = a.equal(b);
-      unsigned long long end = __rdtscp(&dummy);
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        llvm::errs() << res << '\n';
-    }
-  } else if (op == "union") {
-    TransprecSet setA = getSetFromInput();
-    TransprecSet setB = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      auto b = setB;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      a.unionSet(b);
-      unsigned long long end = __rdtscp(&dummy);
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        dumpStats(a);
-    }
-  } else if (op == "intersect") {
-    TransprecSet setA = getSetFromInput();
-    TransprecSet setB = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      auto b = setB;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      a.intersectSet(b);
-      unsigned long long end = __rdtscp(&dummy);
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        dumpStats(a);
-    }
-  } else if (op == "subtract") {
-    TransprecSet setA = getSetFromInput();
-    TransprecSet setB = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      auto b = setB;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      a.subtract(b);
-      unsigned long long end = __rdtscp(&dummy);
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        dumpStats(a);
-    }
-  } else if (op == "coalesce") {
-    TransprecSet setA = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      auto res = a.coalesce();
-      unsigned long long end = __rdtscp(&dummy);
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        dumpStats(res);
-    }
-  } else if (op == "complement") {
-    TransprecSet setA = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      auto res = a.complement();
-      unsigned long long end = __rdtscp(&dummy);
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        dumpStats(res);
-    }
-  } else if (op == "eliminate") {
-    TransprecSet setA = getSetFromInput();
-    for (unsigned i = 0; i < numRuns; ++i) {
-      auto a = setA;
-      unsigned int dummy;
-      unsigned long long start = __rdtscp(&dummy);
-      auto res = a.eliminateExistentials();
-      unsigned long long end = __rdtscp(&dummy);
-      std::cerr << end - start << '\n';
-      if (i == numRuns - 1)
-        dumpStats(a);
-    }
-  } else {
-    std::cout << "Unsupported operation " << op << "!\n";
-    return 1;
+    consumeLine();
   }
 }

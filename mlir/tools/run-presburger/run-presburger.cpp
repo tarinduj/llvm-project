@@ -57,7 +57,7 @@ void consumeLine(unsigned cnt = 1) {
   while (cnt--) {
     char str[1'000'000];
     std::cin.getline(str, 1'000'000);
-  //   std::cerr << "Consumed '" << str << "'\n";
+    // std::cerr << "Consumed '" << str << "'\n";
   }
 }
 
@@ -66,9 +66,6 @@ TransprecSet getSetFromInput() {
   char str[1'000'000];
   std::cin.getline(str, 1'000'000);
   // std::cerr << "Read '" << str << "'\n";
-  if (std::cin.eof()) {
-    exit(0);
-  }
   if (auto set = setFromString<int16_t>(str))
     return TransprecSet(*set);
   else if (auto set = setFromString<int64_t>(str))
@@ -82,15 +79,27 @@ TransprecSet getSetFromInput() {
   // return setFromString(str);
 }
 
+void consumeNewline() {
+  char c;
+  std::cin.get(c);
+  if (c != '\n') {
+    std::cerr << "Expected newline!\n";
+    exit(1);
+  }
+}
+
 int main(int argc, char **argv) {
   if (argc != 2) {
     std::cerr << "usage: ./run-presburger <op>\nPass input to stdin.\n";
     return 1;
   }
 
-  const unsigned numRuns = 1;
+  const unsigned numRuns = 5;
   std::string op = argv[1];
-  for (int i = 0; ; ++i) {
+  unsigned numCases;
+  std::cin >> numCases;
+  consumeNewline();
+  for (int i = 0; i < numCases; ++i) {
     if (i % 50000 == 0)
       std::cerr << "i = " << i << '\n';
     if (op == "empty") {

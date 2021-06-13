@@ -27,6 +27,9 @@ namespace mlir {
 namespace analysis {
 namespace presburger {
 
+static inline void assert_aligned(const void *pointer, size_t byte_count)
+{ assert((uintptr_t)pointer % byte_count == 0); }
+
 const unsigned MatrixVectorColumns = 32;
 
 typedef int16_t Vector __attribute__((ext_vector_type(MatrixVectorColumns)));
@@ -91,6 +94,7 @@ public:
   __attribute__((always_inline))
   Vector &getRowVector(unsigned row) {
     static_assert(isVectorized, "getRowVector is only valid for int16_t matrices!");
+    assert_aligned(&data[row * nReservedColumns], 64);
     return *(Vector *)&data[row * nReservedColumns];
   }
 

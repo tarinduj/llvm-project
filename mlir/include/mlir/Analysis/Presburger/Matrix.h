@@ -125,8 +125,12 @@ public:
 private:
   unsigned nRows, nColumns, nReservedColumns;
 
+  using VectorType = typename std::conditional<isVectorized,
+      std::vector<SafeInteger<Int>, AlignedAllocator<SafeInteger<Int>, 64>>,
+      llvm::SmallVector<SafeInteger<Int>, 16>
+  >::type;
   /// Stores the data. data.size() is equal to nRows * nColumns.
-  std::vector<SafeInteger<Int>, AlignedAllocator<SafeInteger<Int>, 64>> data;
+  VectorType data;
 };
 
 } // namespace presburger

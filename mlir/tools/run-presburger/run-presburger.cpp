@@ -110,6 +110,7 @@ int main(int argc, char **argv) {
         unsigned int dummy;
         unsigned long long start = __rdtscp(&dummy);
         auto res = a.isIntegerEmpty();
+        res = res;
         unsigned long long end = __rdtscp(&dummy);
         times[i] = end - start;
         if (i == numRuns - 1) {
@@ -127,6 +128,7 @@ int main(int argc, char **argv) {
         unsigned int dummy;
         unsigned long long start = __rdtscp(&dummy);
         auto res = a.equal(b);
+        res = res;
         unsigned long long end = __rdtscp(&dummy);
         times[i] = end - start;
         if (i == numRuns - 1) {

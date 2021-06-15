@@ -153,7 +153,7 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 
   addZeroConstraint();
 
-  if constexpr (std::is_same<Int, SafeInteger<int16_t>>::value) {
+  if constexpr (isVectorized) {
     tableau(nRow - 1, 1) = coeffs.back();
     // Process each given variable coefficient.
     Vector &vec = tableau.getRowVector(nRow - 1);
@@ -222,7 +222,7 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 /// denominator and all the numerator coefficients.
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row) {
-  if constexpr (std::is_same<Int, SafeInteger<int16_t>>::value) 
+  if constexpr (isVectorized) 
     normalizeRow(row, tableau.getRowVector(row));
   else
     normalizeRowScalar(row);
@@ -247,7 +247,7 @@ void Simplex<Int>::normalizeRowScalar(unsigned row) {
 
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row, Vector &rowVec) {
-  if constexpr (std::is_same<Int, SafeInteger<int16_t>>::value) {
+  if constexpr (isVectorized) {
     if (equalMask(rowVec, 1))
       return;
   }
@@ -489,7 +489,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   swapRowWithCol(pivotRow, pivotCol);
 
-  if constexpr (std::is_same<Int, SafeInteger<int16_t>>::value) {
+  if constexpr (isVectorized) {
     Vector &pivotRowVec = tableau.getRowVector(pivotRow);
 
     // swap pivotRowVec[0], pivotRowVec[pivotCol]

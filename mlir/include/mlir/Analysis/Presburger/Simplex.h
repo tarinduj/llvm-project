@@ -133,6 +133,8 @@ class PresburgerBasicSet;
 template <typename Int>
 class Simplex {
 public:
+  static constexpr bool isVectorized = Matrix<Int>::isVectorized;
+
   enum class Direction { Up, Down };
 
   enum class IneqType { Redundant, Separate, Cut, AdjEq, AdjIneq };

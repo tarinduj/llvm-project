@@ -39,8 +39,8 @@ typedef int16_t Vector __attribute__((ext_vector_type(MatrixVectorColumns)));
 /// The data is stored as one big vector.
 template <typename Int>
 class Matrix {
-  static constexpr bool isVectorized = std::is_same<Int, SafeInteger<int16_t>>::value;
 public:
+  static constexpr bool isVectorized = std::is_same<Int, SafeInteger<int16_t>>::value || std::is_same<Int, int16_t>::value;
   Matrix() = delete;
 
   /// Construct a matrix with the specified number of rows and columns.

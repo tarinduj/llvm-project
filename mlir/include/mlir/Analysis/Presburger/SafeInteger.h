@@ -69,8 +69,6 @@ struct SafeInteger {
   /// The stored value.
   Int val;
 
-  static bool overflow;
-
   static void throwOverflowIf(bool cond) {
     if (cond)
       throw std::overflow_error("Overflow!");

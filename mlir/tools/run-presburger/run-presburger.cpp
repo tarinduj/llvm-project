@@ -100,6 +100,7 @@ int main(int argc, char **argv) {
   std::cin >> numCases;
   consumeNewline();
   for (int i = 0; i < numCases; ++i) {
+    int times[numRuns];
     if (i % 50000 == 0)
       std::cerr << "i = " << i << '\n';
     if (op == "empty") {
@@ -110,9 +111,12 @@ int main(int argc, char **argv) {
         unsigned long long start = __rdtscp(&dummy);
         auto res = a.isIntegerEmpty();
         unsigned long long end = __rdtscp(&dummy);
-        if (i == numRuns - 1)
-          std::cout << end - start << '\n';
-          // std::cout << res << '\n';
+        times[i] = end - start;
+        if (i == numRuns - 1) {
+          std::sort(times, times + numRuns);
+          std::cout << times[numRuns/2] << '\n';
+        }
+        // std::cout << res << '\n';
       }
     } else if (op == "equal") {
       TransprecSet setA = getSetFromInput();
@@ -124,9 +128,12 @@ int main(int argc, char **argv) {
         unsigned long long start = __rdtscp(&dummy);
         auto res = a.equal(b);
         unsigned long long end = __rdtscp(&dummy);
-        if (i == numRuns - 1)
-          std::cout << end - start << '\n';
-          // llvm::errs() << res << '\n';
+        times[i] = end - start;
+        if (i == numRuns - 1) {
+          std::sort(times, times + numRuns);
+          std::cout << times[numRuns/2] << '\n';
+        }
+        // llvm::errs() << res << '\n';
       }
     } else if (op == "union") {
       TransprecSet setA = getSetFromInput();
@@ -138,9 +145,12 @@ int main(int argc, char **argv) {
         unsigned long long start = __rdtscp(&dummy);
         a.unionSet(b);
         unsigned long long end = __rdtscp(&dummy);
-        if (i == numRuns - 1)
-          std::cout << end - start << '\n';
-          // dumpStats(a);
+        times[i] = end - start;
+        if (i == numRuns - 1) {
+          std::sort(times, times + numRuns);
+          std::cout << times[numRuns/2] << '\n';
+        }
+        // dumpStats(a);
       }
     } else if (op == "intersect") {
       TransprecSet setA = getSetFromInput();
@@ -152,9 +162,12 @@ int main(int argc, char **argv) {
         unsigned long long start = __rdtscp(&dummy);
         a.intersectSet(b);
         unsigned long long end = __rdtscp(&dummy);
-        if (i == numRuns - 1)
-          std::cout << end - start << '\n';
-          // dumpStats(a);
+        times[i] = end - start;
+        if (i == numRuns - 1) {
+          std::sort(times, times + numRuns);
+          std::cout << times[numRuns/2] << '\n';
+        }
+        // dumpStats(a);
       }
     } else if (op == "subtract") {
       TransprecSet setA = getSetFromInput();
@@ -166,9 +179,12 @@ int main(int argc, char **argv) {
         unsigned long long start = __rdtscp(&dummy);
         a.subtract(b);
         unsigned long long end = __rdtscp(&dummy);
-        if (i == numRuns - 1)
-          std::cout << end - start << '\n';
-          // dumpStats(a);
+        times[i] = end - start;
+        if (i == numRuns - 1) {
+          std::sort(times, times + numRuns);
+          std::cout << times[numRuns/2] << '\n';
+        }
+        // dumpStats(a);
       }
     } else if (op == "coalesce") {
       TransprecSet setA = getSetFromInput();
@@ -178,9 +194,12 @@ int main(int argc, char **argv) {
         unsigned long long start = __rdtscp(&dummy);
         auto res = a.coalesce();
         unsigned long long end = __rdtscp(&dummy);
-        if (i == numRuns - 1)
-          std::cout << end - start << '\n';
-          // dumpStats(res);
+        times[i] = end - start;
+        if (i == numRuns - 1) {
+          std::sort(times, times + numRuns);
+          std::cout << times[numRuns/2] << '\n';
+        }
+        // dumpStats(res);
       }
     } else if (op == "complement") {
       TransprecSet setA = getSetFromInput();
@@ -190,9 +209,12 @@ int main(int argc, char **argv) {
         unsigned long long start = __rdtscp(&dummy);
         auto res = a.complement();
         unsigned long long end = __rdtscp(&dummy);
-        if (i == numRuns - 1)
-          std::cout << end - start << '\n';
-          // dumpStats(res);
+        times[i] = end - start;
+        if (i == numRuns - 1) {
+          std::sort(times, times + numRuns);
+          std::cout << times[numRuns/2] << '\n';
+        }
+        // dumpStats(res);
       }
     } else if (op == "eliminate") {
       TransprecSet setA = getSetFromInput();
@@ -202,9 +224,12 @@ int main(int argc, char **argv) {
         unsigned long long start = __rdtscp(&dummy);
         auto res = a.eliminateExistentials();
         unsigned long long end = __rdtscp(&dummy);
-        if (i == numRuns - 1)
-          std::cout << end - start << '\n';
-          // dumpStats(a);
+        times[i] = end - start;
+        if (i == numRuns - 1) {
+          std::sort(times, times + numRuns);
+          std::cout << times[numRuns/2] << '\n';
+        }
+        // dumpStats(a);
       }
     } else {
       std::cerr << "Unsupported operation " << op << "!\n";

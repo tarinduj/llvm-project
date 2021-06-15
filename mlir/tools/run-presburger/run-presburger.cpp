@@ -66,14 +66,13 @@ TransprecSet getSetFromInput() {
   char str[1'000'000];
   std::cin.getline(str, 1'000'000);
   // std::cerr << "Read '" << str << "'\n";
-  // if (auto set = setFromString<int16_t>(str))
-  //   return TransprecSet(*set);
-  // else if (auto set = setFromString<int64_t>(str))
-  //   return TransprecSet(*set);
-  // else if (auto set = setFromString<__int128_t>(str))
-  //   return TransprecSet(*set);
-  // else
-  if (auto set = setFromString<mpz_class>(str))
+  if (auto set = setFromString<int16_t>(str))
+    return TransprecSet(*set);
+  else if (auto set = setFromString<int64_t>(str))
+    return TransprecSet(*set);
+  else if (auto set = setFromString<__int128_t>(str))
+    return TransprecSet(*set);
+  else if (auto set = setFromString<mpz_class>(str))
     return TransprecSet(*set);
   else
     llvm_unreachable("Input did not fit in 128-bits!");

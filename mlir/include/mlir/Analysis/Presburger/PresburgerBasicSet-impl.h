@@ -429,6 +429,9 @@ void PresburgerBasicSet<Int>::removeEquality(unsigned i) {
 
 template <typename Int>
 void PresburgerBasicSet<Int>::insertDimensions(unsigned pos, unsigned count) {
+  if (count == 0)
+    return;
+
   for (auto &ineq : ineqs)
     ineq.insertDimensions(pos, count);
   for (auto &eq : eqs)

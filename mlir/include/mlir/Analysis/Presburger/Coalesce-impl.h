@@ -721,6 +721,10 @@ template <typename Int>
 bool adjEqCasePure(SmallVectorImpl<PresburgerBasicSet<Int>> &basicSetVector,
                    unsigned i, unsigned j, const Info<Int> &infoA,
                    const Info<Int> &infoB) {
+
+  if (infoA.adjIneq && infoB.adjIneq)
+    return false;
+
   PresburgerBasicSet<Int> &a = basicSetVector[i];
   PresburgerBasicSet<Int> &b = basicSetVector[j];
   SmallVector<SmallVector<SafeInteger<Int>, 8>, 8> wrapped;

@@ -56,6 +56,10 @@ struct SafeInteger {
     val = oVal;
   }
 
+  explicit operator Int() {
+    return val;
+  }
+
   template <typename OInt>
   SafeInteger(const SafeInteger<OInt> &o) : val(o.val) {
     static_assert(sizeof(Int) >= sizeof(OInt));
@@ -247,7 +251,7 @@ inline SafeInteger<Int> operator%(const SafeInteger<Int> &x, int y) { return x %
 /// C's % operator.  The RHS is always expected to be positive, and the result
 /// is always non-negative.
 template <typename Int>
-inline SafeInteger<Int> mod(SafeInteger<Int> lhs, SafeInteger<Int> rhs) {
+inline Int mod(Int lhs, Int rhs) {
   assert(rhs >= 1);
   return lhs % rhs < 0 ? lhs % rhs + rhs : lhs % rhs;
 }
@@ -302,13 +306,13 @@ inline std::ostream &operator<<(std::ostream &os, const SafeInteger<Int> &x) {
 }
 
 template <typename Int>
-inline SafeInteger<Int> ceilDiv(SafeInteger<Int> lhs, SafeInteger<Int> rhs) {
+inline Int ceilDiv(Int lhs, Int rhs) {
   assert(rhs >= 1);
   return lhs % rhs > 0 ? lhs / rhs + 1 : lhs / rhs;
 }
 
 template <typename Int>
-inline SafeInteger<Int> floorDiv(SafeInteger<Int> lhs, SafeInteger<Int> rhs) {
+inline Int floorDiv(Int lhs, Int rhs) {
   assert(rhs >= 1);
   return lhs % rhs < 0 ? lhs / rhs - 1 : lhs / rhs;
 }
@@ -336,15 +340,15 @@ template <typename Int>
 using SafeInteger = mlir::analysis::presburger::SafeInteger<Int>;
 
 template <typename Int>
-inline SafeInteger<Int> abs(SafeInteger<Int> x) { return x < 0 ? -x : x; }
+inline Int abs(Int x) { return x < 0 ? -x : x; }
 inline mpz_class abs(mpz_class x) { return x < 0 ? -x : x; }
 
 /// Returns the least common multiple of 'a' and 'b'.
 template <typename Int>
-inline SafeInteger<Int> lcm(SafeInteger<Int> a, SafeInteger<Int> b) {
-  SafeInteger<Int> x = abs(a);
-  SafeInteger<Int> y = abs(b);
-  SafeInteger<Int> lcm = (x * y) / llvm::greatestCommonDivisor(x, y);
+inline Int lcm(Int a, Int b) {
+  Int x = abs(a);
+  Int y = abs(b);
+  Int lcm = (x * y) / llvm::greatestCommonDivisor(x, y);
   return lcm;
 }
 inline mpz_class lcm(mpz_class a, mpz_class b) {

@@ -23,7 +23,10 @@ Matrix<Int>::Matrix(unsigned rows, unsigned columns)
     : nRows(rows), nColumns(columns), nReservedColumns(isVectorized ? MatrixVectorColumns : nextPowOfTwo(nColumns)), data(nRows * nReservedColumns) {
 
   if constexpr (isVectorized) {
-    Int::throwOverflowIf(columns > MatrixVectorColumns);
+    if constexpr (std::is_same<Int, SafeInteger<int16_t>>::value)
+      Int::throwOverflowIf(columns > MatrixVectorColumns);
+    else if (columns > MatrixVectorColumns)
+      std::abort();
     // llvm::errs() << "Cannot construct matrix with " << nColumns << " columns; limit is " << nReservedColumns << ".\n";
     // exit(1);
   }
@@ -47,7 +50,10 @@ template <typename Int>
 void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
   if (newNColumns > nReservedColumns) {
     if constexpr (isVectorized) {
-      Int::throwOverflowIf(true);
+      if constexpr (std::is_same<Int, SafeInteger<int16_t>>::value)
+        Int::throwOverflowIf(true);
+      else 
+        std::abort();
     }
     unsigned newNReservedColumns = nextPowOfTwo(newNColumns);
     data.resize(newNRows * newNReservedColumns);

@@ -178,8 +178,8 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
       Int lcm = std::lcm(tableau(nRow - 1, 0), tableau(pos, 0));
       Int nRowCoeff = lcm / tableau(nRow - 1, 0);
       Int idxRowCoeff = coeffs[i] * (lcm / tableau(pos, 0));
-      vec = add(mul(vec, nRowCoeff.val), mul(idxRowCoeff.val, varRowVec));
-      tableau(nRow - 1, 0) = lcm.val;
+      vec = add(mul(vec, int16_t(nRowCoeff)), mul(int16_t(idxRowCoeff), varRowVec));
+      tableau(nRow - 1, 0) = lcm;
     }
 
     normalizeRow(nRow - 1, vec);
@@ -521,12 +521,12 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
     // In the pivotColumn, we overwrite the value from vac, which we implement
     // by multiplying with a zeroValue in the a vector.
-    int16_t a = tableau(pivotRow, 0).val;
+    int16_t a = int16_t(tableau(pivotRow, 0));
     Vector aVector = a;
     aVector[pivotCol] = 0;
 
     for (unsigned row = 0; row < pivotRow; ++row) {
-      int16_t c = tableau(row, pivotCol).val;
+      int16_t c = int16_t(tableau(row, pivotCol));
 
       if (c == 0) // Nothing to do.
         continue;
@@ -540,7 +540,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     }
 
     for (unsigned row = pivotRow+1; row < nRow; ++row) {
-      int16_t c = tableau(row, pivotCol).val;
+      int16_t c = int16_t(tableau(row, pivotCol));
 
       if (c == 0) // Nothing to do.
         continue;

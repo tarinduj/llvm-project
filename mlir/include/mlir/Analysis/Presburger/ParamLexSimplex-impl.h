@@ -428,8 +428,8 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
     // llvm::errs() << "const: " << constIntegral << ", param: " << paramCoeffsIntegral <<  '\n';
 
     for (unsigned col = nCol - nParam; col < nCol; ++col)
-      domainDivCoeffs.push_back(mod(-tableau(row, col), denom));
-    domainDivCoeffs.push_back(mod(-tableau(row, 1), denom));
+      domainDivCoeffs.push_back(mod(Int(-tableau(row, col)), denom));
+    domainDivCoeffs.push_back(mod(Int(-tableau(row, 1)), denom));
 
     unsigned snapshot = getSnapshot();
     unsigned domainSnapshot = domainSimplex.getSnapshot();
@@ -446,12 +446,12 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
     addZeroConstraint();
     con.back().restricted = true;
     tableau(nRow - 1, 0) = denom;
-    tableau(nRow - 1, 1) = -mod(-tableau(row, 1), denom);
+    tableau(nRow - 1, 1) = -mod(Int(-tableau(row, 1)), denom);
     tableau(nRow - 1, 2) = 0;
     for (unsigned col = 3; col < nCol - nParam; ++col)
       tableau(nRow - 1, col) = mod(tableau(row, col), denom);
     for (unsigned col = nCol - nParam; col < nCol - 1; ++col)
-      tableau(nRow - 1, col) = -mod(-tableau(row, col), denom);
+      tableau(nRow - 1, col) = -mod(Int(-tableau(row, col)), denom);
     tableau(nRow - 1, nCol - 1) = denom;
     moveRowUnknownToColumn(nRow - 1);
     // restoreConsistency();

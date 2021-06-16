@@ -10,6 +10,8 @@
 using namespace mlir;
 using namespace mlir::presburger;
 
+unsigned TransprecSet::waterline = 0;
+
 template <typename Int>
 Optional<PresburgerSet<SafeInt<Int>>> setFromString(StringRef string) {
   ErrorCallback callback = [&](SMLoc loc, const Twine &message) {

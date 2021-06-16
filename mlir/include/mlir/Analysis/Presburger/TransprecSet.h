@@ -12,11 +12,12 @@ using BigInt = mpz_class;
 
 class TransprecSet {
 public:
+  static unsigned waterline;
   TransprecSet() {};
-  TransprecSet(PresburgerSet<SafeInteger<int16_t>> set) : setvar(std::move(set)) {}
-  TransprecSet(PresburgerSet<SafeInteger<int64_t>> set) : setvar(std::move(set)) {}
-  TransprecSet(PresburgerSet<SafeInteger<__int128_t>> set) : setvar(std::move(set)) {}
-  TransprecSet(PresburgerSet<BigInt> set) : setvar(std::move(set)) {}
+  TransprecSet(PresburgerSet<SafeInteger<int16_t>> set) : setvar(std::move(set)) { waterline = std::max(waterline, 0u); }
+  TransprecSet(PresburgerSet<SafeInteger<int64_t>> set) : setvar(std::move(set)) { waterline = std::max(waterline, 1u); }
+  TransprecSet(PresburgerSet<SafeInteger<__int128_t>> set) : setvar(std::move(set)) { waterline = std::max(waterline, 2u); }
+  TransprecSet(PresburgerSet<BigInt> set) : setvar(std::move(set)) { waterline = std::max(waterline, 3u); }
 
   static void harmonizePrecisions(TransprecSet &a, TransprecSet &b) {
     while (a.setvar.index() < b.setvar.index())
@@ -28,10 +29,13 @@ public:
   void increasePrecision() {
     if (std::holds_alternative<PresburgerSet<SafeInteger<int16_t>>>(setvar)) {
       setvar = PresburgerSet<SafeInteger<int64_t>>(std::get<PresburgerSet<SafeInteger<int16_t>>>(setvar));
+      waterline = std::max(waterline, 1u);
     } else if (std::holds_alternative<PresburgerSet<SafeInteger<int64_t>>>(setvar)) {
       setvar = PresburgerSet<SafeInteger<__int128_t>>(std::get<PresburgerSet<SafeInteger<int64_t>>>(setvar));
+      waterline = std::max(waterline, 2u);
     } else if (std::holds_alternative<PresburgerSet<SafeInteger<__int128_t>>>(setvar)) {
       setvar = PresburgerSet<BigInt>(std::get<PresburgerSet<mpz_class>>(setvar));
+      waterline = std::max(waterline, 3u);
     } else {
       llvm_unreachable("GMP overflowed??");
     }

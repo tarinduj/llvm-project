@@ -31,10 +31,10 @@ inline __mmask32 negs(Vector x) {
   return _mm512_cmp_epi16_mask(x, Vector(0), _MM_CMPINT_LT);
 }
 
-// No overflow occurs iff
-// a) The hi bits are either 0 or 111111... = -1, and
-// b) The sign of the lo bits is correct.
-// We check these two conditions. If either of them don't hold then an overflow has occurred.
+// If the 16th bit in the lower bits of the product is F then the result is
+// negative and the high bits must all be F if no overflow occurred. Similarly,
+// if the 16th in the low bits has value 0 then the result is non-negative and 
+// the high bits must all be 0 if no overflow occurred.
 inline Vector mul(Vector x, Vector y) {
   Vector lo = _mm512_mullo_epi16(x, y);
   Vector hi = _mm512_mulhi_epi16(x, y);

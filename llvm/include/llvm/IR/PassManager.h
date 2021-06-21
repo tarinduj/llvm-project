@@ -60,6 +60,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <set>
 
 namespace llvm {
 
@@ -551,7 +552,7 @@ public:
 
   template <typename PassT>
   std::enable_if_t<!std::is_same<PassT, PassManager>::value>
-  addPass(PassT Pass) {
+  addPass(PassT Pass, std::set<int> OptimizationLevelsSet = {}) {
     using PassModelT =
         detail::PassModel<IRUnitT, PassT, PreservedAnalyses, AnalysisManagerT,
                           ExtraArgTs...>;
@@ -566,7 +567,7 @@ public:
   /// happen with nested pass managers of the same type.
   template <typename PassT>
   std::enable_if_t<std::is_same<PassT, PassManager>::value>
-  addPass(PassT &&Pass) {
+  addPass(PassT &&Pass, std::set<int> OptimizationLevelsSet = {}) {
     for (auto &P : Pass.Passes)
       Passes.emplace_back(std::move(P));
   }

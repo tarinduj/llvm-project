@@ -10,6 +10,8 @@
 #include <map>
 #include <string> 
 #include <set>
+#include <vector>
+#include <utility>
 
 using namespace llvm;
 
@@ -26,6 +28,7 @@ class PMTest {
     passOptimizationLevel["LoopVectorizePass"] = 0;
     dbgs() << PassID << "\n";
 
+    // set test
     std::set<int> testsset = {};
 
     for (int const& i : testsset)
@@ -33,6 +36,22 @@ class PMTest {
         dbgs() << i << ' ';
     }
     dbgs() << "\n";
+
+    // vector test
+    std::vector<std::pair < int, std::set<int> > > testvect;
+    testvect.push_back(std::make_pair(0, std::set<int> {2,3}) );
+
+    for (auto &element : testvect)
+    {
+        dbgs()  << element.first << "\t";
+        for (int const& i : element.second )
+        {
+            dbgs() << i << ' ';
+        }
+        dbgs() << "\n";
+    }
+  
+
 
     if (any_isa<const Module *>(IR)) { //dbgs() << "Module\n"; 
     }

@@ -557,7 +557,9 @@ public:
         detail::PassModel<IRUnitT, PassT, PreservedAnalyses, AnalysisManagerT,
                           ExtraArgTs...>;
 
+    //FIX ME: two std::move 
     Passes.emplace_back(new PassModelT(std::move(Pass)));
+    PassesOptimizationLevelSetMap.emplace_back(std::make_pair(new PassModelT(std::move(Pass)), OptimizationLevelsSet));
   }
 
   /// When adding a pass manager pass that has the same type as this pass
@@ -568,8 +570,11 @@ public:
   template <typename PassT>
   std::enable_if_t<std::is_same<PassT, PassManager>::value>
   addPass(PassT &&Pass, std::set<int> OptimizationLevelsSet = {}) {
-    for (auto &P : Pass.Passes)
+    for (auto &P : Pass.Passes) {
+      //FIX ME: two std::move 
       Passes.emplace_back(std::move(P));
+      PassesOptimizationLevelSetMap.emplace_back(std::make_pair(std::move(P), OptimizationLevelsSet));
+    }
   }
 
   static bool isRequired() { return true; }
@@ -577,8 +582,10 @@ public:
 protected:
   using PassConceptT =
       detail::PassConcept<IRUnitT, AnalysisManagerT, ExtraArgTs...>;
+  using PassOptimizationLevelPair = std::pair<std::unique_ptr<PassConceptT>, std::set<int>>;
 
   std::vector<std::unique_ptr<PassConceptT>> Passes;
+  std::vector<PassOptimizationLevelPair> PassesOptimizationLevelSetMap;
 
   /// Flag indicating whether we should do debug logging.
   bool DebugLogging;

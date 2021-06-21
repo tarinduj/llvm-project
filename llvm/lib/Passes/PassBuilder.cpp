@@ -594,6 +594,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
                                                  ThinLTOPhase Phase,
                                                  bool DebugLogging) {
   assert(Level != OptimizationLevel::O0 && "Must request optimizations!");
+  //dbgs() << "PB TEST 1.0 \n";
 
   // The O1 pipeline has a separate pipeline creation function to simplify
   // construction readability.
@@ -875,6 +876,7 @@ ModuleInlinerWrapperPass
 PassBuilder::buildInlinerPipeline(OptimizationLevel Level, ThinLTOPhase Phase,
                                   bool DebugLogging) {
   InlineParams IP = getInlineParamsFromOptLevel(Level);
+  //dbgs() << "PB TEST 1.1\n";
   if (Phase == PassBuilder::ThinLTOPhase::PreLink && PGOOpt &&
       PGOOpt->Action == PGOOptions::SampleUse)
     IP.HotCallSiteThreshold = 0;
@@ -937,6 +939,8 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level, ThinLTOPhase Phase,
 ModulePassManager PassBuilder::buildModuleSimplificationPipeline(
     OptimizationLevel Level, ThinLTOPhase Phase, bool DebugLogging) {
   ModulePassManager MPM(DebugLogging);
+
+  //dbgs() << "PB TEST 1.2\n";
 
   bool HasSampleProfile = PGOOpt && (PGOOpt->Action == PGOOptions::SampleUse);
 
@@ -1288,6 +1292,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
                                            bool DebugLogging, bool LTOPreLink) {
   assert(Level != OptimizationLevel::O0 &&
          "Must request optimizations for the default pipeline!");
+  //dbgs() << "PB TEST 1.3a \n";
 
   ModulePassManager MPM(DebugLogging);
 
@@ -1316,6 +1321,8 @@ PassBuilder::buildThinLTOPreLinkDefaultPipeline(OptimizationLevel Level,
                                                 bool DebugLogging) {
   assert(Level != OptimizationLevel::O0 &&
          "Must request optimizations for the default pipeline!");
+
+    //dbgs() << "PB TEST 1.3b \n";
 
   ModulePassManager MPM(DebugLogging);
 
@@ -1361,7 +1368,7 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
     OptimizationLevel Level, bool DebugLogging,
     const ModuleSummaryIndex *ImportSummary) {
   ModulePassManager MPM(DebugLogging);
-
+    //dbgs() << "PB TEST 1.3c \n";
   if (ImportSummary) {
     // These passes import type identifier resolutions for whole-program
     // devirtualization and CFI. They must run early because other passes may
@@ -1403,6 +1410,7 @@ PassBuilder::buildLTOPreLinkDefaultPipeline(OptimizationLevel Level,
                                             bool DebugLogging) {
   assert(Level != OptimizationLevel::O0 &&
          "Must request optimizations for the default pipeline!");
+  //dbgs() << "PB TEST 1.4a \n";
   // FIXME: We should use a customized pre-link pipeline!
   return buildPerModuleDefaultPipeline(Level, DebugLogging,
                                        /* LTOPreLink */ true);
@@ -2136,8 +2144,10 @@ PassBuilder::parsePipelineText(StringRef Text) {
 Error PassBuilder::parseModulePass(ModulePassManager &MPM,
                                    const PipelineElement &E,
                                    bool DebugLogging) {
+  
   auto &Name = E.Name;
   auto &InnerPipeline = E.InnerPipeline;
+  //dbgs() << "PB TEST 1.4b \n";
 
   // First handle complex passes like the pass managers which carry pipelines.
   if (!InnerPipeline.empty()) {
@@ -2237,7 +2247,9 @@ Error PassBuilder::parseModulePass(ModulePassManager &MPM,
     PTO.SLPVectorization =
         L.getSpeedupLevel() > 1 && L != OptimizationLevel::Oz;
 
+    // dbgs() << "PB TEST 1.4c \n";
     if (Matches[1] == "default") {
+      // dbgs() << "PB TEST 1.4c2 \n";
       MPM.addPass(buildPerModuleDefaultPipeline(L, DebugLogging));
     } else if (Matches[1] == "thinlto-pre-link") {
       MPM.addPass(buildThinLTOPreLinkDefaultPipeline(L, DebugLogging));
@@ -2669,6 +2681,7 @@ void PassBuilder::crossRegisterProxies(LoopAnalysisManager &LAM,
 Error PassBuilder::parseModulePassPipeline(ModulePassManager &MPM,
                                            ArrayRef<PipelineElement> Pipeline,
                                            bool DebugLogging) {
+
   for (const auto &Element : Pipeline) {
     if (auto Err = parseModulePass(MPM, Element, DebugLogging))
       return Err;
@@ -2682,6 +2695,7 @@ Error PassBuilder::parseModulePassPipeline(ModulePassManager &MPM,
 Error PassBuilder::parsePassPipeline(ModulePassManager &MPM,
                                      StringRef PipelineText,
                                      bool DebugLogging) {
+  // dbgs() << "PB TEST 4 #######################\n";
   auto Pipeline = parsePipelineText(PipelineText);
   if (!Pipeline || Pipeline->empty())
     return make_error<StringError>(

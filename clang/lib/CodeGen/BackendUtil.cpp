@@ -1112,6 +1112,8 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   TimeRegion Region(FrontendTimesIsEnabled ? &CodeGenerationTime : nullptr);
   setCommandLineOpts(CodeGenOpts);
 
+  // dbgs() << "PB TEST BACKEND EmitAssemblyWithNewPassManager \n"; 
+
   bool RequiresCodeGen = (Action != Backend_EmitNothing &&
                           Action != Backend_EmitBC &&
                           Action != Backend_EmitLL);
@@ -1401,6 +1403,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         MPM.addPass(CanonicalizeAliasesPass());
         MPM.addPass(NameAnonGlobalPass());
       } else {
+        //dbgs() << "PB TEST BACKEND \n";
         MPM = PB.buildPerModuleDefaultPipeline(Level,
                                                CodeGenOpts.DebugPassManager);
       }

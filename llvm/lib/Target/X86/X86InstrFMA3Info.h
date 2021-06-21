@@ -67,7 +67,8 @@ struct X86InstrFMA3Group {
   }
 
   /// Returns true iff the group of FMA opcodes holds intrinsic opcodes.
-  bool isIntrinsic() const { return (Attributes & Intrinsic) != 0; }
+  bool isIntrinsic() const { 
+    return (Attributes & Intrinsic) != 0; }
 
   /// Returns true iff the group of FMA opcodes holds k-merge-masked opcodes.
   bool isKMergeMasked() const {

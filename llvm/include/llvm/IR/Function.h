@@ -77,7 +77,8 @@ private:
   std::unique_ptr<ValueSymbolTable>
       SymTab;                             ///< Symbol table of args/instructions
   AttributeList AttributeSets;            ///< Parameter attributes
-
+  
+  unsigned optimization_level = 0;
   /*
    * Value::SubclassData
    *
@@ -160,6 +161,10 @@ public:
   /// This is equivalent to the sum of the sizes of each basic block contained
   /// within this function.
   unsigned getInstructionCount() const;
+
+  unsigned getOptimizationLevel() const;
+
+  void setOptimizationLevel(unsigned level);
 
   /// Returns the FunctionType for me.
   FunctionType *getFunctionType() const {

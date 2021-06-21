@@ -304,6 +304,14 @@ unsigned Function::getInstructionCount() const {
   return NumInstrs;
 }
 
+unsigned Function::getOptimizationLevel() const{
+  return Function::optimization_level;
+}
+
+void Function::setOptimizationLevel(unsigned level) {
+  Function::optimization_level = level;
+} 
+
 Function *Function::Create(FunctionType *Ty, LinkageTypes Linkage,
                            const Twine &N, Module &M) {
   return Create(Ty, Linkage, M.getDataLayout().getProgramAddressSpace(), N, &M);

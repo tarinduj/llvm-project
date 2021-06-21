@@ -508,9 +508,10 @@ public:
       // Check the PassInstrumentation's BeforePass callbacks before running the
       // pass, skip its execution completely if asked to (callback returns
       // false).
+      //dbgs() << "############ " << P->name() << " ############\n";
       if (!PI.runBeforePass<IRUnitT>(*P, IR))
         continue;
-
+      //dbgs() << "PASS APPLIED \n";
       PreservedAnalyses PassPA;
       {
         TimeTraceScope TimeScope(P->name(), IR.getName());

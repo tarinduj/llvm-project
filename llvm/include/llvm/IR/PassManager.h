@@ -443,6 +443,32 @@ getAnalysisResult(AnalysisManager<IRUnitT, AnalysisArgTs...> &AM, IRUnitT &IR,
 
 } // namespace detail
 
+namespace mlpm{
+
+// ML based pass pipeline selection.
+// Compares the function optimization level with the pass optimization levels
+// and returns false if the function optimization level doesn't match
+template <typename IRUnitT, typename PassT>
+bool checkOptimizationLevel(const PassT &Pass, const IRUnitT &IR, const std::set<int> OptimizationLevelsSet) {
+  bool ShouldRun = true;
+
+  if (any_isa<const Function *>(llvm::Any(&IR))) { 
+      //dbgs() << "*********** Function ***********\n"; 
+      const Function *F = any_cast<const Function *>(llvm::Any(&IR));
+
+      // dbgs() << "Pass Optimization Level: " << passOptimizationLevel[std::string(PassID)] << "\n";
+      dbgs() << "Function Optimization Level: " << F->getOptimizationLevel() << "\n";
+      // if (passOptimizationLevel[std::string(PassID)] > F->getOptimizationLevel()){
+      //   dbgs() << "PASS SKIPPED \n";
+      //   return false;
+      // }
+      // return true;
+  }
+  return ShouldRun;
+}
+
+} // namespace mlpm
+
 // Forward declare the pass instrumentation analysis explicitly queried in
 // generic PassManager code.
 // FIXME: figure out a way to move PassInstrumentationAnalysis into its own
@@ -510,6 +536,8 @@ public:
       // pass, skip its execution completely if asked to (callback returns
       // false).
       //dbgs() << "############ " << P->name() << " ############\n";
+      if (!mlpm::checkOptimizationLevel<IRUnitT>(*P, IR, PassesOptimizationLevelsMap[Idx].second))
+        continue;
       if (!PI.runBeforePass<IRUnitT>(*P, IR))
         continue;
       //dbgs() << "PASS APPLIED \n";

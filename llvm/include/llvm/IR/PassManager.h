@@ -477,11 +477,11 @@ public:
   // explicit instantiations below. Find away to use the default and remove the
   // duplicated code here.
   PassManager(PassManager &&Arg)
-      : Passes(std::move(Arg.Passes)),
+      : PassesOptimizationLevelsMap(std::move(Arg.PassesOptimizationLevelsMap)),
         DebugLogging(std::move(Arg.DebugLogging)) {}
 
   PassManager &operator=(PassManager &&RHS) {
-    Passes = std::move(RHS.Passes);
+    PassesOptimizationLevelsMap = std::move(RHS.PassesOptimizationLevelsMap);
     DebugLogging = std::move(RHS.DebugLogging);
     return *this;
   }
@@ -503,8 +503,8 @@ public:
     if (DebugLogging)
       dbgs() << "Starting " << getTypeName<IRUnitT>() << " pass manager run.\n";
 
-    for (unsigned Idx = 0, Size = Passes.size(); Idx != Size; ++Idx) {
-      auto *P = Passes[Idx].get();
+    for (unsigned Idx = 0, Size = PassesOptimizationLevelsMap.size(); Idx != Size; ++Idx) {
+      auto *P = PassesOptimizationLevelsMap[Idx].first.get();
 
       // Check the PassInstrumentation's BeforePass callbacks before running the
       // pass, skip its execution completely if asked to (callback returns
@@ -558,8 +558,8 @@ public:
                           ExtraArgTs...>;
 
     //FIX ME: two std::move 
-    Passes.emplace_back(new PassModelT(std::move(Pass)));
-    PassesOptimizationLevelSetMap.emplace_back(std::make_pair(new PassModelT(std::move(Pass)), OptimizationLevelsSet));
+    // Passes.emplace_back(new PassModelT(std::move(Pass)));
+    PassesOptimizationLevelsMap.emplace_back(std::make_pair(new PassModelT(std::move(Pass)), OptimizationLevelsSet));
   }
 
   /// When adding a pass manager pass that has the same type as this pass
@@ -570,10 +570,11 @@ public:
   template <typename PassT>
   std::enable_if_t<std::is_same<PassT, PassManager>::value>
   addPass(PassT &&Pass, std::set<int> OptimizationLevelsSet = {}) {
-    for (auto &P : Pass.Passes) {
+    for (auto &Pair : Pass.PassesOptimizationLevelsMap) {
+      auto &P = Pair.first;
       //FIX ME: two std::move 
-      Passes.emplace_back(std::move(P));
-      PassesOptimizationLevelSetMap.emplace_back(std::make_pair(std::move(P), OptimizationLevelsSet));
+      // Passes.emplace_back(std::move(P));
+      PassesOptimizationLevelsMap.emplace_back(std::make_pair(std::move(P), OptimizationLevelsSet));
     }
   }
 
@@ -584,8 +585,8 @@ protected:
       detail::PassConcept<IRUnitT, AnalysisManagerT, ExtraArgTs...>;
   using PassOptimizationLevelPair = std::pair<std::unique_ptr<PassConceptT>, std::set<int>>;
 
-  std::vector<std::unique_ptr<PassConceptT>> Passes;
-  std::vector<PassOptimizationLevelPair> PassesOptimizationLevelSetMap;
+  // std::vector<std::unique_ptr<PassConceptT>> Passes;
+  std::vector<PassOptimizationLevelPair> PassesOptimizationLevelsMap;
 
   /// Flag indicating whether we should do debug logging.
   bool DebugLogging;

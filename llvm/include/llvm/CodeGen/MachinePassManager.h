@@ -153,7 +153,7 @@ public:
 
   template <typename PassT> void addPass(PassT &&Pass) {
     Base::addPass(std::forward<PassT>(Pass));
-    PassConceptT *P = Passes.back().get();
+    PassConceptT *P = PassesOptimizationLevelsMap.back().first.get();
     addDoInitialization<PassT>(P);
     addDoFinalization<PassT>(P);
 
@@ -232,7 +232,7 @@ private:
                           MachineFunctionAnalysisManager>;
     auto *P = static_cast<PassModelT *>(Pass);
     MachineModulePasses.emplace(
-        Passes.size() - 1,
+        PassesOptimizationLevelsMap.size() - 1,
         [=](Module &M, MachineFunctionAnalysisManager &MFAM) {
           return P->Pass.run(M, MFAM);
         });
@@ -242,7 +242,7 @@ private:
   SmallVector<llvm::unique_function<FuncTy>, 4> InitializationFuncs;
   SmallVector<llvm::unique_function<FuncTy>, 4> FinalizationFuncs;
 
-  using PassIndex = decltype(Passes)::size_type;
+  using PassIndex = decltype(PassesOptimizationLevelsMap)::size_type;
   std::map<PassIndex, llvm::unique_function<FuncTy>> MachineModulePasses;
 
   // Run codegen in the SCC order.

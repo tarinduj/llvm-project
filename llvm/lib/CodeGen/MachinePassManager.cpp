@@ -60,12 +60,12 @@ Error MachineFunctionPassManager::run(Module &M,
   }
 
   unsigned Idx = 0;
-  size_t Size = Passes.size();
+  size_t Size = PassesOptimizationLevelsMap.size();
   do {
     // Run machine module passes
     for (; MachineModulePasses.count(Idx) && Idx != Size; ++Idx) {
       if (DebugLogging)
-        dbgs() << "Running pass: " << Passes[Idx]->name() << " on "
+        dbgs() << "Running pass: " << PassesOptimizationLevelsMap[Idx].first->name() << " on "
                << M.getName() << '\n';
       if (auto Err = MachineModulePasses.at(Idx)(M, MFAM))
         return Err;
@@ -92,7 +92,7 @@ Error MachineFunctionPassManager::run(Module &M,
       PassInstrumentation PI = MFAM.getResult<PassInstrumentationAnalysis>(MF);
 
       for (unsigned I = Begin, E = Idx; I != E; ++I) {
-        auto *P = Passes[I].get();
+        auto *P = PassesOptimizationLevelsMap[I].first.get();
 
         if (!PI.runBeforePass<MachineFunction>(*P, MF))
           continue;

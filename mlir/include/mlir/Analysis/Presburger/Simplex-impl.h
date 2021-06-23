@@ -15,6 +15,7 @@
 using namespace mlir;
 using namespace analysis::presburger;
 
+#ifdef ENABLE_VECTORIZATION
 inline __mmask32 equalMask(Vector x, Vector y) {
   return _mm512_cmp_epi16_mask(x, y, _MM_CMPINT_EQ);
 }
@@ -47,6 +48,15 @@ inline Vector negate(Vector x) {
   SafeInteger<int16_t>::throwOverflowIf(overflow);
   return -x;
 }
+#else
+inline __mmask32 equalMask(Vector x, Vector y);
+inline Vector add(Vector x, Vector y);
+inline __mmask32 negs(Vector x);
+inline Vector mul(Vector x, Vector y);
+inline Vector negate(Vector x);
+#endif
+
+
 
 template <typename Int>
 using Direction = typename Simplex<Int>::Direction;

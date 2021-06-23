@@ -23,6 +23,10 @@
 #include <cassert>
 #include <vector>
 
+#if __AVX512BW__ && __AVX512F__
+#define ENABLE_VECTORIZATION
+#endif
+
 namespace mlir {
 namespace analysis {
 namespace presburger {
@@ -40,7 +44,11 @@ typedef int16_t Vector __attribute__((ext_vector_type(MatrixVectorColumns)));
 template <typename Int>
 class Matrix {
 public:
+#ifdef ENABLE_VECTORIZATION
   static constexpr bool isVectorized = std::is_same<Int, SafeInteger<int16_t>>::value || std::is_same<Int, int16_t>::value;
+#else
+  static constexpr bool isVectorized = false;
+#endif
   Matrix() = delete;
 
   /// Construct a matrix with the specified number of rows and columns.

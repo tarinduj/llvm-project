@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
-  for (int i = 0; i < numCases; ++i) {
+  for (unsigned i = 0; i < numCases; ++i) {
     int times[numRuns];
     if (i % 50000 == 0)
       std::cerr << "i = " << i << '\n';
@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
         auto a = setA;
         unsigned int dummy;
         unsigned long long start = __rdtscp(&dummy);
-        auto res = a.isIntegerEmpty();
+        volatile auto res = a.isIntegerEmpty();
         res = res;
         unsigned long long end = __rdtscp(&dummy);
         times[i] = end - start;
@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
         auto b = setB;
         unsigned int dummy;
         unsigned long long start = __rdtscp(&dummy);
-        auto res = a.equal(b);
+        volatile auto res = a.equal(b);
         res = res;
         unsigned long long end = __rdtscp(&dummy);
         times[i] = end - start;

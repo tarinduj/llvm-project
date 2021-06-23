@@ -459,8 +459,10 @@ void PresburgerBasicSet<Int>::appendDivisionVariable(ArrayRef<Int> coeffs,
 template <typename Int>
 void PresburgerBasicSet<Int>::appendDivisionVariables(
     ArrayRef<DivisionConstraint<Int>> newDivs) {
+#ifndef NDEBUG
   for (auto &div : newDivs)
     assert(div.getCoeffs().size() == getNumTotalDims() + newDivs.size() + 1);
+#endif
   insertDimensions(nParam + nDim + nExist + divs.size(), newDivs.size());
   divs.insert(divs.end(), newDivs.begin(), newDivs.end());
 }

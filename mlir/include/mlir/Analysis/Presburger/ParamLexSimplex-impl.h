@@ -380,7 +380,7 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
       }
     }
 
-    bool constIntegral = mod(tableau(row, 1), denom) == 0;
+    // bool constIntegral = mod(tableau(row, 1), denom) == 0;
 
     SmallVector<Int, 8> domainDivCoeffs;
     if (otherCoeffsIntegral) {

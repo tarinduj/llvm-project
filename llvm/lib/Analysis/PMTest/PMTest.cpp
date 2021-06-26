@@ -5,6 +5,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/ADT/SmallSet.h"
 #include <fstream>
 #include <functional>
 #include <map>
@@ -12,10 +13,15 @@
 #include <set>
 #include <vector>
 #include <utility>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <cstdlib>
 
 using namespace llvm;
 
 namespace {
+enum OptimizationLevel { O0, O1, O2, O3 };
 class PMTest {
   std::unique_ptr<DominatorTree> DT;
   std::unique_ptr<LoopInfo> LI;
@@ -28,14 +34,17 @@ class PMTest {
     passOptimizationLevel["LoopVectorizePass"] = 0;
     dbgs() << PassID << "\n";
 
-    // set test
-    std::set<int> testsset = {};
+    //testPass({O1, O2});
 
-    for (int const& i : testsset)
-    {
-        dbgs() << i << ' ';
-    }
-    dbgs() << "\n";
+    // set test
+    SmallSet<OptimizationLevel, 4> testsset;
+    testsset.insert(O1);
+
+    // for (unsigned const& i : testsset)
+    // {
+    //     dbgs() << i << ' ';
+    // }
+    // dbgs() << "\n";
 
     // vector test
     std::vector<std::pair < int, std::set<int> > > testvect;
@@ -56,18 +65,58 @@ class PMTest {
     if (any_isa<const Module *>(IR)) { //dbgs() << "Module\n"; 
     }
 
-    else if (any_isa<const Function *>(IR)) { 
-      //dbgs() << "*********** Function ***********\n"; 
-      const Function *F = any_cast<const Function *>(IR);
+    // else if (any_isa<const Function *>(IR)) { 
+    //   //dbgs() << "*********** Function ***********\n"; 
+    //   const Function *F = any_cast<const Function *>(IR);
+    //   const std::string FunctionName = F->getName().str();
+    //   dbgs() << "REAL FUNCTION: " << FunctionName << "\n";
 
-      // dbgs() << "Pass Optimization Level: " << passOptimizationLevel[std::string(PassID)] << "\n";
-      // dbgs() << "Function Optimization Level: " << F->getOptimizationLevel() << "\n";
-      // if (passOptimizationLevel[std::string(PassID)] > F->getOptimizationLevel()){
-      //   dbgs() << "PASS SKIPPED \n";
-      //   return false;
-      // }
-      // return true;
-    }
+    //   const unsigned FunctionOptLevel = F->getOptimizationLevel();
+      
+    //   if (FunctionOptLevel == 0) {
+    //     dbgs() << "OOPS\n";
+
+    //     std::ifstream ip("lookuptable.csv");
+    //     if (!ip.is_open())
+    //         dbgs() << "File not found" << "\n";
+    //     std::string line;
+    //     while (std::getline(ip, line))
+    //     {
+    //       //dbgs() << "LINE: " << line << "\n";
+    //       std::istringstream iss(line);
+    //       std::string id, name, olevel;
+
+    //       if (std::getline(iss, id, ',') &&
+    //           std::getline(iss, name, ',') &&
+    //           std::getline(iss, olevel))
+    //       {
+    //         //dbgs() << "NAME: " << name << "\n";
+    //         //dbgs() << "OLEVEL: " << olevel << "\n";
+    //         char *endp = nullptr;
+    //         if (name.c_str() != endp && name == FunctionName) {
+    //             dbgs() << "FOUND A MATACH\n";
+    //             unsigned level = std::atoi(olevel.substr(1).c_str());
+    //             dbgs() << "LEVEL: " << level << "\n";
+    //             //F->setOptimizationLevel(level);
+                
+    //         }
+    //       }
+    //     }
+    //   } else {
+    //     dbgs() << "YAY\n";
+    //   };
+
+
+
+
+    //   // dbgs() << "Pass Optimization Level: " << passOptimizationLevel[std::string(PassID)] << "\n";
+    //   // dbgs() << "Function Optimization Level: " << F->getOptimizationLevel() << "\n";
+    //   // if (passOptimizationLevel[std::string(PassID)] > F->getOptimizationLevel()){
+    //   //   dbgs() << "PASS SKIPPED \n";
+    //   //   return false;
+    //   // }
+    //   // return true;
+    // }
 
     else if (any_isa<const LazyCallGraph::SCC *>(IR)) { //dbgs() << "LazyCallGraph\n"; 
     }
@@ -75,6 +124,10 @@ class PMTest {
     else if (any_isa<const Loop *>(IR)) { //dbgs() << "Loop\n"; 
     } 
     return true;
+  }
+
+  void testPass(SmallSet<OptimizationLevel, 4> OptimizationLevels = {}){
+    dbgs() << "TEST SUCCESS!\n";
   }
 
   void afterPass(StringRef PassID, Any IR) {

@@ -72,7 +72,7 @@ PassManager<LazyCallGraph::SCC, CGSCCAnalysisManager, LazyCallGraph &,
   FunctionAnalysisManager &FAM =
       AM.getCachedResult<FunctionAnalysisManagerCGSCCProxy>(*C)->getManager();
 
-  for (auto &Pair : PassesOptimizationLevelsMap) {
+  for (auto &Pair : Passes) {
     auto &Pass = Pair.first;
     // Check the PassInstrumentation's BeforePass callbacks before running the
     // pass, skip its execution completely if asked to (callback returns false).

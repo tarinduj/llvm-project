@@ -472,25 +472,25 @@ FunctionPassManager PassBuilder::buildO1FunctionSimplificationPipeline(
 
   // Form SSA out of local memory accesses after breaking apart aggregates into
   // scalars.
-  FPM.addPass(SROA());
+  FPM.addPass(SROA(), {1});
 
   // Catch trivial redundancies
-  FPM.addPass(EarlyCSEPass(true /* Enable mem-ssa. */));
+  FPM.addPass(EarlyCSEPass(true /* Enable mem-ssa. */), {1});
 
   // Hoisting of scalars and load expressions.
-  FPM.addPass(SimplifyCFGPass());
-  FPM.addPass(InstCombinePass());
+  FPM.addPass(SimplifyCFGPass(), {1});
+  FPM.addPass(InstCombinePass(), {1});
 
-  FPM.addPass(LibCallsShrinkWrapPass());
+  FPM.addPass(LibCallsShrinkWrapPass(), {1});
 
   invokePeepholeEPCallbacks(FPM, Level);
 
-  FPM.addPass(SimplifyCFGPass());
+  FPM.addPass(SimplifyCFGPass(), {1});
 
   // Form canonically associated expression trees, and simplify the trees using
   // basic mathematical properties. For example, this will form (nearly)
   // minimal multiplication trees.
-  FPM.addPass(ReassociatePass());
+  FPM.addPass(ReassociatePass(), {1});
 
   // Add the primary loop simplification pipeline.
   // FIXME: Currently this is split into two loop pass pipelines because we run

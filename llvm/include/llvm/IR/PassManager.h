@@ -40,6 +40,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/IR/Function.h"
@@ -61,6 +62,10 @@
 #include <utility>
 #include <vector>
 #include <set>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <cstdlib>
 
 namespace llvm {
 
@@ -445,25 +450,84 @@ getAnalysisResult(AnalysisManager<IRUnitT, AnalysisArgTs...> &AM, IRUnitT &IR,
 
 namespace mlpm{
 
+// enum OptimizationLevel { O1, O2, O3 };
+// using OptimizationLevelSet = SmallSet<OptimizationLevel, 4>;
+using OptimizationLevelSet = std::set<unsigned>;
+
 // ML based pass pipeline selection.
 // Compares the function optimization level with the pass optimization levels
 // and returns false if the function optimization level doesn't match
 template <typename IRUnitT, typename PassT>
-bool checkOptimizationLevel(const PassT &Pass, const IRUnitT &IR, const std::set<int> OptimizationLevelsSet) {
+bool checkOptimizationLevel(const PassT &Pass, IRUnitT &IR, const mlpm::OptimizationLevelSet &OptimizationLevels) {
   bool ShouldRun = true;
+  // dbgs() << "Inside PM 1\n";
+  if (any_isa<Function *>(llvm::Any(&IR))) { 
+      Function *F = any_cast<Function *>(llvm::Any(&IR));
 
-  if (any_isa<const Function *>(llvm::Any(&IR))) { 
-      //dbgs() << "*********** Function ***********\n"; 
-      const Function *F = any_cast<const Function *>(llvm::Any(&IR));
+      // setting function optimization level
+      const std::string FunctionName = F->getName().str();
+      unsigned FunctionOptLevel = F->getOptimizationLevel();
+      if (FunctionOptLevel == 0){
+        // dbgs() << "Function Optimization Level Not Set!\n"; 
+        std::ifstream ip("lookuptable.csv");
+        if (!ip.is_open())
+          dbgs() << "File not found!" << "\n";
+        std::string line;
+        while (std::getline(ip, line)) {
+          //dbgs() << "LINE: " << line << "\n";
+          std::istringstream iss(line);
+          std::string id, name, olevel;
 
-      // dbgs() << "Pass Optimization Level: " << passOptimizationLevel[std::string(PassID)] << "\n";
-      dbgs() << "Function Optimization Level: " << F->getOptimizationLevel() << "\n";
-      // if (passOptimizationLevel[std::string(PassID)] > F->getOptimizationLevel()){
-      //   dbgs() << "PASS SKIPPED \n";
-      //   return false;
-      // }
-      // return true;
+          if (std::getline(iss, id, ',') &&
+              std::getline(iss, name, ',') &&
+              std::getline(iss, olevel)) {
+            //dbgs() << "NAME: " << name << "\n";
+            //dbgs() << "OLEVEL: " << olevel << "\n";
+            char *endp = nullptr;
+            if (name.c_str() != endp && name == FunctionName) {
+                // dbgs() << "FOUND A MATACH\n";
+                unsigned level = std::atoi(olevel.substr(1).c_str());
+                dbgs() << "Setting Optimization Level: " << level << "\n";
+                F->setOptimizationLevel(level);
+                FunctionOptLevel = level;
+                break;
+            }
+          }
+        }
+      } else {
+        // dbgs() << "Optimization Level Already Set!\n";
+      }; // setting function optimization level
+
+      dbgs() << "Function Optimization Level: " << FunctionOptLevel << "\n";
+
+      dbgs() << "Pass Optimization Levels: ";
+      for (unsigned const& i : OptimizationLevels) {
+        dbgs() << i << " ";
+      }
+      dbgs() << "\n";
+
+      if (OptimizationLevels.empty() || OptimizationLevels.count(FunctionOptLevel)){
+        return true;
+      } else {
+        // dbgs() << "PASS SKIPPED\n";
+        return false;
+      }
   }
+  return ShouldRun;
+}
+
+// specilized template for function
+template <typename PassT>
+bool checkOptimizationLevel(const PassT &Pass, const Function &F, const mlpm::OptimizationLevelSet &OptimizationLevels) {
+  bool ShouldRun = true;
+  dbgs() << "Inside PM 2\n";
+
+  dbgs() << "Specialized Template Function Optimization Level: " << F.getOptimizationLevel() << "\n";
+  // dbgs() << "Pass Optimization Level: " << passOptimizationLevel[std::string(PassID)] << "\n";    
+  // if (passOptimizationLevel[std::string(PassID)] > F->getOptimizationLevel()){
+  //   dbgs() << "PASS SKIPPED \n";
+  //   ShouldRun = false;
+  // }
   return ShouldRun;
 }
 
@@ -503,11 +567,11 @@ public:
   // explicit instantiations below. Find away to use the default and remove the
   // duplicated code here.
   PassManager(PassManager &&Arg)
-      : PassesOptimizationLevelsMap(std::move(Arg.PassesOptimizationLevelsMap)),
+      : Passes(std::move(Arg.Passes)),
         DebugLogging(std::move(Arg.DebugLogging)) {}
 
   PassManager &operator=(PassManager &&RHS) {
-    PassesOptimizationLevelsMap = std::move(RHS.PassesOptimizationLevelsMap);
+    Passes = std::move(RHS.Passes);
     DebugLogging = std::move(RHS.DebugLogging);
     return *this;
   }
@@ -529,14 +593,14 @@ public:
     if (DebugLogging)
       dbgs() << "Starting " << getTypeName<IRUnitT>() << " pass manager run.\n";
 
-    for (unsigned Idx = 0, Size = PassesOptimizationLevelsMap.size(); Idx != Size; ++Idx) {
-      auto *P = PassesOptimizationLevelsMap[Idx].first.get();
+    for (unsigned Idx = 0, Size = Passes.size(); Idx != Size; ++Idx) {
+      auto *P = Passes[Idx].first.get();
 
       // Check the PassInstrumentation's BeforePass callbacks before running the
       // pass, skip its execution completely if asked to (callback returns
       // false).
       //dbgs() << "############ " << P->name() << " ############\n";
-      if (!mlpm::checkOptimizationLevel<IRUnitT>(*P, IR, PassesOptimizationLevelsMap[Idx].second))
+      if (!mlpm::checkOptimizationLevel<IRUnitT>(*P, IR, Passes[Idx].second))
         continue;
       if (!PI.runBeforePass<IRUnitT>(*P, IR))
         continue;
@@ -580,14 +644,14 @@ public:
 
   template <typename PassT>
   std::enable_if_t<!std::is_same<PassT, PassManager>::value>
-  addPass(PassT Pass, std::set<int> OptimizationLevelsSet = {}) {
+  addPass(PassT Pass, mlpm::OptimizationLevelSet OptimizationLevels = {}) {
     using PassModelT =
         detail::PassModel<IRUnitT, PassT, PreservedAnalyses, AnalysisManagerT,
                           ExtraArgTs...>;
 
     //FIX ME: two std::move 
     // Passes.emplace_back(new PassModelT(std::move(Pass)));
-    PassesOptimizationLevelsMap.emplace_back(std::make_pair(new PassModelT(std::move(Pass)), OptimizationLevelsSet));
+    Passes.emplace_back(std::make_pair(new PassModelT(std::move(Pass)), OptimizationLevels));
   }
 
   /// When adding a pass manager pass that has the same type as this pass
@@ -597,12 +661,12 @@ public:
   /// happen with nested pass managers of the same type.
   template <typename PassT>
   std::enable_if_t<std::is_same<PassT, PassManager>::value>
-  addPass(PassT &&Pass, std::set<int> OptimizationLevelsSet = {}) {
-    for (auto &Pair : Pass.PassesOptimizationLevelsMap) {
+  addPass(PassT &&Pass, mlpm::OptimizationLevelSet OptimizationLevels = {}) {
+    for (auto &Pair : Pass.Passes) {
       auto &P = Pair.first;
       //FIX ME: two std::move 
       // Passes.emplace_back(std::move(P));
-      PassesOptimizationLevelsMap.emplace_back(std::make_pair(std::move(P), OptimizationLevelsSet));
+      Passes.emplace_back(std::make_pair(std::move(P), OptimizationLevels));
     }
   }
 
@@ -611,10 +675,10 @@ public:
 protected:
   using PassConceptT =
       detail::PassConcept<IRUnitT, AnalysisManagerT, ExtraArgTs...>;
-  using PassOptimizationLevelPair = std::pair<std::unique_ptr<PassConceptT>, std::set<int>>;
+  using PassOptimizationLevelPair = std::pair<std::unique_ptr<PassConceptT>, mlpm::OptimizationLevelSet>;
 
   // std::vector<std::unique_ptr<PassConceptT>> Passes;
-  std::vector<PassOptimizationLevelPair> PassesOptimizationLevelsMap;
+  std::vector<PassOptimizationLevelPair> Passes;
 
   /// Flag indicating whether we should do debug logging.
   bool DebugLogging;

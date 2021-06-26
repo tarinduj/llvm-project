@@ -33,7 +33,7 @@ PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
   // Request PassInstrumentation from analysis manager, will use it to run
   // instrumenting callbacks for the passes later.
   PassInstrumentation PI = AM.getResult<PassInstrumentationAnalysis>(L, AR);
-  for (auto &Pair : PassesOptimizationLevelsMap) {
+  for (auto &Pair : Passes) {
     auto &Pass = Pair.first;
     // Check the PassInstrumentation's BeforePass callbacks before running the
     // pass, skip its execution completely if asked to (callback returns false).

@@ -51,6 +51,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/TypeName.h"
+#include "llvm/Support/CommandLine.h"
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -68,7 +69,6 @@
 #include <cstdlib>
 
 namespace llvm {
-
 /// A special type used by analysis passes to provide an address that
 /// identifies that particular analysis pass type.
 ///
@@ -469,7 +469,7 @@ bool checkOptimizationLevel(const PassT &Pass, IRUnitT &IR, const mlpm::Optimiza
       unsigned FunctionOptLevel = F->getOptimizationLevel();
       if (FunctionOptLevel == 0){
         // dbgs() << "Function Optimization Level Not Set!\n"; 
-        std::ifstream ip("lookuptable.csv");
+        std::ifstream ip("/Users/tarindujayatilaka/Documents/LLVM/results/ASM/Switch Pipeline/lookuptable.csv");
         if (!ip.is_open())
           dbgs() << "File not found!" << "\n";
         std::string line;
@@ -487,7 +487,7 @@ bool checkOptimizationLevel(const PassT &Pass, IRUnitT &IR, const mlpm::Optimiza
             if (name.c_str() != endp && name == FunctionName) {
                 // dbgs() << "FOUND A MATACH\n";
                 unsigned level = std::atoi(olevel.substr(1).c_str());
-                dbgs() << "Setting Optimization Level: " << level << "\n";
+                // dbgs() << "Setting Optimization Level: " << level << "\n";
                 F->setOptimizationLevel(level);
                 FunctionOptLevel = level;
                 break;
@@ -498,13 +498,13 @@ bool checkOptimizationLevel(const PassT &Pass, IRUnitT &IR, const mlpm::Optimiza
         // dbgs() << "Optimization Level Already Set!\n";
       }; // setting function optimization level
 
-      dbgs() << "Function Optimization Level: " << FunctionOptLevel << "\n";
+      // dbgs() << "Function Optimization Level: " << FunctionOptLevel << "\n";
 
-      dbgs() << "Pass Optimization Levels: ";
-      for (unsigned const& i : OptimizationLevels) {
-        dbgs() << i << " ";
-      }
-      dbgs() << "\n";
+      // dbgs() << "Pass Optimization Levels: ";
+      // for (unsigned const& i : OptimizationLevels) {
+      //   dbgs() << i << " ";
+      // }
+      // // dbgs() << "\n";
 
       if (OptimizationLevels.empty() || OptimizationLevels.count(FunctionOptLevel)){
         return true;
@@ -600,8 +600,14 @@ public:
       // pass, skip its execution completely if asked to (callback returns
       // false).
       //dbgs() << "############ " << P->name() << " ############\n";
-      if (!mlpm::checkOptimizationLevel<IRUnitT>(*P, IR, Passes[Idx].second))
-        continue;
+      bool RunMLPM = true;
+      if (RunMLPM){
+        if (!mlpm::checkOptimizationLevel<IRUnitT>(*P, IR, Passes[Idx].second)){
+          // dbgs() << "PASS SKIPPED\n";
+          continue;
+        }
+      }
+      // dbgs() << "PASS APPLIED\n";
       if (!PI.runBeforePass<IRUnitT>(*P, IR))
         continue;
       //dbgs() << "PASS APPLIED \n";

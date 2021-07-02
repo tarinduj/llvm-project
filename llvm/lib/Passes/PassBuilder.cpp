@@ -307,22 +307,22 @@ extern cl::opt<bool> EnableKnowledgeRetention;
 
 extern cl::opt<bool> EnableMatrix;
 
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::O0 = {
+const OptimizationLevel OptimizationLevel::O0 = {
     /*SpeedLevel*/ 0,
     /*SizeLevel*/ 0};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::O1 = {
+const OptimizationLevel OptimizationLevel::O1 = {
     /*SpeedLevel*/ 1,
     /*SizeLevel*/ 0};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::O2 = {
+const OptimizationLevel OptimizationLevel::O2 = {
     /*SpeedLevel*/ 2,
     /*SizeLevel*/ 0};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::O3 = {
+const OptimizationLevel OptimizationLevel::O3 = {
     /*SpeedLevel*/ 3,
     /*SizeLevel*/ 0};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::Os = {
+const OptimizationLevel OptimizationLevel::Os = {
     /*SpeedLevel*/ 2,
     /*SizeLevel*/ 1};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::Oz = {
+const OptimizationLevel OptimizationLevel::Oz = {
     /*SpeedLevel*/ 2,
     /*SizeLevel*/ 2};
 
@@ -423,7 +423,7 @@ AnalysisKey NoOpLoopAnalysis::Key;
 } // namespace
 
 void PassBuilder::invokePeepholeEPCallbacks(
-    FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
+    FunctionPassManager &FPM, OptimizationLevel Level) {
   for (auto &C : PeepholeEPCallbacks)
     C(FPM, Level);
 }
@@ -775,7 +775,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 }
 
 void PassBuilder::addPGOInstrPasses(ModulePassManager &MPM, bool DebugLogging,
-                                    PassBuilder::OptimizationLevel Level,
+                                    OptimizationLevel Level,
                                     bool RunProfileGen, bool IsCS,
                                     std::string ProfileFile,
                                     std::string ProfileRemappingFile) {
@@ -868,7 +868,7 @@ void PassBuilder::addPGOInstrPassesForO0(ModulePassManager &MPM,
 }
 
 static InlineParams
-getInlineParamsFromOptLevel(PassBuilder::OptimizationLevel Level) {
+getInlineParamsFromOptLevel(OptimizationLevel Level) {
   return getInlineParams(Level.getSpeedupLevel(), Level.getSizeLevel());
 }
 

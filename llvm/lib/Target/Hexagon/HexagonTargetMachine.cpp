@@ -277,7 +277,7 @@ void HexagonTargetMachine::adjustPassManager(PassManagerBuilder &PMB) {
 void HexagonTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
                                                         bool DebugPassManager) {
   PB.registerOptimizerLastEPCallback(
-      [=](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+      [=](ModulePassManager &MPM, OptimizationLevel Level) {
         LoopPassManager LPM(DebugPassManager);
         FunctionPassManager FPM(DebugPassManager);
         LPM.addPass(HexagonVectorLoopCarriedReusePass());

@@ -144,7 +144,7 @@ static void registerEPCallbacks(PassBuilder &PB, bool DebugLogging) {
   if (tryParsePipelineText<FunctionPassManager>(PB, PeepholeEPPipeline))
     PB.registerPeepholeEPCallback(
         [&PB, DebugLogging](FunctionPassManager &PM,
-                            PassBuilder::OptimizationLevel Level) {
+                            OptimizationLevel Level) {
           ExitOnError Err("Unable to parse PeepholeEP pipeline: ");
           Err(PB.parsePassPipeline(PM, PeepholeEPPipeline, DebugLogging));
         });
@@ -152,7 +152,7 @@ static void registerEPCallbacks(PassBuilder &PB, bool DebugLogging) {
                                             LateLoopOptimizationsEPPipeline))
     PB.registerLateLoopOptimizationsEPCallback(
         [&PB, DebugLogging](LoopPassManager &PM,
-                            PassBuilder::OptimizationLevel Level) {
+                            OptimizationLevel Level) {
           ExitOnError Err("Unable to parse LateLoopOptimizationsEP pipeline: ");
           Err(PB.parsePassPipeline(PM, LateLoopOptimizationsEPPipeline,
                                    DebugLogging));
@@ -160,7 +160,7 @@ static void registerEPCallbacks(PassBuilder &PB, bool DebugLogging) {
   if (tryParsePipelineText<LoopPassManager>(PB, LoopOptimizerEndEPPipeline))
     PB.registerLoopOptimizerEndEPCallback(
         [&PB, DebugLogging](LoopPassManager &PM,
-                            PassBuilder::OptimizationLevel Level) {
+                            OptimizationLevel Level) {
           ExitOnError Err("Unable to parse LoopOptimizerEndEP pipeline: ");
           Err(PB.parsePassPipeline(PM, LoopOptimizerEndEPPipeline,
                                    DebugLogging));
@@ -169,7 +169,7 @@ static void registerEPCallbacks(PassBuilder &PB, bool DebugLogging) {
                                                 ScalarOptimizerLateEPPipeline))
     PB.registerScalarOptimizerLateEPCallback(
         [&PB, DebugLogging](FunctionPassManager &PM,
-                            PassBuilder::OptimizationLevel Level) {
+                            OptimizationLevel Level) {
           ExitOnError Err("Unable to parse ScalarOptimizerLateEP pipeline: ");
           Err(PB.parsePassPipeline(PM, ScalarOptimizerLateEPPipeline,
                                    DebugLogging));
@@ -177,7 +177,7 @@ static void registerEPCallbacks(PassBuilder &PB, bool DebugLogging) {
   if (tryParsePipelineText<CGSCCPassManager>(PB, CGSCCOptimizerLateEPPipeline))
     PB.registerCGSCCOptimizerLateEPCallback(
         [&PB, DebugLogging](CGSCCPassManager &PM,
-                            PassBuilder::OptimizationLevel Level) {
+                            OptimizationLevel Level) {
           ExitOnError Err("Unable to parse CGSCCOptimizerLateEP pipeline: ");
           Err(PB.parsePassPipeline(PM, CGSCCOptimizerLateEPPipeline,
                                    DebugLogging));
@@ -185,7 +185,7 @@ static void registerEPCallbacks(PassBuilder &PB, bool DebugLogging) {
   if (tryParsePipelineText<FunctionPassManager>(PB, VectorizerStartEPPipeline))
     PB.registerVectorizerStartEPCallback(
         [&PB, DebugLogging](FunctionPassManager &PM,
-                            PassBuilder::OptimizationLevel Level) {
+                            OptimizationLevel Level) {
           ExitOnError Err("Unable to parse VectorizerStartEP pipeline: ");
           Err(PB.parsePassPipeline(PM, VectorizerStartEPPipeline,
                                    DebugLogging));
@@ -199,7 +199,7 @@ static void registerEPCallbacks(PassBuilder &PB, bool DebugLogging) {
   if (tryParsePipelineText<FunctionPassManager>(PB, OptimizerLastEPPipeline))
     PB.registerOptimizerLastEPCallback(
         [&PB, DebugLogging](ModulePassManager &PM,
-                            PassBuilder::OptimizationLevel) {
+                            OptimizationLevel) {
           ExitOnError Err("Unable to parse OptimizerLastEP pipeline: ");
           Err(PB.parsePassPipeline(PM, OptimizerLastEPPipeline, DebugLogging));
         });

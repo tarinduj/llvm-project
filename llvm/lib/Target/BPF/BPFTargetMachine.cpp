@@ -132,7 +132,7 @@ void BPFTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB,
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   });
   PB.registerPeepholeEPCallback([=](FunctionPassManager &FPM,
-                                    PassBuilder::OptimizationLevel Level) {
+                                    OptimizationLevel Level) {
     FPM.addPass(SimplifyCFGPass(SimplifyCFGOptions().hoistCommonInsts(true)));
   });
 }

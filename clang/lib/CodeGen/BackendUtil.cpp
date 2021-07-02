@@ -994,13 +994,13 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     DwoOS->keep();
 }
 
-static PassBuilder::OptimizationLevel mapToLevel(const CodeGenOptions &Opts) {
+static OptimizationLevel mapToLevel(const CodeGenOptions &Opts) {
   switch (Opts.OptimizationLevel) {
   default:
     llvm_unreachable("Invalid optimization level!");
 
   case 1:
-    return PassBuilder::OptimizationLevel::O1;
+    return OptimizationLevel::O1;
 
   case 2:
     switch (Opts.OptimizeSize) {
@@ -1008,17 +1008,17 @@ static PassBuilder::OptimizationLevel mapToLevel(const CodeGenOptions &Opts) {
       llvm_unreachable("Invalid optimization level for size!");
 
     case 0:
-      return PassBuilder::OptimizationLevel::O2;
+      return OptimizationLevel::O2;
 
     case 1:
-      return PassBuilder::OptimizationLevel::Os;
+      return OptimizationLevel::Os;
 
     case 2:
-      return PassBuilder::OptimizationLevel::Oz;
+      return OptimizationLevel::Oz;
     }
 
   case 3:
-    return PassBuilder::OptimizationLevel::O3;
+    return OptimizationLevel::O3;
   }
 }
 
@@ -1283,7 +1283,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     } else {
       // Map our optimization levels into one of the distinct levels used to
       // configure the pipeline.
-      PassBuilder::OptimizationLevel Level = mapToLevel(CodeGenOpts);
+      OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
       // If we reached here with a non-empty index file name, then the index
       // file was empty and we are not performing ThinLTO backend compilation
@@ -1306,7 +1306,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       // the pipeline.
       if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
         PB.registerScalarOptimizerLateEPCallback(
-            [](FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
+            [](FunctionPassManager &FPM, OptimizationLevel Level) {
               FPM.addPass(BoundsCheckingPass());
             });
 
@@ -1315,7 +1315,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
           CodeGenOpts.SanitizeCoverageTraceCmp) {
         PB.registerOptimizerLastEPCallback(
             [this](ModulePassManager &MPM,
-                   PassBuilder::OptimizationLevel Level) {
+                   OptimizationLevel Level) {
               auto SancovOpts = getSancovOptsFromCGOpts(CodeGenOpts);
               MPM.addPass(ModuleSanitizerCoveragePass(
                   SancovOpts, CodeGenOpts.SanitizeCoverageAllowlistFiles,
@@ -1328,7 +1328,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::Memory);
         PB.registerOptimizerLastEPCallback(
             [TrackOrigins, Recover](ModulePassManager &MPM,
-                                    PassBuilder::OptimizationLevel Level) {
+                                    OptimizationLevel Level) {
               MPM.addPass(MemorySanitizerPass({TrackOrigins, Recover, false}));
               MPM.addPass(createModuleToFunctionPassAdaptor(
                   MemorySanitizerPass({TrackOrigins, Recover, false})));
@@ -1336,7 +1336,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       }
       if (LangOpts.Sanitize.has(SanitizerKind::Thread)) {
         PB.registerOptimizerLastEPCallback(
-            [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+            [](ModulePassManager &MPM, OptimizationLevel Level) {
               MPM.addPass(ThreadSanitizerPass());
               MPM.addPass(
                   createModuleToFunctionPassAdaptor(ThreadSanitizerPass()));
@@ -1349,7 +1349,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         bool UseOdrIndicator = CodeGenOpts.SanitizeAddressUseOdrIndicator;
         PB.registerOptimizerLastEPCallback(
             [Recover, UseAfterScope, ModuleUseAfterScope, UseOdrIndicator](
-                ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+                ModulePassManager &MPM, OptimizationLevel Level) {
               MPM.addPass(
                   RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
               MPM.addPass(ModuleAddressSanitizerPass(
@@ -1366,7 +1366,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
             CodeGenOpts.SanitizeRecover.has(SanitizerKind::HWAddress);
         PB.registerOptimizerLastEPCallback(
             [Recover](ModulePassManager &MPM,
-                      PassBuilder::OptimizationLevel Level) {
+                      OptimizationLevel Level) {
               MPM.addPass(HWAddressSanitizerPass(
                   /*CompileKernel=*/false, Recover));
             });
@@ -1376,7 +1376,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
             CodeGenOpts.SanitizeRecover.has(SanitizerKind::KernelHWAddress);
         PB.registerOptimizerLastEPCallback(
             [Recover](ModulePassManager &MPM,
-                      PassBuilder::OptimizationLevel Level) {
+                      OptimizationLevel Level) {
               MPM.addPass(HWAddressSanitizerPass(
                   /*CompileKernel=*/true, Recover));
             });

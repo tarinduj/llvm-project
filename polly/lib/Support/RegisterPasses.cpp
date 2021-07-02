@@ -470,7 +470,7 @@ registerPollyScalarOptimizerLatePasses(const llvm::PassManagerBuilder &Builder,
 }
 
 static void buildDefaultPollyPipeline(FunctionPassManager &PM,
-                                      PassBuilder::OptimizationLevel Level) {
+                                      OptimizationLevel Level) {
   if (!polly::shouldEnablePolly())
     return;
   PassBuilder PB;

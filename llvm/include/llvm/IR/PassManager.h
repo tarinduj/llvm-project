@@ -610,7 +610,7 @@ public:
       // dbgs() << "PASS APPLIED\n";
       if (!PI.runBeforePass<IRUnitT>(*P, IR))
         continue;
-      //dbgs() << "PASS APPLIED \n";
+      // dbgs() << "PASS APPLIED \n";
       PreservedAnalyses PassPA;
       {
         TimeTraceScope TimeScope(P->name(), IR.getName());

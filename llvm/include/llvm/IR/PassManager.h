@@ -468,29 +468,29 @@ bool checkOptimizationLevel(const PassT &Pass, IRUnitT &IR, const mlpm::Optimiza
       const std::string FunctionName = F->getName().str();
       unsigned FunctionOptLevel = F->getOptimizationLevel();
       if (FunctionOptLevel == 0){
-        // dbgs() << "Function Optimization Level Not Set!\n"; 
-        std::ifstream InputFile("/Users/tarindujayatilaka/Documents/LLVM/results/ASM/Switch Pipeline/lookuptable.csv");
+        // dbgs() << "Function Optimization Level Not Set!\n";
+        std::ifstream InputFile("/Users/tarindujayatilaka/Documents/LLVM/"
+                                "results/ASM/Switch Pipeline/lookuptable.csv");
         if (!InputFile.is_open())
           dbgs() << "File not found!" << "\n";
         std::string Line;
         while (std::getline(InputFile, Line)) {
-          //dbgs() << "LINE: " << Line << "\n";
+          // dbgs() << "LINE: " << Line << "\n";
           std::istringstream ISS(Line);
           std::string ID, Name, OLevel;
 
-          if (std::getline(ISS, ID, ',') &&
-              std::getline(ISS, Name, ',') &&
+          if (std::getline(ISS, ID, ',') && std::getline(ISS, Name, ',') &&
               std::getline(ISS, OLevel)) {
-            //dbgs() << "NAME: " << name << "\n";
-            //dbgs() << "OLEVEL: " << OLevel << "\n";
+            // dbgs() << "NAME: " << name << "\n";
+            // dbgs() << "OLEVEL: " << OLevel << "\n";
             char *endp = nullptr;
             if (Name.c_str() != endp && Name == FunctionName) {
-                // dbgs() << "FOUND A MATACH\n";
-                unsigned level = std::atoi(OLevel.substr(1).c_str());
-                // dbgs() << "Setting Optimization Level: " << level << "\n";
-                F->setOptimizationLevel(level);
-                FunctionOptLevel = level;
-                break;
+              // dbgs() << "FOUND A MATACH\n";
+              unsigned level = std::atoi(OLevel.substr(1).c_str());
+              // dbgs() << "Setting Optimization Level: " << level << "\n";
+              F->setOptimizationLevel(level);
+              FunctionOptLevel = level;
+              break;
             }
           }
         }

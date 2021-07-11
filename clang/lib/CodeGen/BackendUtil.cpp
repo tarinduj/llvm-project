@@ -1314,8 +1314,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
           CodeGenOpts.SanitizeCoverageIndirectCalls ||
           CodeGenOpts.SanitizeCoverageTraceCmp) {
         PB.registerOptimizerLastEPCallback(
-            [this](ModulePassManager &MPM,
-                   OptimizationLevel Level) {
+            [this](ModulePassManager &MPM, OptimizationLevel Level) {
               auto SancovOpts = getSancovOptsFromCGOpts(CodeGenOpts);
               MPM.addPass(ModuleSanitizerCoveragePass(
                   SancovOpts, CodeGenOpts.SanitizeCoverageAllowlistFiles,
@@ -1348,8 +1347,8 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         bool ModuleUseAfterScope = asanUseGlobalsGC(TargetTriple, CodeGenOpts);
         bool UseOdrIndicator = CodeGenOpts.SanitizeAddressUseOdrIndicator;
         PB.registerOptimizerLastEPCallback(
-            [Recover, UseAfterScope, ModuleUseAfterScope, UseOdrIndicator](
-                ModulePassManager &MPM, OptimizationLevel Level) {
+            [Recover, UseAfterScope, ModuleUseAfterScope,
+             UseOdrIndicator](ModulePassManager &MPM, OptimizationLevel Level) {
               MPM.addPass(
                   RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
               MPM.addPass(ModuleAddressSanitizerPass(
@@ -1365,8 +1364,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         bool Recover =
             CodeGenOpts.SanitizeRecover.has(SanitizerKind::HWAddress);
         PB.registerOptimizerLastEPCallback(
-            [Recover](ModulePassManager &MPM,
-                      OptimizationLevel Level) {
+            [Recover](ModulePassManager &MPM, OptimizationLevel Level) {
               MPM.addPass(HWAddressSanitizerPass(
                   /*CompileKernel=*/false, Recover));
             });
@@ -1375,8 +1373,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         bool Recover =
             CodeGenOpts.SanitizeRecover.has(SanitizerKind::KernelHWAddress);
         PB.registerOptimizerLastEPCallback(
-            [Recover](ModulePassManager &MPM,
-                      OptimizationLevel Level) {
+            [Recover](ModulePassManager &MPM, OptimizationLevel Level) {
               MPM.addPass(HWAddressSanitizerPass(
                   /*CompileKernel=*/true, Recover));
             });

@@ -469,24 +469,24 @@ bool checkOptimizationLevel(const PassT &Pass, IRUnitT &IR, const mlpm::Optimiza
       unsigned FunctionOptLevel = F->getOptimizationLevel();
       if (FunctionOptLevel == 0){
         // dbgs() << "Function Optimization Level Not Set!\n"; 
-        std::ifstream ip("/Users/tarindujayatilaka/Documents/LLVM/results/ASM/Switch Pipeline/lookuptable.csv");
-        if (!ip.is_open())
+        std::ifstream InputFile("/Users/tarindujayatilaka/Documents/LLVM/results/ASM/Switch Pipeline/lookuptable.csv");
+        if (!InputFile.is_open())
           dbgs() << "File not found!" << "\n";
-        std::string line;
-        while (std::getline(ip, line)) {
-          //dbgs() << "LINE: " << line << "\n";
-          std::istringstream iss(line);
-          std::string id, name, olevel;
+        std::string Line;
+        while (std::getline(InputFile, Line)) {
+          //dbgs() << "LINE: " << Line << "\n";
+          std::istringstream ISS(Line);
+          std::string ID, Name, OLevel;
 
-          if (std::getline(iss, id, ',') &&
-              std::getline(iss, name, ',') &&
-              std::getline(iss, olevel)) {
+          if (std::getline(ISS, ID, ',') &&
+              std::getline(ISS, Name, ',') &&
+              std::getline(ISS, OLevel)) {
             //dbgs() << "NAME: " << name << "\n";
-            //dbgs() << "OLEVEL: " << olevel << "\n";
+            //dbgs() << "OLEVEL: " << OLevel << "\n";
             char *endp = nullptr;
-            if (name.c_str() != endp && name == FunctionName) {
+            if (Name.c_str() != endp && Name == FunctionName) {
                 // dbgs() << "FOUND A MATACH\n";
-                unsigned level = std::atoi(olevel.substr(1).c_str());
+                unsigned level = std::atoi(OLevel.substr(1).c_str());
                 // dbgs() << "Setting Optimization Level: " << level << "\n";
                 F->setOptimizationLevel(level);
                 FunctionOptLevel = level;

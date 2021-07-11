@@ -422,8 +422,8 @@ AnalysisKey NoOpLoopAnalysis::Key;
 
 } // namespace
 
-void PassBuilder::invokePeepholeEPCallbacks(
-    FunctionPassManager &FPM, OptimizationLevel Level) {
+void PassBuilder::invokePeepholeEPCallbacks(FunctionPassManager &FPM,
+                                            OptimizationLevel Level) {
   for (auto &C : PeepholeEPCallbacks)
     C(FPM, Level);
 }
@@ -775,9 +775,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 }
 
 void PassBuilder::addPGOInstrPasses(ModulePassManager &MPM, bool DebugLogging,
-                                    OptimizationLevel Level,
-                                    bool RunProfileGen, bool IsCS,
-                                    std::string ProfileFile,
+                                    OptimizationLevel Level, bool RunProfileGen,
+                                    bool IsCS, std::string ProfileFile,
                                     std::string ProfileRemappingFile) {
   assert(Level != OptimizationLevel::O0 && "Not expecting O0 here!");
   // Generally running simplification passes and the inliner with an high
@@ -867,8 +866,7 @@ void PassBuilder::addPGOInstrPassesForO0(ModulePassManager &MPM,
   MPM.addPass(InstrProfiling(Options, IsCS), {1, 2, 3});
 }
 
-static InlineParams
-getInlineParamsFromOptLevel(OptimizationLevel Level) {
+static InlineParams getInlineParamsFromOptLevel(OptimizationLevel Level) {
   return getInlineParams(Level.getSpeedupLevel(), Level.getSizeLevel());
 }
 

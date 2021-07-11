@@ -18,11 +18,11 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Transforms/IPO/Inliner.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
-#include "llvm/Passes/OptimizationLevel.h"
 #include <vector>
 
 namespace llvm {

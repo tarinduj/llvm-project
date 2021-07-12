@@ -459,78 +459,27 @@ using OptimizationLevelSet = std::set<unsigned>;
 // and returns false if the function optimization level doesn't match
 template <typename IRUnitT, typename PassT>
 bool checkOptimizationLevel(const PassT &Pass, IRUnitT &IR, const mlpm::OptimizationLevelSet &OptimizationLevels) {
-  bool ShouldRun = true;
+  bool ShouldRun = true; // should return true to run the pass
   // dbgs() << "Inside PM 1\n";
   if (any_isa<Function *>(llvm::Any(&IR))) { 
       Function *F = any_cast<Function *>(llvm::Any(&IR));
-
-      // setting function optimization level
-      const std::string FunctionName = F->getName().str();
-      unsigned FunctionOptLevel = F->getOptimizationLevel();
-      if (FunctionOptLevel == 0){
-        // dbgs() << "Function Optimization Level Not Set!\n";
-        std::ifstream InputFile("/Users/tarindujayatilaka/Documents/LLVM/"
-                                "results/ASM/Switch Pipeline/lookuptable.csv");
-        if (!InputFile.is_open())
-          dbgs() << "File not found!" << "\n";
-        std::string Line;
-        while (std::getline(InputFile, Line)) {
-          // dbgs() << "LINE: " << Line << "\n";
-          std::istringstream ISS(Line);
-          std::string ID, Name, OLevel;
-
-          if (std::getline(ISS, ID, ',') && std::getline(ISS, Name, ',') &&
-              std::getline(ISS, OLevel)) {
-            // dbgs() << "NAME: " << name << "\n";
-            // dbgs() << "OLEVEL: " << OLevel << "\n";
-            char *endp = nullptr;
-            if (Name.c_str() != endp && Name == FunctionName) {
-              // dbgs() << "FOUND A MATACH\n";
-              unsigned level = std::atoi(OLevel.substr(1).c_str());
-              // dbgs() << "Setting Optimization Level: " << level << "\n";
-              F->setOptimizationLevel(level);
-              FunctionOptLevel = level;
-              break;
-            }
-          }
+      const Attribute &A = F->getFnAttribute("opt-level");
+      const StringRef FnOptLevel = A.getValueAsString();
+      if (!FnOptLevel.empty()) {
+        unsigned OptLevel = std::atoi(FnOptLevel.str().substr(1).c_str());
+        if (OptimizationLevels.empty() || OptimizationLevels.count(OptLevel)) {
+          return true; // apply the pass if the "Function Optimization Level" is
+                       // in the "Pass Optimization Levels Set"
+        } else {
+          // dbgs() << "PASS SKIPPED!\n";
+          return false; // skip the pass
         }
       } else {
-        // dbgs() << "Optimization Level Already Set!\n";
-      }; // setting function optimization level
-
-      // dbgs() << "Function Optimization Level: " << FunctionOptLevel << "\n";
-
-      // dbgs() << "Pass Optimization Levels: ";
-      // for (unsigned const& i : OptimizationLevels) {
-      //   dbgs() << i << " ";
-      // }
-      // // dbgs() << "\n";
-
-      if (OptimizationLevels.empty() || OptimizationLevels.count(FunctionOptLevel)){
-        return true;
-      } else {
-        // dbgs() << "PASS SKIPPED\n";
-        return false;
+        return true; // apply the pass opt-level Attribute is empty
       }
   }
   return ShouldRun;
 }
-
-// specilized template for function
-template <typename PassT>
-bool checkOptimizationLevel(const PassT &Pass, const Function &F, const mlpm::OptimizationLevelSet &OptimizationLevels) {
-  bool ShouldRun = true;
-  dbgs() << "Inside PM 2\n";
-
-  dbgs() << "Specialized Template Function Optimization Level: " << F.getOptimizationLevel() << "\n";
-  // dbgs() << "Pass Optimization Level: " << passOptimizationLevel[std::string(PassID)] << "\n";    
-  // if (passOptimizationLevel[std::string(PassID)] > F->getOptimizationLevel()){
-  //   dbgs() << "PASS SKIPPED \n";
-  //   ShouldRun = false;
-  // }
-  return ShouldRun;
-}
-
 } // namespace mlpm
 
 // Forward declare the pass instrumentation analysis explicitly queried in

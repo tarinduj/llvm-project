@@ -383,8 +383,9 @@ PresburgerSet<Int> PresburgerSet<Int>::subtract(PresburgerBasicSet<Int> cs,
 
 template <typename Int>
 PresburgerSet<Int> PresburgerSet<Int>::complement(const PresburgerSet<Int> &set) {
-  return subtract(PresburgerBasicSet<Int>(set.getNumDims(), set.getNumSyms(), 0),
+  auto res = subtract(PresburgerBasicSet<Int>(set.getNumDims(), set.getNumSyms(), 0),
                   set);
+  return coalesce(res);
 }
 
 // Subtracts the set S from the current set.

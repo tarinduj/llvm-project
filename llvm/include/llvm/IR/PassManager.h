@@ -69,6 +69,9 @@
 #include <cstdlib>
 
 namespace llvm {
+/// Flag to enable the machine learning guided pass manager
+extern cl::opt<bool> RunMLPM;
+
 /// A special type used by analysis passes to provide an address that
 /// identifies that particular analysis pass type.
 ///
@@ -545,21 +548,16 @@ public:
     for (unsigned Idx = 0, Size = Passes.size(); Idx != Size; ++Idx) {
       auto *P = Passes[Idx].first.get();
 
-      // Check the PassInstrumentation's BeforePass callbacks before running the
-      // pass, skip its execution completely if asked to (callback returns
-      // false).
-      //dbgs() << "############ " << P->name() << " ############\n";
-      bool RunMLPM = true;
-      if (RunMLPM){
+      // Check if the ML based pass skipping is enabled
+      if (RunMLPM) {
+        // Compare the function optimization level, against pass optimization
+        // levels Skip the pass completely if asked to (function returns false).
         if (!mlpm::checkOptimizationLevel<IRUnitT>(*P, IR, Passes[Idx].second)){
-          // dbgs() << "PASS SKIPPED\n";
           continue;
         }
       }
-      // dbgs() << "PASS APPLIED\n";
       if (!PI.runBeforePass<IRUnitT>(*P, IR))
         continue;
-      // dbgs() << "PASS APPLIED \n";
       PreservedAnalyses PassPA;
       {
         TimeTraceScope TimeScope(P->name(), IR.getName());

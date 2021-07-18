@@ -13,9 +13,11 @@
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
-// static cl::opt<bool> RunMLPM(
-//     "ml-pass-manager", cl::init(false), cl::Hidden,
-//     cl::desc("Run the machine learning guided pass manager"));
+/// Flag to enable the machine learning guided pass manager
+cl::opt<bool>
+    llvm::RunMLPM("ml-pass-manager", cl::init(false), cl::Hidden,
+                  cl::desc("Run the machine learning guided pass manager"));
+
 // Explicit template instantiations and specialization defininitions for core
 // template typedefs.
 namespace llvm {

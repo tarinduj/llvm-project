@@ -140,37 +140,6 @@ void FunctionPropertiesInfo::print(raw_ostream &OS) const {
      << "GEPInstCount: " << GEPInstCount << "\n\n";
 }
 
-void FunctionPropertiesInfo::testFunc(raw_ostream &OS) const {
-  
-  OS << "BasicBlockCount: " << BasicBlockCount << "\n"
-     << "BasicBlockWithSingleSuccessor: " << BasicBlockWithSingleSuccessor << "\n"
-     << "BasicBlockWithTwoSuccessors: " << BasicBlockWithTwoSuccessors << "\n"
-     << "BasicBlockWithMoreThanTwoSuccessors: " << BasicBlockWithMoreThanTwoSuccessors << "\n"
-     << "BasicBlockWithSinglePredecessor: " << BasicBlockWithSinglePredecessor << "\n"
-     << "BasicBlockWithTwoPredecessors: " << BasicBlockWithTwoPredecessors << "\n"
-     << "BasicBlockWithMoreThanTwoPredecessors: " << BasicBlockWithMoreThanTwoPredecessors << "\n"
-     << "BigBasicBlock: " << BigBasicBlock << "\n"
-     << "MediumBasicBlock: " << MediumBasicBlock << "\n"
-     << "SmallBasicBlock: " << SmallBasicBlock << "\n"
-     << "BlocksReachedFromConditionalInstruction: " << BlocksReachedFromConditionalInstruction << "\n"
-     << "Uses: " << Uses << "\n"
-     << "DirectCallsToDefinedFunctions: " << DirectCallsToDefinedFunctions<< "\n"
-     << "MaxLoopDepth: " << MaxLoopDepth << "\n"
-     << "TopLevelLoopCount: " << TopLevelLoopCount << "\n"
-     << "IntegerConstantOccurrences: " << IntegerConstantOccurrences << "\n"
-     << "FloatingConstantOccurrences: " << FloatingConstantOccurrences << "\n"
-     << "InstructionCount: " << InstructionCount << "\n"
-     << "CastInstCount: " << CastInstCount << "\n"
-     << "FloatingPointInstCount: " << FloatingPointInstCount << "\n"
-     << "IntegerInstCount: " << IntegerInstCount << "\n"
-     << "LoadInstCount: " << LoadInstCount << "\n"
-     << "StoreInstCount: " << StoreInstCount << "\n"
-     << "CallInstCount: " << CallInstCount << "\n"
-     << "PHIInstCount: " << PHIInstCount << "\n"
-     << "AllocaInstCount: " << AllocaInstCount << "\n"
-     << "GEPInstCount: " << GEPInstCount << "\n\n";
-}
-
 AnalysisKey FunctionPropertiesAnalysis::Key;
 
 FunctionPropertiesInfo

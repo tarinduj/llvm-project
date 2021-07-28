@@ -149,8 +149,7 @@ std::optional<TypeAndShape> TypeAndShape::Characterize(
 
 bool TypeAndShape::IsCompatibleWith(parser::ContextualMessages &messages,
     const TypeAndShape &that, const char *thisIs, const char *thatIs,
-    bool isElemental, bool thisIsDeferredShape,
-    bool thatIsDeferredShape) const {
+    bool isElemental, enum CheckConformanceFlags::Flags flags) const {
   if (!type_.IsTkCompatibleWith(that.type_)) {
     messages.Say(
         "%1$s type '%2$s' is not compatible with %3$s type '%4$s'"_err_en_US,
@@ -158,9 +157,8 @@ bool TypeAndShape::IsCompatibleWith(parser::ContextualMessages &messages,
     return false;
   }
   return isElemental ||
-      CheckConformance(messages, shape_, that.shape_, thisIs, thatIs, false,
-          false /* no scalar expansion */, thisIsDeferredShape,
-          thatIsDeferredShape);
+      CheckConformance(messages, shape_, that.shape_, flags, thisIs, thatIs)
+          .value_or(true /*fail only when nonconformance is known now*/);
 }
 
 std::optional<Expr<SubscriptInteger>> TypeAndShape::MeasureElementSizeInBytes(
@@ -470,7 +468,23 @@ static std::optional<Procedure> CharacterizeProcedure(
           [&](const semantics::HostAssocDetails &assoc) {
             return CharacterizeProcedure(assoc.symbol(), context, seenProcs);
           },
-          [](const auto &) { return std::optional<Procedure>{}; },
+          [&](const semantics::EntityDetails &) {
+            context.messages().Say(
+                "Procedure '%s' is referenced before being sufficiently defined in a context where it must be so"_err_en_US,
+                symbol.name());
+            return std::optional<Procedure>{};
+          },
+          [&](const semantics::SubprogramNameDetails &) {
+            context.messages().Say(
+                "Procedure '%s' is referenced before being sufficiently defined in a context where it must be so"_err_en_US,
+                symbol.name());
+            return std::optional<Procedure>{};
+          },
+          [&](const auto &) {
+            context.messages().Say(
+                "'%s' is not a procedure"_err_en_US, symbol.name());
+            return std::optional<Procedure>{};
+          },
       },
       symbol.details());
 }

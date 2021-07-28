@@ -20,7 +20,7 @@
 #include <cassert>
 #include <climits>
 #include <cstring>
-#include <string>
+#include <utility>
 
 namespace llvm {
 class FoldingSetNodeID;
@@ -108,11 +108,6 @@ private:
   APInt(uint64_t *val, unsigned bits) : BitWidth(bits) {
     U.pVal = val;
   }
-
-  /// Determine if this APInt just has one word to store value.
-  ///
-  /// \returns true if the number of bits <= 64, false otherwise.
-  bool isSingleWord() const { return BitWidth <= APINT_BITS_PER_WORD; }
 
   /// Determine which word a bit is in.
   ///
@@ -355,6 +350,11 @@ public:
   /// @}
   /// \name Value Tests
   /// @{
+
+  /// Determine if this APInt just has one word to store value.
+  ///
+  /// \returns true if the number of bits <= 64, false otherwise.
+  bool isSingleWord() const { return BitWidth <= APINT_BITS_PER_WORD; }
 
   /// Determine sign of this APInt.
   ///
@@ -1752,13 +1752,6 @@ public:
   void toStringSigned(SmallVectorImpl<char> &Str, unsigned Radix = 10) const {
     toString(Str, Radix, true, false);
   }
-
-  /// Return the APInt as a std::string.
-  ///
-  /// Note that this is an inefficient method.  It is better to pass in a
-  /// SmallVector/SmallString to the methods above to avoid thrashing the heap
-  /// for the string.
-  std::string toString(unsigned Radix, bool Signed) const;
 
   /// \returns a byte-swapped representation of this APInt Value.
   APInt byteSwap() const;

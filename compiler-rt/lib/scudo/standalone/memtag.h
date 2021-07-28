@@ -18,7 +18,7 @@
 
 namespace scudo {
 
-#if defined(__aarch64__) || defined(SCUDO_FUZZ)
+#if (__clang_major__ >= 12 && defined(__aarch64__)) || defined(SCUDO_FUZZ)
 
 // We assume that Top-Byte Ignore is enabled if the architecture supports memory
 // tagging. Not all operating systems enable TBI, so we only claim architectural
@@ -55,7 +55,7 @@ inline uint8_t extractTag(uptr Ptr) {
 
 #endif
 
-#if defined(__aarch64__)
+#if __clang_major__ >= 12 && defined(__aarch64__)
 
 #if SCUDO_LINUX
 
@@ -116,22 +116,6 @@ inline void enableSystemMemoryTaggingTestOnly() {
 
 #endif // SCUDO_LINUX
 
-inline void disableMemoryTagChecksTestOnly() {
-  __asm__ __volatile__(
-      R"(
-      .arch_extension memtag
-      msr tco, #1
-      )");
-}
-
-inline void enableMemoryTagChecksTestOnly() {
-  __asm__ __volatile__(
-      R"(
-      .arch_extension memtag
-      msr tco, #0
-      )");
-}
-
 class ScopedDisableMemoryTagChecks {
   uptr PrevTCO;
 
@@ -158,6 +142,7 @@ public:
 };
 
 inline uptr selectRandomTag(uptr Ptr, uptr ExcludeMask) {
+  ExcludeMask |= 1; // Always exclude Tag 0.
   uptr TaggedPtr;
   __asm__ __volatile__(
       R"(
@@ -171,6 +156,7 @@ inline uptr selectRandomTag(uptr Ptr, uptr ExcludeMask) {
 
 inline uptr addFixedTag(uptr Ptr, uptr Tag) {
   DCHECK_LT(Tag, 16);
+  DCHECK_EQ(untagPointer(Ptr), Ptr);
   return Ptr | (Tag << 56);
 }
 
@@ -278,14 +264,6 @@ inline void enableSystemMemoryTaggingTestOnly() {
   UNREACHABLE("memory tagging not supported");
 }
 
-inline void disableMemoryTagChecksTestOnly() {
-  UNREACHABLE("memory tagging not supported");
-}
-
-inline void enableMemoryTagChecksTestOnly() {
-  UNREACHABLE("memory tagging not supported");
-}
-
 struct ScopedDisableMemoryTagChecks {
   ScopedDisableMemoryTagChecks() {}
 };
@@ -341,7 +319,8 @@ inline void *addFixedTag(void *Ptr, uptr Tag) {
 
 template <typename Config>
 inline constexpr bool allocatorSupportsMemoryTagging() {
-  return archSupportsMemoryTagging() && Config::MaySupportMemoryTagging;
+  return archSupportsMemoryTagging() && Config::MaySupportMemoryTagging &&
+         (1 << SCUDO_MIN_ALIGNMENT_LOG) >= archMemoryTagGranuleSize();
 }
 
 } // namespace scudo

@@ -1,14 +1,15 @@
-/*===--------------------------------------------------------------------------
- *              ATMI (Asynchronous Task and Memory Interface)
- *
- * This file is distributed under the MIT License. See LICENSE.txt for details.
- *===------------------------------------------------------------------------*/
+//===--- amdgpu/impl/rt.h ----------------------------------------- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 #ifndef SRC_RUNTIME_INCLUDE_RT_H_
 #define SRC_RUNTIME_INCLUDE_RT_H_
 
 #include "atmi_runtime.h"
-#include "hsa.h"
-#include <cstdarg>
+#include "hsa_api.h"
 #include <string>
 
 namespace core {
@@ -51,7 +52,7 @@ public:
 
   // modules
   static hsa_status_t RegisterModuleFromMemory(
-      void *, size_t, int DeviceId,
+      void *, size_t, hsa_agent_t agent,
       hsa_status_t (*on_deserialized_data)(void *data, size_t size,
                                            void *cb_state),
       void *cb_state, std::vector<hsa_executable_t> &HSAExecutables);

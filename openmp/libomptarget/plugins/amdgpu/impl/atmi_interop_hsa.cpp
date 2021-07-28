@@ -1,8 +1,10 @@
-/*===--------------------------------------------------------------------------
- *              ATMI (Asynchronous Task and Memory Interface)
- *
- * This file is distributed under the MIT License. See LICENSE.txt for details.
- *===------------------------------------------------------------------------*/
+//===--- amdgpu/impl/atmi_interop_hsa.cpp ------------------------- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 #include "atmi_interop_hsa.h"
 #include "internal.h"
 #include "machine.h"
@@ -24,9 +26,6 @@ hsa_status_t atmi_interop_hsa_get_symbol_info(
   */
 
   if (!symbol || !var_addr || !var_size)
-    return HSA_STATUS_ERROR;
-  if (DeviceId < 0 ||
-      DeviceId >= g_atl_machine.processors<ATLGPUProcessor>().size())
     return HSA_STATUS_ERROR;
 
   // get the symbol info
@@ -57,9 +56,6 @@ hsa_status_t atmi_interop_hsa_get_kernel_info(
   */
 
   if (!kernel_name || !value)
-    return HSA_STATUS_ERROR;
-  if (DeviceId < 0 ||
-      DeviceId >= g_atl_machine.processors<ATLGPUProcessor>().size())
     return HSA_STATUS_ERROR;
 
   hsa_status_t status = HSA_STATUS_SUCCESS;

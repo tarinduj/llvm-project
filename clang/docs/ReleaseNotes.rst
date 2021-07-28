@@ -76,6 +76,9 @@ New Compiler Flags
   file contains frame size information for each function defined in the source
   file.
 
+- ``-Wnull-pointer-subtraction`` emits warning when user code may have
+  undefined behaviour due to subtraction involving a null pointer.
+
 Deprecated Compiler Flags
 -------------------------
 
@@ -92,6 +95,7 @@ Modified Compiler Flags
   instead. ``-B``'s other GCC-compatible semantics are preserved:
   ``$prefix/$triple-$file`` and ``$prefix$file`` are searched for executables,
   libraries, includes, and data files used by the compiler.
+- ``-Wextra`` now also implies ``-Wnull-pointer-subtraction.``
 
 Removed Compiler Flags
 -------------------------
@@ -259,11 +263,26 @@ clang-format
 - Option ``BreakInheritanceList`` gets a new style, ``AfterComma``. It breaks
   only after the commas that separate the base-specifiers.
 
+- Option ``LambdaBodyIndentation`` has been added to control how the body of a
+  lambda is indented. The default ``Signature`` value indents the body one level
+  relative to whatever indentation the signature has. ``OuterScope`` lets you
+  change that so that the lambda body is indented one level relative to the scope
+  containing the lambda, regardless of where the lambda signature was placed.
+
+- Option ``IfMacros`` has been added. This lets you define macros that get
+  formatted like conditionals much like ``ForEachMacros`` get styled like
+  foreach loops.
+
 - ``git-clang-format`` no longer formats changes to symbolic links. (Fixes
   https://llvm.org/PR46992.)
 
 - Makes ``PointerAligment: Right`` working with ``AlignConsecutiveDeclarations``.
   (Fixes https://llvm.org/PR27353)
+
+- Option ``AlignArrayOfStructure`` has been added to allow for ordering array-like
+  initializers.
+
+- Support for formatting JSON file (\*.json) has been added to clang-format.
 
 libclang
 --------

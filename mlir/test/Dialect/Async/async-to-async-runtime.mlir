@@ -179,8 +179,10 @@ func @async_execute_token_dependency(%arg0: f32, %arg1: memref<1xf32>) {
 
 // CHECK-LABEL: @async_group_await_all
 func @async_group_await_all(%arg0: f32, %arg1: memref<1xf32>) {
-  // CHECK: %[[GROUP:.*]] = async.runtime.create : !async.group
-  %0 = async.create_group
+  // CHECK: %[[C:.*]] = constant 1 : index
+  %c = constant 1 : index
+  // CHECK: %[[GROUP:.*]] = async.runtime.create_group %[[C]] : !async.group
+  %0 = async.create_group %c : !async.group
 
   // CHECK: %[[TOKEN:.*]] = call @async_execute_fn
   %token = async.execute { async.yield }
@@ -372,3 +374,35 @@ func @execute_asserttion(%arg0: i1) {
 // CHECK: ^[[SUSPEND]]:
 // CHECK:   async.coro.end %[[HDL]]
 // CHECK:   return %[[TOKEN]]
+
+// -----
+// Structured control flow operations with async operations in the body must be
+// lowered to branch-based control flow to enable coroutine CFG rewrite.
+
+// CHECK-LABEL: @lower_scf_to_cfg
+func @lower_scf_to_cfg(%arg0: f32, %arg1: memref<1xf32>, %arg2: i1) {
+  %token0 = async.execute { async.yield }
+  %token1 = async.execute {
+    scf.if %arg2 {
+      async.await %token0 : !async.token
+    } else {
+      async.await %token0 : !async.token
+    }
+    async.yield
+  }
+  return
+}
+
+// Function outlined from the first async.execute operation.
+// CHECK-LABEL: func private @async_execute_fn(
+// CHECK-SAME: -> !async.token
+
+// Function outlined from the second async.execute operation.
+// CHECK-LABEL: func private @async_execute_fn_0(
+// CHECK:         %[[TOKEN:.*]]: !async.token
+// CHECK:         %[[FLAG:.*]]: i1
+// CHECK-SAME: -> !async.token
+
+// Check that structured control flow lowered to CFG.
+// CHECK-NOT: scf.if
+// CHECK: cond_br %[[FLAG]]

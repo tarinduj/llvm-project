@@ -16,6 +16,8 @@
 using namespace mlir;
 using namespace mlir::sparse_tensor;
 
+#include "mlir/Dialect/SparseTensor/IR/SparseTensorOpsDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // TensorDialect Attribute Methods.
 //===----------------------------------------------------------------------===//
@@ -212,9 +214,9 @@ static LogicalResult verify(NewOp op) {
 }
 
 static LogicalResult verify(ToPointersOp op) {
-  if (failed(isInBounds(op.dim(), op.tensor())))
-    return op.emitError("requested pointers dimension out of bounds");
   if (auto e = getSparseTensorEncoding(op.tensor().getType())) {
+    if (failed(isInBounds(op.dim(), op.tensor())))
+      return op.emitError("requested pointers dimension out of bounds");
     if (failed(isMatchingWidth(op.result(), e.getPointerBitWidth())))
       return op.emitError("unexpected type for pointers");
     return success();
@@ -223,9 +225,9 @@ static LogicalResult verify(ToPointersOp op) {
 }
 
 static LogicalResult verify(ToIndicesOp op) {
-  if (failed(isInBounds(op.dim(), op.tensor())))
-    return op.emitError("requested indices dimension out of bounds");
   if (auto e = getSparseTensorEncoding(op.tensor().getType())) {
+    if (failed(isInBounds(op.dim(), op.tensor())))
+      return op.emitError("requested indices dimension out of bounds");
     if (failed(isMatchingWidth(op.result(), e.getIndexBitWidth())))
       return op.emitError("unexpected type for indices");
     return success();
@@ -240,6 +242,12 @@ static LogicalResult verify(ToValuesOp op) {
   MemRefType mtp = op.result().getType().cast<MemRefType>();
   if (ttp.getElementType() != mtp.getElementType())
     return op.emitError("unexpected mismatch in element types");
+  return success();
+}
+
+static LogicalResult verify(ToTensorOp op) {
+  if (!getSparseTensorEncoding(op.result().getType()))
+    return op.emitError("expected a sparse tensor as result");
   return success();
 }
 

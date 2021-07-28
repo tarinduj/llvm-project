@@ -429,6 +429,21 @@ defm : VPatBinarySDNode_VV_VX_VI<shl, "PseudoVSLL", uimm5>;
 defm : VPatBinarySDNode_VV_VX_VI<srl, "PseudoVSRL", uimm5>;
 defm : VPatBinarySDNode_VV_VX_VI<sra, "PseudoVSRA", uimm5>;
 
+foreach vti = AllIntegerVectors in {
+  // Emit shift by 1 as an add since it might be faster.
+  def : Pat<(shl (vti.Vector vti.RegClass:$rs1),
+                 (vti.Vector (splat_vector (XLenVT 1)))),
+            (!cast<Instruction>("PseudoVADD_VV_"# vti.LMul.MX)
+                 vti.RegClass:$rs1, vti.RegClass:$rs1, vti.AVL, vti.Log2SEW)>;
+}
+foreach vti = [VI64M1, VI64M2, VI64M4, VI64M8] in {
+  def : Pat<(shl (vti.Vector vti.RegClass:$rs1),
+                 (vti.Vector (rv32_splat_i64 (XLenVT 1)))),
+            (!cast<Instruction>("PseudoVADD_VV_"# vti.LMul.MX)
+                 vti.RegClass:$rs1, vti.RegClass:$rs1, vti.AVL, vti.Log2SEW)>;
+
+}
+
 // 12.8. Vector Integer Comparison Instructions
 defm : VPatIntegerSetCCSDNode_VV_VX_VI<SETEQ,  "PseudoVMSEQ">;
 defm : VPatIntegerSetCCSDNode_VV_VX_VI<SETNE,  "PseudoVMSNE">;
@@ -472,6 +487,38 @@ defm : VPatBinarySDNode_VV_VX<sdiv, "PseudoVDIV">;
 defm : VPatBinarySDNode_VV_VX<urem, "PseudoVREMU">;
 defm : VPatBinarySDNode_VV_VX<srem, "PseudoVREM">;
 
+// 12.13 Vector Single-Width Integer Multiply-Add Instructions.
+foreach vti = AllIntegerVectors in {
+  // NOTE: We choose VMADD because it has the most commuting freedom. So it
+  // works best with how TwoAddressInstructionPass tries commuting.
+  defvar suffix = vti.LMul.MX # "_COMMUTABLE";
+  def : Pat<(vti.Vector (add vti.RegClass:$rs2,
+                              (mul_oneuse vti.RegClass:$rs1, vti.RegClass:$rd))),
+            (!cast<Instruction>("PseudoVMADD_VV_"# suffix)
+                 vti.RegClass:$rd, vti.RegClass:$rs1, vti.RegClass:$rs2,
+                 vti.AVL, vti.Log2SEW)>;
+  def : Pat<(vti.Vector (sub vti.RegClass:$rs2,
+                              (mul_oneuse vti.RegClass:$rs1, vti.RegClass:$rd))),
+            (!cast<Instruction>("PseudoVNMSUB_VV_"# suffix)
+                 vti.RegClass:$rd, vti.RegClass:$rs1, vti.RegClass:$rs2,
+                 vti.AVL, vti.Log2SEW)>;
+
+  // The choice of VMADD here is arbitrary, vmadd.vx and vmacc.vx are equally
+  // commutable.
+  def : Pat<(vti.Vector (add vti.RegClass:$rs2,
+                              (mul_oneuse (SplatPat XLenVT:$rs1),
+                                          vti.RegClass:$rd))),
+            (!cast<Instruction>("PseudoVMADD_VX_" # suffix)
+                 vti.RegClass:$rd, vti.ScalarRegClass:$rs1, vti.RegClass:$rs2,
+                 vti.AVL, vti.Log2SEW)>;
+  def : Pat<(vti.Vector (sub vti.RegClass:$rs2,
+                              (mul_oneuse (SplatPat XLenVT:$rs1),
+                                          vti.RegClass:$rd))),
+            (!cast<Instruction>("PseudoVNMSUB_VX_" # suffix)
+                 vti.RegClass:$rd, vti.ScalarRegClass:$rs1, vti.RegClass:$rs2,
+                 vti.AVL, vti.Log2SEW)>;
+}
+
 // 12.15. Vector Integer Merge Instructions
 foreach vti = AllIntegerVectors in {
   def : Pat<(vti.Vector (vselect (vti.Mask VMV0:$vm), vti.RegClass:$rs1,
@@ -490,6 +537,12 @@ foreach vti = AllIntegerVectors in {
             (!cast<Instruction>("PseudoVMERGE_VIM_"#vti.LMul.MX)
                  vti.RegClass:$rs2, simm5:$rs1, VMV0:$vm, vti.AVL, vti.Log2SEW)>;
 }
+
+// 12.1. Vector Single-Width Saturating Add and Subtract
+defm : VPatBinarySDNode_VV_VX_VI<saddsat, "PseudoVSADD">;
+defm : VPatBinarySDNode_VV_VX_VI<uaddsat, "PseudoVSADDU">;
+defm : VPatBinarySDNode_VV_VX<ssubsat, "PseudoVSSUB">;
+defm : VPatBinarySDNode_VV_VX<usubsat, "PseudoVSSUBU">;
 
 // 16.1. Vector Mask-Register Logical Instructions
 foreach mti = AllMasks in {

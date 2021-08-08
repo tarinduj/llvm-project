@@ -113,6 +113,10 @@ public:
     }, setvar);
   }
 
+  static bool equal(TransprecSet &setA, TransprecSet &setB) {
+    return setA.equal(setB);
+  }
+
   TransprecSet coalesce() {
     return std::visit([this](auto &&set) {
       try {
@@ -136,6 +140,10 @@ public:
     }, setvar);
   }
 
+  static TransprecSet complement(TransprecSet &set) {
+    return set.complement();
+  }
+
   TransprecSet eliminateExistentials() {
     return std::visit([this](auto &&set) {
       try {
@@ -146,6 +154,10 @@ public:
         return this->eliminateExistentials();
       }
     }, setvar);
+  }
+
+  static TransprecSet eliminateExistentials(TransprecSet &set) {
+    return set.eliminateExistentials();
   }
 
   bool isIntegerEmpty() {
@@ -169,6 +181,10 @@ public:
 
   std::variant<PresburgerSet<SafeInteger<int16_t>>, PresburgerSet<SafeInteger<int64_t>>, PresburgerSet<SafeInteger<__int128_t>>, PresburgerSet<BigInt>> setvar;
 };
+
+inline void coalesce(TransprecSet &set) {
+  set.coalesce();
+}
 
 } // namespace presburger
 } // namespace analysis

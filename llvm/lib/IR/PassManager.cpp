@@ -18,11 +18,6 @@ cl::opt<bool>
     llvm::RunMLPM("ml-pass-manager", cl::init(false), cl::Hidden,
                   cl::desc("Run the machine learning guided pass manager"));
 
-/// Flag to dump mlpm training data (code features)
-cl::opt<bool>
-    llvm::DumpMLPMData("dump-mlpm-data", cl::init(false), cl::Hidden,
-                  cl::desc("Dump the training data (code features) for MLPM"));
-
 // Explicit template instantiations and specialization defininitions for core
 // template typedefs.
 namespace llvm {

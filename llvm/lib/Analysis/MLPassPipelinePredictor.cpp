@@ -45,7 +45,7 @@ StringRef MLPassPipelinePredictor<Module, ModuleAnalysisManager>::
 }
 
 template <>
-StringRef MLPassPipelinePredictor<Function, FunctionAnalysisManager>::
+void MLPassPipelinePredictor<Function, FunctionAnalysisManager>::
     dumpTrainingCodeFeatures(Function &F, FunctionAnalysisManager &FAM) {
 
   // std::string MkDirCommand = "mkdir -p " + OutputDirectory;
@@ -73,16 +73,14 @@ StringRef MLPassPipelinePredictor<Function, FunctionAnalysisManager>::
   OutString->flush();
   OutFile.close();
 
-  StringRef OptLevel = "O0";
-  return OptLevel;
+  // StringRef OptLevel = "O0";
+  // return OptLevel
 }
 
 template <>
-StringRef MLPassPipelinePredictor<Module, ModuleAnalysisManager>::
+void MLPassPipelinePredictor<Module, ModuleAnalysisManager>::
     dumpTrainingCodeFeatures(Module &M, ModuleAnalysisManager &MAM) {
-
-  StringRef OptLevel = "O0";
-  return OptLevel;
+  // TO DO
 }
 
 } // namespace llvm

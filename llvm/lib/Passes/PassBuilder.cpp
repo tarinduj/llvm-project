@@ -33,7 +33,6 @@
 #include "llvm/Analysis/DemandedBits.h"
 #include "llvm/Analysis/DependenceAnalysis.h"
 #include "llvm/Analysis/DominanceFrontier.h"
-#include "llvm/Analysis/FunctionAnnotation.h"
 #include "llvm/Analysis/FunctionPropertiesAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/IRSimilarityIdentifier.h"
@@ -198,6 +197,7 @@
 #include "llvm/Transforms/Utils/CanonicalizeFreezeInLoops.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/FixIrreducible.h"
+#include "llvm/Transforms/Utils/FunctionAnnotation.h"
 #include "llvm/Transforms/Utils/InjectTLIMappings.h"
 #include "llvm/Transforms/Utils/LCSSA.h"
 #include "llvm/Transforms/Utils/LibCallsShrinkWrap.h"
@@ -482,6 +482,8 @@ FunctionPassManager PassBuilder::buildO1FunctionSimplificationPipeline(
   FPM.addPass(SimplifyCFGPass(), {1, 2, 3});
   FPM.addPass(InstCombinePass(), {1, 2, 3});
 
+  FPM.addPass(FunctionAnnotationPass(), {1,2,3});
+
   FPM.addPass(LibCallsShrinkWrapPass(), {1, 2, 3});
 
   invokePeepholeEPCallbacks(FPM, Level);
@@ -637,6 +639,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   if (Level == OptimizationLevel::O3)
     FPM.addPass(AggressiveInstCombinePass(), {3});
   FPM.addPass(InstCombinePass(), {1, 2, 3});
+
+  FPM.addPass(FunctionAnnotationPass(), {1,2,3});
 
   if (!Level.isOptimizingForSize())
     FPM.addPass(LibCallsShrinkWrapPass(), {1, 2, 3}); //FIX ME: how to add optimization level?

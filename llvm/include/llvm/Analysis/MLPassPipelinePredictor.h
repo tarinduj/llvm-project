@@ -27,7 +27,7 @@ class MLPassPipelinePredictor {
 public:
   static StringRef getFunctionOptimizationLevel(IRUnitT &IR, AnalysisManagerT &AM);
 
-  static StringRef dumpTrainingCodeFeatures(IRUnitT &IR, AnalysisManagerT &AM);
+  static void dumpTrainingCodeFeatures(IRUnitT &IR, AnalysisManagerT &AM);
 };
 
 } // namespace llvm

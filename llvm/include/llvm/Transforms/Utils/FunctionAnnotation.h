@@ -1,4 +1,4 @@
-//= FunctionAnnotation.h - Function Annotation with Optimization Level - C++ =//
+//= FunctionAnnotation.h - Function Annotation with Function Attributes- C++ =//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,26 +7,22 @@
 //===----------------------------------------------------------------------===//
 //
 // This file defines the FunctionAnnotation class used to annotate functions
-// with optimization levels.
+// with function attributes.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_ANALYSIS_FUNCTIONANNOTATION_H_
-#define LLVM_ANALYSIS_FUNCTIONANNOTATION_H_
+#ifndef LLVM_TRANSFORMS_UTILS_FUNCTIONANNOTATION_H_
+#define LLVM_TRANSFORMS_UTILS_FUNCTIONANNOTATION_H_
 
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
 
-class FunctionAnnotation : public AnalysisInfoMixin<FunctionAnnotation> {
-  friend AnalysisInfoMixin<FunctionAnnotation>;
-  static AnalysisKey Key;
-
+class FunctionAnnotationPass : public PassInfoMixin<FunctionAnnotationPass> {
 public:
-  using Result = StringRef;
-  Result run(Function &F, FunctionAnalysisManager &FAM);
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 
 } // namespace llvm
 
-#endif // LLVM_ANALYSIS_FUNCTIONANNOTATION_H_
+#endif // LLVM_TRANSFORMS_UTILS_FUNCTIONANNOTATION_H_

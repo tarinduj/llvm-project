@@ -67,15 +67,10 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
-#include "llvm/Analysis/MLPassPipelinePredictor.h"
 
 namespace llvm {
 /// Flag to enable the machine learning guided pass manager
 extern cl::opt<bool> RunMLPM;
-
-
-/// Flag to dump mlpm training data (code features)
-extern cl::opt<bool> DumpMLPMData;
 
 /// A special type used by analysis passes to provide an address that
 /// identifies that particular analysis pass type.
@@ -468,50 +463,27 @@ using OptimizationLevelSet = std::set<unsigned>;
 template <typename IRUnitT, typename PassT, typename AnalysisManagerT>
 bool checkOptimizationLevel(const PassT &Pass, IRUnitT &IR, AnalysisManagerT &AM, const mlpm::OptimizationLevelSet &OptimizationLevels) {
   bool ShouldRun = true; // should return true to run the pass
+  
   if (any_isa<Function *>(Any(&IR))) { 
       Function *F = any_cast<Function *>(Any(&IR));
       const Attribute &A = F->getFnAttribute("opt-level");
       StringRef FnOptLevel = A.getValueAsString();
-      
-      if (FnOptLevel.empty()) {
-        // dbgs() << F->getName() << "\n";
-        FnOptLevel = MLPassPipelinePredictor<IRUnitT, AnalysisManagerT>::getFunctionOptimizationLevel(IR, AM);
-        F->addFnAttr("opt-level", FnOptLevel);
-      }
       
       if (!FnOptLevel.empty()) {
         unsigned OptLevel = std::atoi(FnOptLevel.str().substr(1).c_str());
         if (OptimizationLevels.empty() || OptimizationLevels.count(OptLevel)) {
-          return true; // apply the pass if the "Function Optimization Level" is
+          ShouldRun = true; // apply the pass if the "Function Optimization Level" is
                        // in the "Pass Optimization Levels Set"
         } else {
           // dbgs() << "PASS SKIPPED!\n";
-          return false; // skip the pass
+          ShouldRun = false; // skip the pass
         }
       } else {
-        return true; // apply the pass opt-level Attribute is empty
+        ShouldRun = true; // apply the pass if opt-level Attribute is empty
       }
   }
   return ShouldRun;
 }
-
-// dumping training data for ml based pass pipeline prediction
-template <typename IRUnitT, typename AnalysisManagerT>
-void dumpMLPMTrainingData(IRUnitT &IR, AnalysisManagerT &AM) {
-  if (any_isa<Function *>(Any(&IR))) { 
-      Function *F = any_cast<Function *>(Any(&IR));
-      const Attribute &A = F->getFnAttribute("opt-level");
-      StringRef FnOptLevel = A.getValueAsString();
-      
-      // check to ensure only the code features at the first encounter of the function is recorded
-      if (FnOptLevel.empty()) {
-        // dbgs() << F->getName() << "\n";
-        FnOptLevel = MLPassPipelinePredictor<IRUnitT, AnalysisManagerT>::dumpTrainingCodeFeatures(IR, AM);
-        F->addFnAttr("opt-level", FnOptLevel);
-      }
-  }
-}
-
 
 } // namespace mlpm
 
@@ -578,9 +550,6 @@ public:
     for (unsigned Idx = 0, Size = Passes.size(); Idx != Size; ++Idx) {
       auto *P = Passes[Idx].first.get();
 
-      if (DumpMLPMData){
-        mlpm::dumpMLPMTrainingData<IRUnitT>(IR, AM);
-      }
       // Check if the ML based pass skipping is enabled
       if (RunMLPM) {
         // Compare the function optimization level, against pass optimization

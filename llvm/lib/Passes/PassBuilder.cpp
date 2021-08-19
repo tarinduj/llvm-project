@@ -482,8 +482,10 @@ FunctionPassManager PassBuilder::buildO1FunctionSimplificationPipeline(
   FPM.addPass(SimplifyCFGPass(), {1, 2, 3});
   FPM.addPass(InstCombinePass(), {1, 2, 3});
 
-  FPM.addPass(FunctionAnnotationPass(), {1,2,3});
-
+  if (llvm::RunMLPM){
+    FPM.addPass(FunctionAnnotationPass(), {1,2,3});
+  }
+  
   FPM.addPass(LibCallsShrinkWrapPass(), {1, 2, 3});
 
   invokePeepholeEPCallbacks(FPM, Level);
@@ -640,7 +642,9 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
     FPM.addPass(AggressiveInstCombinePass(), {3});
   FPM.addPass(InstCombinePass(), {1, 2, 3});
 
-  FPM.addPass(FunctionAnnotationPass(), {1,2,3});
+  if (llvm::RunMLPM){
+    FPM.addPass(FunctionAnnotationPass(), {1,2,3});
+  }
 
   if (!Level.isOptimizingForSize())
     FPM.addPass(LibCallsShrinkWrapPass(), {1, 2, 3}); //FIX ME: how to add optimization level?

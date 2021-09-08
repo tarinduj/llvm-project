@@ -15,7 +15,7 @@ using namespace mlir::presburger;
 unsigned TransprecSet::waterline = 0;
 
 template <typename Int>
-Optional<PresburgerSet<SafeInt<Int>>> setFromString(StringRef string) {
+Optional<PresburgerSet<Int>> setFromString(StringRef string) {
   ErrorCallback callback = [&](SMLoc loc, const Twine &message) {
     // This is a hack to make the Parser compile
     // These have to be commented out currently because "errors" are raised
@@ -35,7 +35,7 @@ Optional<PresburgerSet<SafeInt<Int>>> setFromString(StringRef string) {
   };
   Parser<Int> parser(string, callback);
   PresburgerParser<Int> setParser(parser);
-  PresburgerSet<SafeInt<Int>> res;
+  PresburgerSet<Int> res;
   if (failed(setParser.parsePresburgerSet(res)))
     return {};
   return res;
@@ -49,22 +49,24 @@ void consumeLine(unsigned cnt = 1) {
   }
 }
 
-// Exits the program if cin reached EOF.
-TransprecSet getSetFromInput() {
-  char str[1'000'000];
-  std::cin.getline(str, 1'000'000);
+TransprecSet getTransprecSetFromString(StringRef str) {
   // std::cerr << "Read '" << str << "'\n";
-  if (auto set = setFromString<int16_t>(str))
+  if (auto set = setFromString<SafeInteger<int16_t>>(str))
     return TransprecSet(*set);
-  else if (auto set = setFromString<int64_t>(str))
+  else if (auto set = setFromString<SafeInteger<int64_t>>(str))
     return TransprecSet(*set);
-  else if (auto set = setFromString<__int128_t>(str))
+  else if (auto set = setFromString<SafeInteger<__int128_t>>(str))
     return TransprecSet(*set);
   else if (auto set = setFromString<mpz_class>(str))
     return TransprecSet(*set);
   else
     llvm_unreachable("Input did not fit in 128-bits!");
-  // return setFromString(str);
+}
+
+TransprecSet getSetFromInput() {
+  char str[1'000'000];
+  std::cin.getline(str, 1'000'000);
+  return getTransprecSetFromString(str);
 }
 
 void consumeNewline() {
@@ -85,14 +87,15 @@ int main(int argc, char **argv) {
   const unsigned numRuns = 5;
   std::string op = argv[1];
 
-  unsigned numCases;
-  std::cin >> numCases;
+  unsigned numCases = 1;
+  // std::cin >> numCases;
 
   init_perf_fds();
-  consumeNewline();
+  // consumeNewline();
+  std::ofstream fhw("data/hw_fpl_" + op + ".txt", std::ios_base::app);
   for (unsigned j = 0; j < numCases; ++j) {
-    if (j % 50000 == 0)
-      std::cerr << op << ' ' << j << '/' << numCases << '\n';
+    // if (j % 50000 == 0)
+    //   std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
     TransprecSet::waterline = 0;
     if (op == "empty") {
@@ -104,7 +107,7 @@ int main(int argc, char **argv) {
           reset_and_enable_all();
         volatile auto res = a.isIntegerEmpty();
         if (i == numRuns - 1)
-          disable_all_and_print_counts(stdout);
+          disable_all_and_print_counts(fhw);
         res = res;
 
       }
@@ -119,7 +122,7 @@ int main(int argc, char **argv) {
           reset_and_enable_all();
         volatile auto res = a.equal(b);
         if (i == numRuns - 1)
-          disable_all_and_print_counts(stdout);
+          disable_all_and_print_counts(fhw);
         res = res;
 
       }
@@ -135,7 +138,7 @@ int main(int argc, char **argv) {
         a.unionSet(b);
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(stdout);
+          disable_all_and_print_counts(fhw);
       }
     } else if (op == "intersect") {
       TransprecSet setA = getSetFromInput();
@@ -149,7 +152,7 @@ int main(int argc, char **argv) {
         a.intersectSet(b);
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(stdout);
+          disable_all_and_print_counts(fhw);
       }
     } else if (op == "subtract") {
       TransprecSet setA = getSetFromInput();
@@ -163,7 +166,7 @@ int main(int argc, char **argv) {
         a.subtract(b);
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(stdout);
+          disable_all_and_print_counts(fhw);
       }
     } else if (op == "coalesce") {
       TransprecSet setA = getSetFromInput();
@@ -175,7 +178,7 @@ int main(int argc, char **argv) {
         auto res = a.coalesce();
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(stdout);
+          disable_all_and_print_counts(fhw);
       }
     } else if (op == "complement") {
       TransprecSet setA = getSetFromInput();
@@ -187,19 +190,18 @@ int main(int argc, char **argv) {
         auto res = a.complement();
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(stdout);
+          disable_all_and_print_counts(fhw);
       }
     } else if (op == "eliminate") {
       TransprecSet setA = getSetFromInput();
       for (unsigned i = 0; i < numRuns; ++i) {
-
         auto a = setA;
         if (i == numRuns - 1)
           reset_and_enable_all();
         auto res = a.eliminateExistentials();
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(stdout);
+          disable_all_and_print_counts(fhw);
       }
     } else {
       std::cerr << "Unsupported operation " << op << "!\n";

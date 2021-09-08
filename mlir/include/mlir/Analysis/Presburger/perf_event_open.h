@@ -1,3 +1,4 @@
+#include <fstream>
 #include <asm/unistd.h>
 #include <linux/perf_event.h>
 #include <stdio.h>
@@ -52,8 +53,11 @@ int fd[FD_ARRAY_LENGTH];
 unsigned fd_count = 0;
 
 void init_perf_fds() {
-  fd[fd_count++] = get_fd(PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_L1D | (PERF_COUNT_HW_CACHE_OP_READ << 8) | (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16));
-  fd[fd_count++] = get_fd(PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_L1D | (PERF_COUNT_HW_CACHE_OP_READ << 8) | (PERF_COUNT_HW_CACHE_RESULT_MISS << 16));
+  fd[fd_count++] = get_fd(PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_LL | (PERF_COUNT_HW_CACHE_OP_READ << 8) | (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16));
+  fd[fd_count++] = get_fd(PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_LL | (PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16));
+
+  fd[fd_count++] = get_fd(PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_LL | (PERF_COUNT_HW_CACHE_OP_READ << 8) | (PERF_COUNT_HW_CACHE_RESULT_MISS << 16));
+  fd[fd_count++] = get_fd(PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_LL | (PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (PERF_COUNT_HW_CACHE_RESULT_MISS << 16));
 
   for (unsigned i = 0; i < fd_count; ++i) {
     if (fd[i] == -1) {
@@ -71,8 +75,8 @@ void reset_and_enable_all() {
     reset_and_enable(fd[i]);
 }
 
-void disable_all_and_print_counts(FILE *file) {
+void disable_all_and_print_counts(std::ofstream &fout) {
   for (unsigned i = 0; i < fd_count; ++i)
-    fprintf(file, "%lld\n", disable_and_get_count(fd[i]));
+    fout << disable_and_get_count(fd[i]) << '\n';
   assert(fd_count != 0 && "fds not initialized!");
 }

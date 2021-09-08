@@ -1,3 +1,4 @@
+#include "llvm/Support/FileSystem.h"
 #include "mlir/Analysis/Presburger/Coalesce.h"
 #include "mlir/Analysis/Presburger/Set.h"
 #include "mlir/Analysis/Presburger/TransprecSet.h"
@@ -64,7 +65,6 @@ void consumeLine(unsigned cnt = 1) {
   }
 }
 
-// Exits the program if cin reached EOF.
 TransprecSet getTransprecSetFromString(StringRef str) {
   // std::cerr << "Read '" << str << "'\n";
   if (auto set = setFromString<SafeInteger<int16_t>>(str))
@@ -111,20 +111,20 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
     assert(!maxWaterline && "NYI");
 
   const unsigned numRuns = 5;
-  unsigned numCases;
-  std::cin >> numCases;
-  consumeNewline();
+  unsigned numCases = 1;
+  // std::cin >> numCases;
+  // consumeNewline();
 
   if (!suffix.empty())
     suffix = "_" + suffix;
-  std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
-  std::ofstream fruntime("data/runtime_fpl_" + op + suffix + ".txt");
+  std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
+  std::ofstream fruntime("data/runtime_fpl_" + op + suffix + ".txt", std::ios_base::app);
   std::ofstream fwaterline, fstat;
   std::error_code EC;
-  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC);
+  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
   if (printAuxInfo) {
-    fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt");
-    fstat = std::ofstream("data/stats_fpl_" + op + ".txt");
+    fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
+    fstat = std::ofstream("data/stats_fpl_" + op + ".txt", std::ios_base::app);
     if (EC) {
       std::cerr << "Could not open outputs_fpl_" + op + ".txt!\n";
       std::abort();

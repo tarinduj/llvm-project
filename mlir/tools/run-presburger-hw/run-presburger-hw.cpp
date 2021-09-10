@@ -78,21 +78,27 @@ void consumeNewline() {
   }
 }
 
+std::ofstream fhw;
+void print_to_fhw(uint64_t x) {
+  fhw << x << '\n';
+}
+
 int main(int argc, char **argv) {
-  if (argc != 2) {
+  if (argc != 3) {
     std::cerr << "usage: ./run-presburger <op>\nPass input to stdin.\n";
     return 1;
   }
 
   const unsigned numRuns = 5;
-  std::string op = argv[1];
+  std::string op = argv[1], modeStr = argv[2];
+  int mode = atoi(argv[2]);
 
   unsigned numCases = 1;
   // std::cin >> numCases;
 
-  init_perf_fds();
+  init_perf_fds(mode);
   // consumeNewline();
-  std::ofstream fhw("data/hw_fpl_" + op + ".txt", std::ios_base::app);
+  fhw = std::ofstream("data/hw_fpl_" + op + "_" + modeStr + ".txt", std::ios_base::app);
   for (unsigned j = 0; j < numCases; ++j) {
     // if (j % 50000 == 0)
     //   std::cerr << op << ' ' << j << '/' << numCases << '\n';
@@ -107,7 +113,7 @@ int main(int argc, char **argv) {
           reset_and_enable_all();
         volatile auto res = a.isIntegerEmpty();
         if (i == numRuns - 1)
-          disable_all_and_print_counts(fhw);
+          disable_all_and_print_counts(&print_to_fhw);
         res = res;
 
       }
@@ -122,7 +128,7 @@ int main(int argc, char **argv) {
           reset_and_enable_all();
         volatile auto res = a.equal(b);
         if (i == numRuns - 1)
-          disable_all_and_print_counts(fhw);
+          disable_all_and_print_counts(&print_to_fhw);
         res = res;
 
       }
@@ -138,7 +144,7 @@ int main(int argc, char **argv) {
         a.unionSet(b);
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(fhw);
+          disable_all_and_print_counts(&print_to_fhw);
       }
     } else if (op == "intersect") {
       TransprecSet setA = getSetFromInput();
@@ -152,7 +158,7 @@ int main(int argc, char **argv) {
         a.intersectSet(b);
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(fhw);
+          disable_all_and_print_counts(&print_to_fhw);
       }
     } else if (op == "subtract") {
       TransprecSet setA = getSetFromInput();
@@ -166,7 +172,7 @@ int main(int argc, char **argv) {
         a.subtract(b);
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(fhw);
+          disable_all_and_print_counts(&print_to_fhw);
       }
     } else if (op == "coalesce") {
       TransprecSet setA = getSetFromInput();
@@ -178,7 +184,7 @@ int main(int argc, char **argv) {
         auto res = a.coalesce();
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(fhw);
+          disable_all_and_print_counts(&print_to_fhw);
       }
     } else if (op == "complement") {
       TransprecSet setA = getSetFromInput();
@@ -190,7 +196,7 @@ int main(int argc, char **argv) {
         auto res = a.complement();
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(fhw);
+          disable_all_and_print_counts(&print_to_fhw);
       }
     } else if (op == "eliminate") {
       TransprecSet setA = getSetFromInput();
@@ -201,7 +207,7 @@ int main(int argc, char **argv) {
         auto res = a.eliminateExistentials();
 
         if (i == numRuns - 1)
-          disable_all_and_print_counts(fhw);
+          disable_all_and_print_counts(&print_to_fhw);
       }
     } else {
       std::cerr << "Unsupported operation " << op << "!\n";

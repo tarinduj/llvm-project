@@ -134,8 +134,8 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
 
   for (unsigned j = 0; j < numCases; ++j) {
     int times[numRuns];
-    if (j % 50000 == 0)
-      std::cerr << op << ' ' << j << '/' << numCases << '\n';
+    // if (j % 50000 == 0)
+    //   std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
     if (maxWaterline) {
       unsigned waterline;

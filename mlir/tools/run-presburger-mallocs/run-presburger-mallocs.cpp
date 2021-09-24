@@ -115,10 +115,15 @@ int main(int argc, char **argv) {
 
   malloc_count_init();
 
+  std::error_code EC;
   std::ofstream fmallocs("data/mallocs_fpl_" + op + ".txt");
   llvm::raw_fd_ostream fout("data/outputs_fpl_" + op + ".txt", EC);
-  fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt");
-  fstat = std::ofstream("data/stats_fpl_" + op + ".txt");
+  if (EC) {
+    std::cerr << "Could not open outputs_fpl_" + op + ".txt!\n";
+    std::abort();
+  }
+  std::ofstream fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt");
+  std::ofstream fstat = std::ofstream("data/stats_fpl_" + op + ".txt");
 
   for (unsigned j = 0; j < numCases; ++j) {
     if (j % 50000 == 0)
@@ -136,7 +141,7 @@ int main(int argc, char **argv) {
         volatile auto res = a.isIntegerEmpty();
         __sync_synchronize();
         if (i == numRuns - 1) {
-          fwaterline << Set::waterline << '\n';
+          fwaterline << TransprecSet::waterline << '\n';
           fout << res << '\n';
           print_malloc_counts(fmallocs);
         }
@@ -156,7 +161,7 @@ int main(int argc, char **argv) {
         volatile auto res = a.equal(b);
         __sync_synchronize();
         if (i == numRuns - 1) {
-          fwaterline << Set::waterline << '\n';
+          fwaterline << TransprecSet::waterline << '\n';
           fout << res << '\n';
           print_malloc_counts(fmallocs);
         }
@@ -177,7 +182,7 @@ int main(int argc, char **argv) {
         __sync_synchronize();
 
         if (i == numRuns - 1) {
-          fwaterline << Set::waterline << '\n';
+          fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, a);
           a.printISL(fout);
           print_malloc_counts(fmallocs);
@@ -197,7 +202,7 @@ int main(int argc, char **argv) {
         __sync_synchronize();
 
         if (i == numRuns - 1) {
-          fwaterline << Set::waterline << '\n';
+          fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, a);
           a.printISL(fout);
           print_malloc_counts(fmallocs);
@@ -217,7 +222,7 @@ int main(int argc, char **argv) {
         __sync_synchronize();
 
         if (i == numRuns - 1) {
-          fwaterline << Set::waterline << '\n';
+          fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, a);
           a.printISL(fout);
           print_malloc_counts(fmallocs);
@@ -235,7 +240,7 @@ int main(int argc, char **argv) {
         __sync_synchronize();
 
         if (i == numRuns - 1) {
-          fwaterline << Set::waterline << '\n';
+          fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, res);
           res.printISL(fout);
           print_malloc_counts(fmallocs);
@@ -253,7 +258,7 @@ int main(int argc, char **argv) {
         __sync_synchronize();
 
         if (i == numRuns - 1) {
-          fwaterline << Set::waterline << '\n';
+          fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, res);
           res.printISL(fout);
           print_malloc_counts(fmallocs);
@@ -270,7 +275,7 @@ int main(int argc, char **argv) {
         __sync_synchronize();
 
         if (i == numRuns - 1) {
-          fwaterline << Set::waterline << '\n';
+          fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, res);
           res.printISL(fout);
           print_malloc_counts(fmallocs);

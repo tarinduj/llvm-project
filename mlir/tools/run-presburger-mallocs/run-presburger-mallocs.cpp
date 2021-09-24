@@ -115,13 +115,16 @@ int main(int argc, char **argv) {
 
   malloc_count_init();
 
-  std::error_code EC;
   std::ofstream fmallocs("data/mallocs_fpl_" + op + ".txt");
+
+  std::error_code EC;
   llvm::raw_fd_ostream fout("data/outputs_fpl_" + op + ".txt", EC);
   if (EC) {
     std::cerr << "Could not open outputs_fpl_" + op + ".txt!\n";
     std::abort();
   }
+  fout << numCases << '\n';
+
   std::ofstream fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt");
   std::ofstream fstat = std::ofstream("data/stats_fpl_" + op + ".txt");
 

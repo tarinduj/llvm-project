@@ -84,6 +84,22 @@ void consumeNewline() {
   }
 }
 
+void dumpStats(std::ofstream &f, TransprecSet &a) {
+  // a.dumpISL();
+  // return;
+  std::visit([&](auto &&set) {
+    unsigned ids = set.getNumDims() + set.getNumSyms(), nDivs = 0, nEqs = 0, nIneqs = 0, nBS = 0;
+    for (auto &bs : set.getBasicSets()) {
+      ids = std::max(ids, bs.getNumTotalDims());
+      nDivs += bs.getDivisions().size();
+      nEqs += bs.getNumEqualities();
+      nIneqs += bs.getNumInequalities();
+      nBS += 1;
+    }
+    f << ids << ' ' << nBS << ' ' << nDivs << ' ' << nIneqs << ' ' << nEqs << '\n';
+  }, a.setvar);
+}
+
 int main(int argc, char **argv) {
   if (argc != 2) {
     std::cerr << "usage: ./run-presburger <op>\nPass input to stdin.\n";
@@ -100,6 +116,10 @@ int main(int argc, char **argv) {
   malloc_count_init();
 
   std::ofstream fmallocs("data/mallocs_fpl_" + op + ".txt");
+  llvm::raw_fd_ostream fout("data/outputs_fpl_" + op + ".txt", EC);
+  fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt");
+  fstat = std::ofstream("data/stats_fpl_" + op + ".txt");
+
   for (unsigned j = 0; j < numCases; ++j) {
     if (j % 50000 == 0)
       std::cerr << op << ' ' << j << '/' << numCases << '\n';
@@ -115,8 +135,11 @@ int main(int argc, char **argv) {
         __sync_synchronize();
         volatile auto res = a.isIntegerEmpty();
         __sync_synchronize();
-        if (i == numRuns - 1)
+        if (i == numRuns - 1) {
+          fwaterline << Set::waterline << '\n';
+          fout << res << '\n';
           print_malloc_counts(fmallocs);
+        }
         res = res;
 
       }
@@ -132,8 +155,11 @@ int main(int argc, char **argv) {
         __sync_synchronize();
         volatile auto res = a.equal(b);
         __sync_synchronize();
-        if (i == numRuns - 1)
+        if (i == numRuns - 1) {
+          fwaterline << Set::waterline << '\n';
+          fout << res << '\n';
           print_malloc_counts(fmallocs);
+        }
         res = res;
 
       }
@@ -150,8 +176,12 @@ int main(int argc, char **argv) {
         a.unionSet(b);
         __sync_synchronize();
 
-        if (i == numRuns - 1)
+        if (i == numRuns - 1) {
+          fwaterline << Set::waterline << '\n';
+          dumpStats(fstat, a);
+          a.printISL(fout);
           print_malloc_counts(fmallocs);
+        }
       }
     } else if (op == "intersect") {
       TransprecSet setA = getSetFromInput();
@@ -166,8 +196,12 @@ int main(int argc, char **argv) {
         a.intersectSet(b);
         __sync_synchronize();
 
-        if (i == numRuns - 1)
+        if (i == numRuns - 1) {
+          fwaterline << Set::waterline << '\n';
+          dumpStats(fstat, a);
+          a.printISL(fout);
           print_malloc_counts(fmallocs);
+        }
       }
     } else if (op == "subtract") {
       TransprecSet setA = getSetFromInput();
@@ -182,8 +216,12 @@ int main(int argc, char **argv) {
         a.subtract(b);
         __sync_synchronize();
 
-        if (i == numRuns - 1)
+        if (i == numRuns - 1) {
+          fwaterline << Set::waterline << '\n';
+          dumpStats(fstat, a);
+          a.printISL(fout);
           print_malloc_counts(fmallocs);
+        }
       }
     } else if (op == "coalesce") {
       TransprecSet setA = getSetFromInput();
@@ -196,8 +234,12 @@ int main(int argc, char **argv) {
         auto res = a.coalesce();
         __sync_synchronize();
 
-        if (i == numRuns - 1)
+        if (i == numRuns - 1) {
+          fwaterline << Set::waterline << '\n';
+          dumpStats(fstat, res);
+          res.printISL(fout);
           print_malloc_counts(fmallocs);
+        }
       }
     } else if (op == "complement") {
       TransprecSet setA = getSetFromInput();
@@ -210,8 +252,12 @@ int main(int argc, char **argv) {
         auto res = a.complement();
         __sync_synchronize();
 
-        if (i == numRuns - 1)
+        if (i == numRuns - 1) {
+          fwaterline << Set::waterline << '\n';
+          dumpStats(fstat, res);
+          res.printISL(fout);
           print_malloc_counts(fmallocs);
+        }
       }
     } else if (op == "eliminate") {
       TransprecSet setA = getSetFromInput();
@@ -223,8 +269,12 @@ int main(int argc, char **argv) {
         auto res = a.eliminateExistentials();
         __sync_synchronize();
 
-        if (i == numRuns - 1)
+        if (i == numRuns - 1) {
+          fwaterline << Set::waterline << '\n';
+          dumpStats(fstat, res);
+          res.printISL(fout);
           print_malloc_counts(fmallocs);
+        }
       }
     } else {
       std::cerr << "Unsupported operation " << op << "!\n";

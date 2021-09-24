@@ -102,6 +102,8 @@ public:
   void printISL(raw_ostream &os) const;
   void dumpISL() const;
 
+  bool isPlainBasicSet() const;
+
   template <typename OInt>
   friend class PresburgerBasicSet;
 
@@ -149,7 +151,6 @@ private:
   void appendExistentialDimensions(unsigned count);
 
   PresburgerBasicSet<Int> makePlainBasicSet() const;
-  bool isPlainBasicSet() const;
 
   void updateFromSimplex(const Simplex<Int> &simplex);
 

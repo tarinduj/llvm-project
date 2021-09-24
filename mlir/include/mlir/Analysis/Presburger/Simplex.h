@@ -23,6 +23,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
+#include <fstream>
 
 namespace mlir {
 namespace analysis {
@@ -163,6 +164,8 @@ public:
   bool isMarkedRedundant(int conIndex) const;
 
   void extendConstraints(unsigned n_new);
+
+  ~Simplex();
 
   /// Add an inequality to the tableau. If coeffs is c_0, c_1, ... c_n, where n
   /// is the current number of variables, then the corresponding inequality is
@@ -513,6 +516,15 @@ protected:
 
   /// These hold information about each unknown.
   SmallVector<Unknown, 8> con, var;
+
+  unsigned numPivots;
+
+  void printAndResetNumPivots() {
+#ifdef PRINT_PIVOTS
+    std::cout << numPivots << '\n';
+    numPivots = 0;
+#endif
+  }
 };
 
 } // namespace presburger

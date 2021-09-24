@@ -25,7 +25,8 @@ const int nullIndex = std::numeric_limits<int>::max();
 template <typename Int>
 Simplex<Int>::Simplex(unsigned nVar)
     : nRow(0), nCol(2), nRedundant(0), liveColBegin(2), tableau(0, 2 + nVar),
-      empty(false) {
+      empty(false), numPivots(0)
+      {
   colUnknown.push_back(nullIndex);
   colUnknown.push_back(nullIndex);
   for (unsigned i = 0; i < nVar; ++i) {
@@ -40,6 +41,14 @@ Simplex<Int>::Simplex(const FlatAffineConstraints &constraints)
     : Simplex(constraints.getNumIds()) {
   addFlatAffineConstraints(constraints);
 }
+
+template <typename Int>
+Simplex<Int>::~Simplex() {
+#ifdef PRINT_PIVOTS
+  printAndResetNumPivots();
+#endif
+}
+
 
 template <typename Int>
 Simplex<Int>::Simplex(const PresburgerBasicSet<Int> &bs) : Simplex(bs.getNumTotalDims()) {
@@ -453,6 +462,10 @@ template <typename Int>
 void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   assert((pivotRow >= nRedundant && pivotCol >= liveColBegin) &&
          "Refusing to pivot redundant row or invalid column");
+
+#ifdef PRINT_PIVOTS
+  numPivots++;
+#endif
 
   swapRowWithCol(pivotRow, pivotCol);
 
@@ -943,6 +956,9 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
 /// is reached.
 template <typename Int>
 void Simplex<Int>::rollback(unsigned snapshot) {
+#ifdef PRINT_PIVOTS
+  printAndResetNumPivots();
+#endif
   while (undoLog.size() > snapshot) {
     auto entry = undoLog.back();
     undoLog.pop_back();

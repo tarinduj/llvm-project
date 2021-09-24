@@ -13,7 +13,7 @@ void printConstraints(raw_ostream &os, const PresburgerBasicSet<Int> &bs);
 
 template <typename Int>
 void printConstraints(raw_ostream &os, const PresburgerSet<Int> &set);
-// void printVariableList(raw_ostream &os, unsigned nDim, unsigned nSym);
+void printVariableList(raw_ostream &os, unsigned nDim, unsigned nSym);
 template <typename Int>
 void printExpr(raw_ostream &os, ArrayRef<Int> coeffs,
                Int constant, const PresburgerBasicSet<Int> &bs);
@@ -26,19 +26,19 @@ void printConst(raw_ostream &os, Int c, bool first);
 
 /// Prints the '(d0, ..., dN)[s0, ... ,sM]' dimension and symbol list.
 ///
-// void printVariableList(raw_ostream &os, unsigned nDim, unsigned nSym) {
-//   os << "(";
-//   for (unsigned i = 0; i < nDim; i++)
-//     os << (i != 0 ? ", " : "") << 'd' << i;
-//   os << ")";
+void printVariableList(raw_ostream &os, unsigned nDim, unsigned nSym) {
+  os << "(";
+  for (unsigned i = 0; i < nDim; i++)
+    os << (i != 0 ? ", " : "") << 'd' << i;
+  os << ")";
 
-//   if (nSym > 0) {
-//     os << "[";
-//     for (unsigned i = 0; i < nSym; i++)
-//       os << (i != 0 ? ", " : "") << 's' << i;
-//     os << "]";
-//   }
-// }
+  if (nSym > 0) {
+    os << "[";
+    for (unsigned i = 0; i < nSym; i++)
+      os << (i != 0 ? ", " : "") << 's' << i;
+    os << "]";
+  }
+}
 
 /// Prints the constraints of each `PresburgerBasicSet<Int>`.
 ///
@@ -220,9 +220,14 @@ void mlir::analysis::presburger::printPresburgerSet(raw_ostream &os,
 template <typename Int>
 void mlir::analysis::presburger::printPresburgerBasicSet(
     raw_ostream &os, const PresburgerBasicSet<Int> &bs) {
-  printVariableList(os, bs.getNumDims(), bs.getNumParams());
-  os << " : ";
-  printConstraints(os, bs);
+  if constexpr (std::is_same<Int, __int128_t>::value) {
+    os << "NYI\n";
+    return;
+  } else {
+    printVariableList(os, bs.getNumDims(), bs.getNumParams());
+    os << " : ";
+    printConstraints(os, bs);
+  }
 }
 
 // void mlir::analysis::presburger::printPresburgerExpr(

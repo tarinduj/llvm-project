@@ -378,6 +378,7 @@ PresburgerBasicSet<Int>::findBoundedDimensionsSample(const PresburgerBasicSet &c
 template <typename Int>
 Optional<SmallVector<Int, 8>>
 PresburgerBasicSet<Int>::findSampleBounded(bool onlyEmptiness) const {
+  // dump();
   if (getNumTotalDims() == 0)
     return SmallVector<Int, 8>();
   return Simplex<Int>(*this).findIntegerSample();

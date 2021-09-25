@@ -188,6 +188,7 @@ int main(int argc, char **argv) {
           fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, a);
           a.printISL(fout);
+          fout << '\n';
           print_malloc_counts(fmallocs);
         }
       }
@@ -208,6 +209,7 @@ int main(int argc, char **argv) {
           fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, a);
           a.printISL(fout);
+          fout << '\n';
           print_malloc_counts(fmallocs);
         }
       }
@@ -228,6 +230,7 @@ int main(int argc, char **argv) {
           fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, a);
           a.printISL(fout);
+          fout << '\n';
           print_malloc_counts(fmallocs);
         }
       }
@@ -246,6 +249,7 @@ int main(int argc, char **argv) {
           fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, res);
           res.printISL(fout);
+          fout << '\n';
           print_malloc_counts(fmallocs);
         }
       }
@@ -264,6 +268,7 @@ int main(int argc, char **argv) {
           fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, res);
           res.printISL(fout);
+          fout << '\n';
           print_malloc_counts(fmallocs);
         }
       }
@@ -281,6 +286,7 @@ int main(int argc, char **argv) {
           fwaterline << TransprecSet::waterline << '\n';
           dumpStats(fstat, res);
           res.printISL(fout);
+          fout << '\n';
           print_malloc_counts(fmallocs);
         }
       }

@@ -117,10 +117,10 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
 
   if (!suffix.empty())
     suffix = "_" + suffix;
-  std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
-  std::ofstream fruntime("data/runtime_fpl_" + op + suffix + ".txt", std::ios_base::app);
-  std::ofstream fwaterline, fstat;
-  std::error_code EC;
+  std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
+  std::ofstream fruntime("data/runtime_fpl" + suffix + "_" + op + ".txt");
+  // std::ofstream fwaterline, fstat;
+  // std::error_code EC;
   // llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
   // if (printAuxInfo) {
   //   fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
@@ -134,20 +134,21 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
 
   for (unsigned j = 0; j < numCases; ++j) {
     int times[numRuns];
-    // if (j % 50000 == 0)
-    //   std::cerr << op << ' ' << j << '/' << numCases << '\n';
+    if (j % 50000 == 0)
+      std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
-    // if (maxWaterline) {
-    //   unsigned waterline;
-    //   fwaterlineIn >> waterline;
-    //   if (waterline > *maxWaterline) {
-    //     consumeLine();
-    //     consumeLine();
-    //     if (op == "subtract" || op == "union" || op == "intersect" || op == "equal")
-    //       consumeLine();
-    //     continue;
-    //   }
-    // }
+    if (maxWaterline) {
+      unsigned waterline;
+      fwaterlineIn >> waterline;
+      if (waterline > *maxWaterline) {
+        consumeLine();
+        consumeLine();
+        if (op == "subtract" || op == "union" || op == "intersect" || op == "equal")
+          consumeLine();
+        fruntime << "0\n";
+        continue;
+      }
+    }
 
     if constexpr (printAuxInfo)
       Set::waterline = 0;
@@ -321,7 +322,7 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
       std::cerr << "Unsupported operation " << op << "!\n";
       std::abort();
     }
-    // consumeLine();
+    consumeLine();
   }
 }
 

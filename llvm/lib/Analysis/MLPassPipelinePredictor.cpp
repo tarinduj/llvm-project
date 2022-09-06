@@ -11,9 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-
-#include "llvm/Analysis/FunctionPropertiesAnalysis.h"
 #include "llvm/Analysis/MLPassPipelinePredictor.h"
+#ifdef LLVM_HAVE_TF_API
+#include "llvm/Analysis/Utils/TFUtils.h"
+#endif
+#include "llvm/Analysis/FunctionPropertiesAnalysis.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include <fstream>
@@ -31,6 +33,21 @@ static cl::opt<std::string>
 template <>
 StringRef MLPassPipelinePredictor<Function, FunctionAnalysisManager>::
     getFunctionOptimizationLevel(Function &F, FunctionAnalysisManager &FAM) {
+
+#ifdef LLVM_HAVE_TF_API
+  std::vector<TensorSpec> InputSpecs{TensorSpec::createSpec<int32_t>(
+      "serving_default_input_1",
+      {1, static_cast<int64_t>(
+              IRToNativeSizeLearning::FunctionFeatures::FeatureCount)})};
+  std::vector<TensorSpec> OutputSpecs{
+      TensorSpec::createSpec<float>("StatefulPartitionedCall", {1})};
+  Evaluator = std::make_unique<TFModelEvaluator>(
+      TFIR2NativeModelPath.getValue().c_str(), InputSpecs, OutputSpecs);
+  if (!Evaluator || !Evaluator->isValid()) {
+    Evaluator.reset();
+    return;
+  }
+#endif
 
   StringRef OptLevel = "O0";
   return OptLevel;

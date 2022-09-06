@@ -14,6 +14,7 @@
 
 #ifndef LLVM_ANALYSIS_MLPASSPIPELINEPREDICTOR_H
 #define LLVM_ANALYSIS_MLPASSPIPELINEPREDICTOR_H
+
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
@@ -28,6 +29,10 @@ public:
   static StringRef getFunctionOptimizationLevel(IRUnitT &IR, AnalysisManagerT &AM);
 
   static void dumpTrainingCodeFeatures(IRUnitT &IR, AnalysisManagerT &AM);
+
+private:
+  std::unique_ptr<TFModelEvaluator> Evaluator;
+};
 };
 
 } // namespace llvm

@@ -394,6 +394,8 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
                                             Direction direction) const {
   Optional<unsigned> col;
 
+  std::cout << "findPivot \n";
+
   for (unsigned j = liveColBegin; j < nCol; ++j) {
     Int elem = tableau(row, j);
     if (elem == 0)

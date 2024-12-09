@@ -48,12 +48,12 @@ public:
   // using Vector = typename std::conditional<isInt<Int, int16_t>,
   //   Vector16x32,
   //   void>::type;
-  using Vector = Vector16x32;
+  // using Vector = Vector16x32;
   static constexpr unsigned MatrixVectorColumns = isInt<Int, int16_t> ? 32 : 16;
+  typedef int16_t Vector __attribute__((ext_vector_type(MatrixVectorColumns)));
   static constexpr bool isChecked = std::is_same_v<Int, SafeInteger<int16_t>> ||
                                     std::is_same_v<Int, SafeInteger<int32_t>> ||
-                                    std::is_same_v<Int, SafeInteger<int64_t>> ||
-                                    std::is_same_v<Int, SafeInteger<__int128_t>>;
+                                    std::is_same_v<Int, SafeInteger<int64_t>> ;
 
   Matrix() = delete;
 

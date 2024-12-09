@@ -144,7 +144,7 @@ void LinearTransform<Int>::postMultiplyRow(ArrayRef<Int> row, SmallVector<Int, 8
   if constexpr (Matrix<Int>::isVectorized) {
     Vector resVec = 0;
     for (unsigned i = 0, e = matrix.getNumRows(); i < e; i++)
-      resVec += mul<Matrix<Int>::isChecked>(UnderlyingInt<Int>(row[i]), matrix.getRowVector(i));
+      resVec += UnderlyingInt<Int>(row[i]) * matrix.getRowVector(i);
     result.reserve(matrix.getNumColumns());
     for (unsigned col = 0, e = matrix.getNumColumns(); col < e; ++col)
       result.push_back(resVec[col]);

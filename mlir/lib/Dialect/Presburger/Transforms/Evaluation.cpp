@@ -9,7 +9,6 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
-#include <x86intrin.h>
 
 #include <chrono>
 
@@ -26,10 +25,10 @@ static SetOp unionSets(PatternRewriter &rewriter, Operation *op,
     DialectSet set1(attr1.getValue());
     DialectSet set2(attr2.getValue());
     unsigned int dummy;
-    unsigned long long start = __rdtscp(&dummy);
+    auto start = std::chrono::high_resolution_clock::now();
     set1.unionSet(std::move(set2));
-    unsigned long long end = __rdtscp(&dummy);
-    llvm::errs() << end - start << '\n';
+    auto end = std::chrono::high_resolution_clock::now();
+    llvm::errs() << static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << '\n';
   } else {
     ps.unionSet(attr2.getValue());
   }
@@ -51,10 +50,10 @@ static SetOp intersectSets(PatternRewriter &rewriter, Operation *op,
 
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
-    unsigned long long start = __rdtscp(&dummy);
+    auto start = std::chrono::high_resolution_clock::now();
     ps.intersectSet(attr2.getValue());
-    unsigned long long end = __rdtscp(&dummy);
-    llvm::errs() << end - start << '\n';
+    auto end = std::chrono::high_resolution_clock::now();
+    llvm::errs() << static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << '\n';
   } else {
     ps.intersectSet(attr2.getValue());
   }
@@ -75,10 +74,10 @@ static SetOp subtractSets(PatternRewriter &rewriter, Operation *op,
 
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
-    unsigned long long start = __rdtscp(&dummy);
+    auto start = std::chrono::high_resolution_clock::now();
     ps.subtract(attr2.getValue());
-    unsigned long long end = __rdtscp(&dummy);
-    llvm::errs() << end - start << '\n';
+    auto end = std::chrono::high_resolution_clock::now();
+    llvm::errs() << static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << '\n';
   } else {
     ps.subtract(attr2.getValue());
   }
@@ -100,10 +99,10 @@ static SetOp coalesceSet(PatternRewriter &rewriter, Operation *op,
   DialectSet ps;
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
-    unsigned long long start = __rdtscp(&dummy);
+    auto start = std::chrono::high_resolution_clock::now();
     ps = coalesce(in);
-    unsigned long long end = __rdtscp(&dummy);
-    llvm::errs() << end - start << '\n';
+    auto end = std::chrono::high_resolution_clock::now();
+    llvm::errs() << static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << '\n';
   } else {
     ps = coalesce(in);
   }
@@ -127,10 +126,10 @@ static SetOp eliminateExistentialsSet(PatternRewriter &rewriter, Operation *op,
   if (printPresburgerRuntimes()) {
     DialectSet in2 = attr.getValue();
     unsigned int dummy;
-    unsigned long long start = __rdtscp(&dummy);
+    auto start = std::chrono::high_resolution_clock::now();
     ps = DialectSet::eliminateExistentials(std::move(in2));
-    unsigned long long end = __rdtscp(&dummy);
-    llvm::errs() << end - start << '\n';
+    auto end = std::chrono::high_resolution_clock::now();
+    llvm::errs() << static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << '\n';
   } else {
     ps = DialectSet::eliminateExistentials(in);
   }
@@ -151,10 +150,10 @@ static SetOp complementSet(PatternRewriter &rewriter, Operation *op,
   DialectSet ps;
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
-    unsigned long long start = __rdtscp(&dummy);
+    auto start = std::chrono::high_resolution_clock::now();
     ps = DialectSet::complement(attr.getValue());
-    unsigned long long end = __rdtscp(&dummy);
-    llvm::errs() << end - start << '\n';
+    auto end = std::chrono::high_resolution_clock::now();
+    llvm::errs() << static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << '\n';
   } else {
     ps = DialectSet::complement(attr.getValue());
   }
@@ -175,10 +174,10 @@ static ConstantOp areEqualSets(PatternRewriter &rewriter, Operation *op,
   bool eq = DialectSet::equal(attr1.getValue(), attr2.getValue());
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
-    unsigned long long start = __rdtscp(&dummy);
+    auto start = std::chrono::high_resolution_clock::now();
     eq = DialectSet::equal(attr1.getValue(), attr2.getValue());
-    unsigned long long end = __rdtscp(&dummy);
-    llvm::errs() << end - start << '\n';
+    auto end = std::chrono::high_resolution_clock::now();
+    llvm::errs() << static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << '\n';
   } else {
     eq = DialectSet::equal(attr1.getValue(), attr2.getValue());
   }
@@ -198,10 +197,10 @@ static ConstantOp emptySet(PatternRewriter &rewriter, Operation *op,
   bool empty;
   if (printPresburgerRuntimes()) {
     unsigned int dummy;
-    unsigned long long start = __rdtscp(&dummy);
+    auto start = std::chrono::high_resolution_clock::now();
     empty = ps.isIntegerEmpty();
-    unsigned long long end = __rdtscp(&dummy);
-    llvm::errs() << end - start << '\n';
+    auto end = std::chrono::high_resolution_clock::now();
+    llvm::errs() << static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << '\n';
   } else {
     empty = ps.isIntegerEmpty();
   }

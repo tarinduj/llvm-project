@@ -6,8 +6,8 @@
 #include "mlir/Analysis/Presburger/Presburger-impl.h"
 #include <iostream>
 #include <string>
-#include <x86intrin.h>
 #include <fstream>
+#include "llvm/ADT/Optional.h"
 
 using namespace mlir;
 using namespace mlir::presburger;
@@ -71,8 +71,6 @@ TransprecSet getTransprecSetFromString(StringRef str) {
     return TransprecSet(*set);
   else if (auto set = setFromString<SafeInteger<int64_t>>(str))
     return TransprecSet(*set);
-  else if (auto set = setFromString<SafeInteger<__int128_t>>(str))
-    return TransprecSet(*set);
   else if (auto set = setFromString<mpz_class>(str))
     return TransprecSet(*set);
   else
@@ -104,7 +102,7 @@ void consumeNewline() {
 }
 
 template <typename Set, bool printAuxInfo>
-void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterline) {
+void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterline) {
   if (!suffix.empty())
     assert(!printAuxInfo && "NYI");
   if (printAuxInfo)
@@ -157,11 +155,12 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        unsigned long long start = __rdtscp(&dummy);
+        auto start = std::chrono::high_resolution_clock::now();
         volatile auto res = a.isIntegerEmpty();
         res = res;
-        unsigned long long end = __rdtscp(&dummy);
-        times[i] = end - start;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
@@ -178,11 +177,12 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        unsigned long long start = __rdtscp(&dummy);
+        auto start = std::chrono::high_resolution_clock::now();
         volatile auto res = Set::equal(a, b);
         res = res;
-        unsigned long long end = __rdtscp(&dummy);
-        times[i] = end - start;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
@@ -199,10 +199,11 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        unsigned long long start = __rdtscp(&dummy);
+        auto start = std::chrono::high_resolution_clock::now();
         a.unionSet(b);
-        unsigned long long end = __rdtscp(&dummy);
-        times[i] = end - start;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
@@ -221,10 +222,11 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        unsigned long long start = __rdtscp(&dummy);
+        auto start = std::chrono::high_resolution_clock::now();
         a.intersectSet(b);
-        unsigned long long end = __rdtscp(&dummy);
-        times[i] = end - start;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
@@ -243,10 +245,11 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        unsigned long long start = __rdtscp(&dummy);
+        auto start = std::chrono::high_resolution_clock::now();
         a.subtract(b);
-        unsigned long long end = __rdtscp(&dummy);
-        times[i] = end - start;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
@@ -263,10 +266,11 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        unsigned long long start = __rdtscp(&dummy);
+        auto start = std::chrono::high_resolution_clock::now();
         Set res = coalesce(a);
-        unsigned long long end = __rdtscp(&dummy);
-        times[i] = end - start;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
@@ -283,10 +287,11 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        unsigned long long start = __rdtscp(&dummy);
+        auto start = std::chrono::high_resolution_clock::now();
         auto res = Set::complement(a);
-        unsigned long long end = __rdtscp(&dummy);
-        times[i] = end - start;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
@@ -303,10 +308,11 @@ void run(std::string op, std::string suffix, std::optional<unsigned> maxWaterlin
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        unsigned long long start = __rdtscp(&dummy);
+        auto start = std::chrono::high_resolution_clock::now();
         auto res = Set::eliminateExistentials(a);
-        unsigned long long end = __rdtscp(&dummy);
-        times[i] = end - start;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
@@ -338,8 +344,6 @@ int main(int argc, char **argv) {
     run<PresburgerSet<int16_t>, false>(op, "16", 0);
   else if (prec == "64")
     run<PresburgerSet<int64_t>, false>(op, "64", 1);
-  else if (prec == "128")
-    run<PresburgerSet<__int128_t>, false>(op, "128", 2);
   else if (prec == "gmp")
     run<PresburgerSet<mpz_class>, false>(op, "gmp", 3);
   else if (prec == "T")

@@ -220,14 +220,11 @@ void mlir::analysis::presburger::printPresburgerSet(raw_ostream &os,
 template <typename Int>
 void mlir::analysis::presburger::printPresburgerBasicSet(
     raw_ostream &os, const PresburgerBasicSet<Int> &bs) {
-  if constexpr (std::is_same<Int, __int128_t>::value) {
-    os << "NYI\n";
-    return;
-  } else {
+  
     printVariableList(os, bs.getNumDims(), bs.getNumParams());
     os << " : ";
     printConstraints(os, bs);
-  }
+  
 }
 
 // void mlir::analysis::presburger::printPresburgerExpr(

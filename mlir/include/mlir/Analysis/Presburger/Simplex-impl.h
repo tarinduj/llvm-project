@@ -52,6 +52,7 @@ Simplex<Int>::~Simplex() {
 
 template <typename Int>
 Simplex<Int>::Simplex(const PresburgerBasicSet<Int> &bs) : Simplex(bs.getNumTotalDims()) {
+  std::cout << "Simplex constructor called with PresburgerBasicSet\n";
   addBasicSet(bs);
 }
 
@@ -578,6 +579,7 @@ LogicalResult Simplex<Int>::restoreRow(Unknown &u) {
   assert(u.orientation == Orientation::Row &&
          "unknown should be in row position");
 
+  std::cout << "restoreRow: pivot call here\n";
   while (tableau(u.pos, 1) < 0) {
     Optional<Pivot> maybePivot = findPivot(u.pos, Direction::Up);
     if (!maybePivot)
@@ -754,6 +756,7 @@ bool Simplex<Int>::constraintIsEquality(int conIndex) const {
 /// empty and we mark it as such.
 template <typename Int>
 void Simplex<Int>::addInequality(ArrayRef<Int> coeffs) {
+  std::cout << "addInequality \n";
   unsigned conIndex = addRow(coeffs);
   Unknown &u = con[conIndex];
   u.restricted = true;
@@ -1159,6 +1162,7 @@ void Simplex<Int>::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
 
 template <typename Int>
 void Simplex<Int>::addBasicSet(const PresburgerBasicSet<Int> &bs) {
+  std::cout << "addBasicSet \n";
   assert(bs.getNumTotalDims() == numVariables() &&
          "BasicSet must have same dimensionality as simplex");
   unsigned totNewCons = bs.getNumInequalities() + bs.getNumEqualities() + 2*bs.getNumDivs();

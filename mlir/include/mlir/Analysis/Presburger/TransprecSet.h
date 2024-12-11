@@ -68,6 +68,7 @@ public:
   }
 
   void subtract(TransprecSet &set) {
+    std::cout << "In TransprecSet Subtract\n";
     harmonizePrecisions(*this, set);
     std::visit([&](auto &&thisPS) {
       std::visit([&](auto &&oPS) {

@@ -726,7 +726,8 @@ LogicalResult Parser<Int>::parseInteger(std::unique_ptr<IntegerExpr<Int>> &iExpr
   if (negativ)
     value = -value;
 
-  iExpr = std::make_unique<IntegerExpr<Int>>(value);
+  long valAsLong = static_cast<long>(value); 
+  iExpr = std::make_unique<IntegerExpr<Int>>(valAsLong);
   return success();
 }
 

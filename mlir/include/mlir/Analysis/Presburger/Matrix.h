@@ -114,6 +114,8 @@ public:
 
   unsigned getNumColumns() const;
 
+  unsigned getNReservedColumns() const;
+
   __attribute__((always_inline))
   Vector &getRowVector(unsigned row) {
     static_assert(isVectorized, "getRowVector is only valid for int16_t matrices!");
@@ -156,6 +158,10 @@ public:
     if constexpr (std::is_same_v<VectorType, std::vector<Int, AlignedAllocator<Int, 64>>>) {
         std::cout << "VectorType is std::vector<Int, AlignedAllocator<Int, 64>>\n";
     }
+  }
+
+  Int* getDataPointer() {
+    return data.data();
   }
   
 

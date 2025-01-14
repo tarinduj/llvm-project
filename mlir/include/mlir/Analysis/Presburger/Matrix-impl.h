@@ -56,6 +56,9 @@ template <typename Int>
 unsigned Matrix<Int>::getNumColumns() const { return nColumns; }
 
 template <typename Int>
+unsigned Matrix<Int>::getNReservedColumns() const {return nReservedColumns; }
+
+template <typename Int>
 void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
   std::cout << "Matrix resize called with newNRows = " << newNRows << " and newNColumns = " << newNColumns << "\n";
   if (newNColumns > nReservedColumns) {
@@ -160,7 +163,7 @@ template <typename Int>
 void Matrix<Int>::print(raw_ostream &os) const {
   for (unsigned row = 0; row < nRows; ++row) {
     for (unsigned column = 0; column < nColumns; ++column)
-      os << at(row, column) << '\t';
+      os << int32_t(at(row, column)) << '\t';
     os << '\n';
   }
 }

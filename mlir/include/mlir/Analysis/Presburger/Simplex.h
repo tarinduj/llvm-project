@@ -136,8 +136,10 @@ class Simplex {
 public:
   using BaseInt = UnderlyingInt<Int>;
   static constexpr bool isVectorized = Matrix<Int>::isVectorized;
+  static constexpr bool isMatrixized = Matrix<Int>::isMatrixized;
   static constexpr bool isChecked = Matrix<Int>::isChecked;
   using Vector = typename Matrix<Int>::Vector;
+  using MatrixRow = typename Matrix<Int>::MatrixRow;
 
   enum class Direction { Up, Down };
 

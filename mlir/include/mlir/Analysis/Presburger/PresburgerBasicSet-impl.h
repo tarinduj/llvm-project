@@ -119,7 +119,7 @@ PresburgerBasicSet<Int>::findIntegerSampleRemoveEqs(bool onlyEmptiness) const {
     for (unsigned c = 0; c < col; ++c) {
       val -= vals[c] * coeffs[c];
     }
-    if (val % coeffs[col] != 0)
+    if (int32_t(val) % int32_t(coeffs[col]) != 0)
       return {};
     vals.push_back(-val / coeffs[col]);
     col++;

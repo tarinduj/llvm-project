@@ -33,6 +33,9 @@ inline void throwOverflowIf(bool cond) {
     throw std::overflow_error("Overflow!");
 }
 
+// #define ENABLE_SME
+
+
 // #if __AVX512BW__ && __AVX512F__
 // #define ENABLE_VECTORIZATION
 // #endif
@@ -181,6 +184,10 @@ struct SafeInteger {
 
   explicit operator Int() const {
     return val;
+  }
+
+  explicit operator int32_t() const {
+      return static_cast<int32_t>(val);
   }
 
   template <typename OInt>
@@ -386,7 +393,7 @@ inline SafeInteger<Int> operator%(const SafeInteger<Int> &x, int y) { return x %
 template <typename Int>
 inline Int mod(Int lhs, Int rhs) {
   assert(rhs >= 1);
-  return lhs % rhs < 0 ? lhs % rhs + rhs : lhs % rhs;
+  return int32_t(lhs) % int32_t(rhs) < 0 ? int32_t(lhs) % int32_t(rhs) + int32_t(rhs) : int32_t(lhs) % int32_t(rhs);
 }
 inline mpz_class mod(mpz_class lhs, mpz_class rhs) {
   assert(rhs >= 1);
@@ -423,13 +430,13 @@ inline std::ostream &operator<<(std::ostream &os, const SafeInteger<Int> &x) {
 template <typename Int>
 inline Int ceilDiv(Int lhs, Int rhs) {
   assert(rhs >= 1);
-  return lhs % rhs > 0 ? lhs / rhs + 1 : lhs / rhs;
+  return int32_t(lhs) % int32_t(rhs) > 0 ? lhs / rhs + 1 : lhs / rhs;
 }
 
 template <typename Int>
 inline Int floorDiv(Int lhs, Int rhs) {
   assert(rhs >= 1);
-  return lhs % rhs < 0 ? lhs / rhs - 1 : lhs / rhs;
+  return int32_t(lhs) % int32_t(rhs) < 0 ? lhs / rhs - 1 : lhs / rhs;
 }
 
 inline mpz_class ceilDiv(mpz_class lhs, mpz_class rhs) {
@@ -463,7 +470,7 @@ template <typename Int>
 inline Int lcm(Int a, Int b) {
   Int x = abs(a);
   Int y = abs(b);
-  Int lcm = (x * y) / llvm::greatestCommonDivisor(x, y);
+  Int lcm = (x * y) / llvm::greatestCommonDivisor(int32_t(x), int32_t(y));
   return lcm;
 }
 inline mpz_class lcm(mpz_class a, mpz_class b) {

@@ -346,10 +346,10 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
 
   auto rowHasIntegerCoeffs = [this](unsigned row) {
     Int denom = tableau(row, 0);
-    if (tableau(row, 1) % denom != 0)
+    if (int32_t(tableau(row, 1)) % int32_t(denom) != 0)
       return false;
     for (unsigned col = nCol - nParam; col < nCol; col++) {
-      if (tableau(row, col) % denom != 0)
+      if (int32_t(tableau(row, col)) % int32_t(denom) != 0)
         return false;
     }
     return true;

@@ -199,37 +199,37 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 /// denominator and all the numerator coefficients.
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row) {
-  if constexpr (isVectorized) 
-    normalizeRow(row, tableau.getRowVector(row));
-  else
-    normalizeRowScalar(row);
+  // if constexpr (isVectorized) 
+  //   normalizeRow(row, tableau.getRowVector(row));
+  // else
+  //   normalizeRowScalar(row);
 }
 
 template <typename Int>
 void Simplex<Int>::normalizeRowScalar(unsigned row) {
-  Int gcd = 0;
-  for (unsigned col = 0; col < nCol; ++col) {
-    if (gcd == 1)
-      break;
-    gcd = llvm::greatestCommonDivisor(gcd, std::abs(tableau(row, col)));
-  }
+  // int32_t gcd = 0;
+  // for (unsigned col = 0; col < nCol; ++col) {
+  //   if (gcd == 1)
+  //     break;
+  //   gcd = llvm::greatestCommonDivisor(gcd, std::abs(tableau(row, col)));
+  // }
 
-  if (gcd == 0 || gcd == 1)
-    return;
-  for (unsigned col = 0; col < nCol; ++col)
-    tableau(row, col) /= gcd;
-  assert(tableau(row, 0) != 0);
+  // if (gcd == 0 || gcd == 1)
+  //   return;
+  // for (unsigned col = 0; col < nCol; ++col)
+  //   tableau(row, col) /= gcd;
+  // assert(tableau(row, 0) != 0);
 }
 
 
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row, Vector &rowVec) {
-  if constexpr (isVectorized) {
-    if (equalMask(rowVec, 1))
-      return;
-  }
+  // if constexpr (isVectorized) {
+  //   if (equalMask(rowVec, 1))
+  //     return;
+  // }
 
-  normalizeRowScalar(row);
+  // normalizeRowScalar(row);
 }
 
 namespace {
@@ -395,7 +395,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
                                             Direction direction) const {
   Optional<unsigned> col;
 
-  std::cout << "findPivot \n";
+  // std::cout << "findPivot \n";
 
   for (unsigned j = liveColBegin; j < nCol; ++j) {
     Int elem = tableau(row, j);
@@ -461,6 +461,20 @@ void Simplex<Int>::pivot(Pivot pair) { pivot(pair.row, pair.column); }
 /// The pivot row transform is accomplished be swapping a with the pivot row's
 /// common denominator and negating the pivot row except for the pivot column
 /// element.
+
+  size_t get_sme_vector_length(void) {
+    size_t vl;
+
+    __asm__ __volatile__ (
+      "smstart          \n"
+      "rdvl %[vl], #1   \n"
+      "smstop           \n"
+      : [vl] "=r" (vl)
+    );
+
+    return vl;
+  }
+
 template <typename Int>
 void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   assert((pivotRow >= nRedundant && pivotCol >= liveColBegin) &&
@@ -471,6 +485,32 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 #endif
 
   swapRowWithCol(pivotRow, pivotCol);
+
+  if constexpr (isMatrixized) {
+    MatrixRow &r = tableau.getMatrixRow(pivotRow);
+    std::cout << "Contents of the row:" << std::endl;
+    for (unsigned i = 0; i < nCol; ++i) {
+        std::cout << r[i] << " ";
+    } std::cout << std::endl;
+  } else {
+    std::cout << "pivot: not matrixized\n";
+  }
+
+  // size_t vl = get_sme_vector_length();
+  // printf("SME vector length: %zu\n", vl);
+
+  // if constexpr (isMatrixized) {
+  //   // std::cout << "pivot: matrixized\n"; 
+  //   // std::cout << "pivotRow: " << pivotRow << ", pivotCol: " << pivotCol << "\n";
+  //   // std::cout << "tableau before pivot:\n";
+    
+
+  // } else 
+  std::cout << "Inside Pivot nCols: " << tableau.getNumColumns() << ", nRows: " << tableau.getNumRows() << "\n";
+  std::cout << "Pivoting on row: " << pivotRow << ", column: " << pivotCol << "\n";
+  tableau.verifyVectorType();
+  std::cout << "Matrix before Pivot: \n";
+  tableau.dump();
 
   if constexpr (isVectorized) {
     Vector &pivotRowVec = tableau.getRowVector(pivotRow);
@@ -569,6 +609,9 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       normalizeRowScalar(row);
     }
   }
+
+  std::cout << "Matrix after Pivot: \n";
+  tableau.dump();
 }
 
 /// Perform pivots until the unknown has a non-negative sample value or until
@@ -756,7 +799,7 @@ bool Simplex<Int>::constraintIsEquality(int conIndex) const {
 /// empty and we mark it as such.
 template <typename Int>
 void Simplex<Int>::addInequality(ArrayRef<Int> coeffs) {
-  std::cout << "addInequality \n";
+  // std::cout << "addInequality \n";
   unsigned conIndex = addRow(coeffs);
   Unknown &u = con[conIndex];
   u.restricted = true;
@@ -1170,10 +1213,21 @@ void Simplex<Int>::addBasicSet(const PresburgerBasicSet<Int> &bs) {
   con.reserve(con.size() + totNewCons);
   rowUnknown.reserve(nRow + totNewCons);
   undoLog.reserve(undoLog.size() + totNewCons);
-  for (const InequalityConstraint<Int> &ineq : bs.getInequalities())
+  int i = 0;
+  int j = 0;
+  for (const InequalityConstraint<Int> &ineq : bs.getInequalities()) {
+    i++;
+    std::cout << "ineq: " << i << " eq: " << j << "\n";
     addInequality(ineq.getCoeffs());
-  for (const EqualityConstraint<Int> &eq : bs.getEqualities())
+  }
+    
+  for (const EqualityConstraint<Int> &eq : bs.getEqualities()) {
+    j++;
+    std::cout << "ineq: " << i << " eq: " << j << "\n";
     addEquality(eq.getCoeffs());
+  }
+    
+  std::cout << "FINAL ineq: " << i << " eq: " << j << "\n";
 }
 
 template <typename Int>
@@ -1187,7 +1241,7 @@ Simplex<Int>::getSamplePointIfIntegral() const {
 
   SmallVector<Int, 8> integralSample;
   for (Fraction<Int> f : sample) {
-    if (f.num % f.den != 0)
+    if (int32_t(f.num) % int32_t(f.den) != 0)
       return {};
     integralSample.push_back(f.num / f.den);
   }
@@ -1368,6 +1422,8 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
   SmallVector<Int, 8> dual;
   Int dualDenom;
 
+  
+
   // Finds the value of u that minimizes width_i(b_{i+1} + u*b_i), caches the
   // duals from this computation, sets b_{i+1} to b_{i+1} + u*b_i, and returns
   // the new value of width_i(b_{i+1}).
@@ -1391,7 +1447,7 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
 
     Int u = floorDiv(dual[i - level], dualDenom);
     basis.addToRow(i, i + 1, u);
-    if (dual[i - level] % dualDenom != 0) {
+    if (int32_t(dual[i - level]) % int32_t(dualDenom) != 0) {
       SmallVector<Int, 8> candidateDual[2];
       Int candidateDualDenom[2];
       Fraction<Int> widthI[2];
@@ -1708,7 +1764,7 @@ Simplex<Int>::findRationalSample() const {
       sample.push_back(0);
     else {
       sample.push_back((tableau(u.pos, 1) * denom) / tableau(u.pos, 0));
-      gcd = llvm::greatestCommonDivisor(std::abs(gcd), std::abs(sample.back()));
+      gcd = llvm::greatestCommonDivisor(int32_t(std::abs(gcd)), int32_t(std::abs(sample.back())));
     }
   }
   if (gcd != 0) {
@@ -1837,7 +1893,7 @@ inline bool Simplex<Int>::rowIsObviouslyNonIntegral(unsigned row) const {
     if (tableau(row, j) != 0)
       return false;
   }
-  return tableau(row, 1) % tableau(row, 0) != 0;
+  return int32_t(tableau(row, 1)) % int32_t((row, 0)) != 0;
 }
 
 /// Pivot the unknown to row position in the specified direction. If no

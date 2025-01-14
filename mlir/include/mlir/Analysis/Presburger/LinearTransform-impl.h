@@ -36,7 +36,7 @@ T extendedEuclid(T a, T b, T &x, T &y) {
     return a;
   }
   T x1, y1;
-  T d = extendedEuclid(b, T(a % b), x1, y1);
+  T d = extendedEuclid(b, T(int32_t(a) % int32_t(b)), x1, y1);
   // x1 * b + y1 * (a % b) = d
   // x1 * b + y1 * (a - (a/b)*b) = d
   // (x1 - y1 * (a/b)) *b + y1 * a = d
@@ -96,10 +96,10 @@ LinearTransform<Int> LinearTransform<Int>::makeTransformToColumnEchelon(Matrix<I
         resultMatrix.negateColumn(i);
       }
       auto m_i = m(row, i), m_col = m(row, col);
-      if (m_i % m_col == 0) {
+      if (int32_t(m_i) % int32_t(m_col) == 0) {
         // If m_col divides m we directly subtract.
         subtractColumns(m, row, col, i, resultMatrix);
-      } else if (m_col % m_i == 0) {
+      } else if (int32_t(m_col) % int32_t(m_i) == 0) {
         m.swapColumns(i, col);
         resultMatrix.swapColumns(i, col);
         subtractColumns(m, row, col, i, resultMatrix);

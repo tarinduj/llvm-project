@@ -1,7 +1,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "mlir/Analysis/Presburger/Coalesce.h"
 #include "mlir/Analysis/Presburger/Set.h"
-#include "mlir/Analysis/Presburger/TransprecSet.h"
+// #include "mlir/Analysis/Presburger/TransprecSet.h"
 #include "mlir/Dialect/Presburger/Parser.h"
 #include "mlir/Analysis/Presburger/Presburger-impl.h"
 #include <iostream>
@@ -12,7 +12,7 @@
 using namespace mlir;
 using namespace mlir::presburger;
 
-unsigned TransprecSet::waterline = 0;
+// unsigned TransprecSet::waterline = 0;
 
 template <typename Int>
 Optional<PresburgerSet<Int>> setFromString(StringRef string) {
@@ -41,21 +41,21 @@ Optional<PresburgerSet<Int>> setFromString(StringRef string) {
   return res;
 }
 
-void dumpStats(std::ofstream &f, TransprecSet &a) {
-  // a.dumpISL();
-  // return;
-  std::visit([&](auto &&set) {
-    unsigned ids = set.getNumDims() + set.getNumSyms(), nDivs = 0, nEqs = 0, nIneqs = 0, nBS = 0;
-    for (auto &bs : set.getBasicSets()) {
-      ids = std::max(ids, bs.getNumTotalDims());
-      nDivs += bs.getDivisions().size();
-      nEqs += bs.getNumEqualities();
-      nIneqs += bs.getNumInequalities();
-      nBS += 1;
-    }
-    f << ids << ' ' << nBS << ' ' << nDivs << ' ' << nIneqs << ' ' << nEqs << '\n';
-  }, a.setvar);
-}
+// void dumpStats(std::ofstream &f, TransprecSet &a) {
+//   // a.dumpISL();
+//   // return;
+//   std::visit([&](auto &&set) {
+//     unsigned ids = set.getNumDims() + set.getNumSyms(), nDivs = 0, nEqs = 0, nIneqs = 0, nBS = 0;
+//     for (auto &bs : set.getBasicSets()) {
+//       ids = std::max(ids, bs.getNumTotalDims());
+//       nDivs += bs.getDivisions().size();
+//       nEqs += bs.getNumEqualities();
+//       nIneqs += bs.getNumInequalities();
+//       nBS += 1;
+//     }
+//     f << ids << ' ' << nBS << ' ' << nDivs << ' ' << nIneqs << ' ' << nEqs << '\n';
+//   }, a.setvar);
+// }
 
 void consumeLine(unsigned cnt = 1) {
   while (cnt--) {
@@ -65,31 +65,31 @@ void consumeLine(unsigned cnt = 1) {
   }
 }
 
-TransprecSet getTransprecSetFromString(StringRef str) {
-  // std::cerr << "Read '" << str << "'\n";
-  if (auto set = setFromString<SafeInteger<int16_t>>(str))
-    return TransprecSet(*set);
-  else if (auto set = setFromString<SafeInteger<int64_t>>(str))
-    return TransprecSet(*set);
-  else if (auto set = setFromString<mpz_class>(str))
-    return TransprecSet(*set);
-  else
-    llvm_unreachable("Input did not fit in 128-bits!");
-  // return setFromString(str);
-}
+// TransprecSet getTransprecSetFromString(StringRef str) {
+//   // std::cerr << "Read '" << str << "'\n";
+//   if (auto set = setFromString<SafeInteger<int16_t>>(str))
+//     return TransprecSet(*set);
+//   else if (auto set = setFromString<SafeInteger<int64_t>>(str))
+//     return TransprecSet(*set);
+//   else if (auto set = setFromString<mpz_class>(str))
+//     return TransprecSet(*set);
+//   else
+//     llvm_unreachable("Input did not fit in 128-bits!");
+//   // return setFromString(str);
+// }
 
 template <typename Set>
 Set getSetFromInput() {
   char str[1'000'000];
   std::cin.getline(str, 1'000'000);
-  if constexpr (std::is_same_v<Set, TransprecSet>) {
-    return getTransprecSetFromString(str);
-  } else {
+  // if constexpr (std::is_same_v<Set, TransprecSet>) {
+  //   return getTransprecSetFromString(str);
+  // } else {
     if (auto set = setFromString<typename Set::UnderlyingInt>(str)) {
       return *set;
     } else
       llvm_unreachable("Input did not fit in specified precision!");
-  }
+  // }
 }
 
 void consumeNewline() {
@@ -109,7 +109,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 5;
+  const unsigned numRuns = 1;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
@@ -335,9 +335,11 @@ int main(int argc, char **argv) {
     run<PresburgerSet<int16_t>, false>(op, "16", 0);
   else if (prec == "64")
     run<PresburgerSet<int64_t>, false>(op, "64", 1);
-  else if (prec == "gmp")
-    run<PresburgerSet<mpz_class>, false>(op, "gmp", 3);
-  else if (prec == "T")
-    run<TransprecSet, true>(op, "", {});
+  // else if (prec == "gmp")
+  //   run<PresburgerSet<mpz_class>, false>(op, "gmp", 3);
+  // else if (prec == "T")
+  //   run<TransprecSet, true>(op, "", {});
+  else if (prec == "f32")
+    run<PresburgerSet<float_t>, false>(op, "f32", {});
 }
 

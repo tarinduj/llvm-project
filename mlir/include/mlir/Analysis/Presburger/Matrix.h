@@ -45,12 +45,21 @@ public:
   static constexpr bool isVectorized = false;
 #endif
 
+#ifdef ENABLE_SME
+  // TODO: set this using IsInt equiavlent
+  static constexpr bool isMatrixized = true;
+#else
+  static constexpr bool isMatrixized = false;
+#endif
+
   // using Vector = typename std::conditional<isInt<Int, int16_t>,
   //   Vector16x32,
   //   void>::type;
   // using Vector = Vector16x32;
   static constexpr unsigned MatrixVectorColumns = isInt<Int, int16_t> ? 32 : 16;
+  static constexpr unsigned MatrixSize = 16;
   typedef int16_t Vector __attribute__((ext_vector_type(MatrixVectorColumns)));
+  typedef float_t MatrixRow __attribute__((ext_vector_type(MatrixSize)));
   static constexpr bool isChecked = std::is_same_v<Int, SafeInteger<int16_t>> ||
                                     std::is_same_v<Int, SafeInteger<int32_t>> ||
                                     std::is_same_v<Int, SafeInteger<int64_t>> ;
@@ -112,6 +121,13 @@ public:
     return *(Vector *)&data[row * nReservedColumns];
   }
 
+  __attribute__((always_inline))
+  MatrixRow &getMatrixRow(unsigned row) {
+    static_assert(isMatrixized, "getMatrixRow is only valid for float_t matrices!");
+    assert_aligned(&data[row * nReservedColumns], 64);
+    return *(MatrixRow *)&data[row * nReservedColumns];
+  }
+
 
   /// Get an ArrayRef corresponding to the specified row.
   ArrayRef<Int> getRow(unsigned row) const;
@@ -136,10 +152,17 @@ public:
   void print(raw_ostream &os) const;
   void dump() const;
 
+  void verifyVectorType() {
+    if constexpr (std::is_same_v<VectorType, std::vector<Int, AlignedAllocator<Int, 64>>>) {
+        std::cout << "VectorType is std::vector<Int, AlignedAllocator<Int, 64>>\n";
+    }
+  }
+  
+
 private:
   unsigned nRows, nColumns, nReservedColumns;
 
-  using VectorType = typename std::conditional<isVectorized,
+  using VectorType = typename std::conditional<isVectorized || isMatrixized,
       std::vector<Int, AlignedAllocator<Int, 64>>,
       llvm::SmallVector<Int, 16>
   >::type;

@@ -323,7 +323,7 @@ protected:
   void swapRowWithCol(unsigned row, unsigned col);
 
   /// Pivot the row with the column.
-  inline void SMEPivotHelper(Int *matrix, int rows, int cols, int pivot_row, int pivot_col);
+  inline void SMEPivotHelper(Int *matrix, int rows, int cols, int pivot_row, int pivot_col, int reserved_col );
   void pivot(unsigned row, unsigned col);
   void pivot(Pivot pair);
 

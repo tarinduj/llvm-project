@@ -67,6 +67,10 @@ void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
         throwOverflowIf(true);
       else 
         std::abort();
+    } else if (isMatrixized)
+    {
+      if (newNColumns > MatrixSize || newNRows > MatrixSize)
+        std::abort();
     }
     unsigned newNReservedColumns = nextPowOfTwo(newNColumns);
     data.resize(newNRows * newNReservedColumns);

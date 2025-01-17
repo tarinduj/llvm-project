@@ -14,6 +14,8 @@ using namespace mlir::presburger;
 
 // unsigned TransprecSet::waterline = 0;
 
+extern bool VALIDINPUT;
+
 template <typename Int>
 Optional<PresburgerSet<Int>> setFromString(StringRef string) {
   ErrorCallback callback = [&](SMLoc loc, const Twine &message) {
@@ -57,10 +59,13 @@ Optional<PresburgerSet<Int>> setFromString(StringRef string) {
 //   }, a.setvar);
 // }
 
-void consumeLine(unsigned cnt = 1) {
+void consumeLine(unsigned cnt = 1, std::string *savedInput = nullptr) {
   while (cnt--) {
     char str[1'000'000];
     std::cin.getline(str, 1'000'000);
+    if (savedInput) {
+      *savedInput = std::string(str); // Save the input to the provided string pointer
+    }
     // std::cerr << "Consumed '" << str << "'\n";
   }
 }
@@ -79,12 +84,16 @@ void consumeLine(unsigned cnt = 1) {
 // }
 
 template <typename Set>
-Set getSetFromInput() {
+Set getSetFromInput(std::string *savedInput = nullptr) {
   char str[1'000'000];
   std::cin.getline(str, 1'000'000);
   // if constexpr (std::is_same_v<Set, TransprecSet>) {
   //   return getTransprecSetFromString(str);
   // } else {
+  if (savedInput) {
+    *savedInput = std::string(str); // Save the input to the provided string pointer
+  }
+
     if (auto set = setFromString<typename Set::UnderlyingInt>(str)) {
       return *set;
     } else
@@ -114,12 +123,22 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   std::cin >> numCases;
   consumeNewline();
 
+
+
   if (!suffix.empty())
     suffix = "_" + suffix;
   std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
   std::ofstream fruntime("data/runtime_fpl" + suffix + "_" + op + ".txt");
 
+  std::ofstream filtered_bench("benchmark/fpl-sme/" + op + ".txt");
+
+  filtered_bench << numCases << '\n';
+
   for (unsigned j = 0; j < numCases; ++j) {
+    VALIDINPUT = true;
+    std::string inputStringA;
+    std::string inputStringB;
+
     int times[numRuns];
     // printing progress
     if (j % 50000 == 0)
@@ -141,7 +160,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     if constexpr (printAuxInfo)
       Set::waterline = 0;
     if (op == "empty") {
-      Set setA = getSetFromInput<Set>();
+      Set setA = getSetFromInput<Set>(&inputStringA);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
@@ -161,8 +180,8 @@ times[i] = static_cast<int>(duration);
         }
       }
     } else if (op == "equal") {
-      Set setA = getSetFromInput<Set>();
-      Set setB = getSetFromInput<Set>();
+      Set setA = getSetFromInput<Set>(&inputStringA);
+      Set setB = getSetFromInput<Set>(&inputStringB);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         auto b = setB;
@@ -183,8 +202,8 @@ times[i] = static_cast<int>(duration);
         }
       }
     } else if (op == "union") {
-      Set setA = getSetFromInput<Set>();
-      Set setB = getSetFromInput<Set>();
+      Set setA = getSetFromInput<Set>(&inputStringA);
+      Set setB = getSetFromInput<Set>(&inputStringB);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         auto b = setB;
@@ -206,8 +225,8 @@ times[i] = static_cast<int>(duration);
         }
       }
     } else if (op == "intersect") {
-      Set setA = getSetFromInput<Set>();
-      Set setB = getSetFromInput<Set>();
+      Set setA = getSetFromInput<Set>(&inputStringA);
+      Set setB = getSetFromInput<Set>(&inputStringB);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         auto b = setB;
@@ -229,8 +248,8 @@ times[i] = static_cast<int>(duration);
         }
       }
     } else if (op == "subtract") {
-      Set setA = getSetFromInput<Set>();
-      Set setB = getSetFromInput<Set>();
+      Set setA = getSetFromInput<Set>(&inputStringA);
+      Set setB = getSetFromInput<Set>(&inputStringB);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         auto b = setB;
@@ -253,7 +272,7 @@ times[i] = static_cast<int>(duration);
         }
       }
     } else if (op == "coalesce") {
-      Set setA = getSetFromInput<Set>();
+      Set setA = getSetFromInput<Set>(&inputStringA);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
@@ -274,7 +293,7 @@ times[i] = static_cast<int>(duration);
         }
       }
     } else if (op == "complement") {
-      Set setA = getSetFromInput<Set>();
+      Set setA = getSetFromInput<Set>(&inputStringA);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
@@ -295,7 +314,7 @@ times[i] = static_cast<int>(duration);
         }
       }
     } else if (op == "eliminate") {
-      Set setA = getSetFromInput<Set>();
+      Set setA = getSetFromInput<Set>(&inputStringA);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
@@ -319,7 +338,19 @@ times[i] = static_cast<int>(duration);
       std::cerr << "Unsupported operation " << op << "!\n";
       std::abort();
     }
-    consumeLine();
+
+    std::string outputString;
+    consumeLine(1, &outputString);
+
+    if (!VALIDINPUT) {
+      std::cout << "INVALID INPUT\n";
+    } else {
+      filtered_bench << inputStringA << '\n';
+      if (!inputStringB.empty()) 
+        filtered_bench << inputStringB << '\n';
+      filtered_bench << outputString << '\n';
+    }
+
   }
 }
 

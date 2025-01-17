@@ -14,6 +14,9 @@
 using namespace mlir;
 using namespace analysis::presburger;
 
+// Global variable to track valid input
+static bool VALIDINPUT = true;
+
 inline unsigned nextPowOfTwo(unsigned n) {
   unsigned ret = 1;
   while (n > ret)
@@ -61,15 +64,15 @@ unsigned Matrix<Int>::getNReservedColumns() const {return nReservedColumns; }
 template <typename Int>
 void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
   std::cout << "Matrix resize called with newNRows = " << newNRows << " and newNColumns = " << newNColumns << "\n";
+  if (isMatrixized) {
+    if (newNColumns > MatrixSize || newNRows > MatrixSize)
+      VALIDINPUT = false;
+  }
   if (newNColumns > nReservedColumns) {
     if constexpr (isVectorized) {
       if constexpr (std::is_same<Int, SafeInteger<int16_t>>::value)
         throwOverflowIf(true);
       else 
-        std::abort();
-    } else if (isMatrixized)
-    {
-      if (newNColumns > MatrixSize || newNRows > MatrixSize)
         std::abort();
     }
     unsigned newNReservedColumns = nextPowOfTwo(newNColumns);

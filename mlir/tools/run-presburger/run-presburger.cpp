@@ -134,6 +134,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
   filtered_bench << numCases << '\n';
 
+  unsigned filteredNumCases = 0;
+
   for (unsigned j = 0; j < numCases; ++j) {
     VALIDINPUT = true;
     std::string inputStringA;
@@ -141,7 +143,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
     int times[numRuns];
     // printing progress
-    if (j % 50000 == 0)
+    if (j % 1 == 0)
       std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
     if (maxWaterline) {
@@ -255,7 +257,6 @@ times[i] = static_cast<int>(duration);
         auto b = setB;
         unsigned int dummy;
         auto start = std::chrono::high_resolution_clock::now();
-        std::cout << "Subtract call\n";
         a.subtract(b);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -343,14 +344,24 @@ times[i] = static_cast<int>(duration);
     consumeLine(1, &outputString);
 
     if (!VALIDINPUT) {
-      std::cout << "INVALID INPUT\n";
+      // std::cout << "INVALID INPUT\n";
     } else {
+      filteredNumCases++;
       filtered_bench << inputStringA << '\n';
       if (!inputStringB.empty()) 
         filtered_bench << inputStringB << '\n';
       filtered_bench << outputString << '\n';
     }
 
+  }
+
+  filtered_bench.close();
+
+  std::fstream file("benchmark/fpl-sme/" + op + ".txt", std::ios::in | std::ios::out);
+  if (file.is_open()) {
+      file.seekp(0); // Go to the beginning of the file
+      file << filteredNumCases << '\n'; // Overwrite the number of cases
+      file.close();
   }
 }
 

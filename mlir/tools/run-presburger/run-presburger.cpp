@@ -14,7 +14,18 @@ using namespace mlir::presburger;
 
 // unsigned TransprecSet::waterline = 0;
 
+#include <csignal>
+#include <csetjmp>
+
 extern bool VALIDINPUT;
+
+sigjmp_buf jumpBuffer;
+
+void segfaultHandler(int signal) {
+    std::cerr << "Segmentation fault caught in function call!" << std::endl;
+    siglongjmp(jumpBuffer, 1); // Jump back to the safe point
+}
+
 
 template <typename Int>
 Optional<PresburgerSet<Int>> setFromString(StringRef string) {
@@ -320,7 +331,21 @@ times[i] = static_cast<int>(duration);
         auto a = setA;
         unsigned int dummy;
         auto start = std::chrono::high_resolution_clock::now();
-        auto res = Set::eliminateExistentials(a);
+        std::signal(SIGSEGV, segfaultHandler);
+        if (sigsetjmp(jumpBuffer, 1) == 0) { 
+
+          try {
+            auto res = Set::eliminateExistentials(a);
+          } catch (std::runtime_error &e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+            VALIDINPUT = false;
+          }
+
+        } else {
+        // Segmentation fault recovery
+          std::cerr << "Recovered from segmentation fault in riskyFunction." << std::endl;
+          VALIDINPUT = false;
+        } 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 times[i] = static_cast<int>(duration);

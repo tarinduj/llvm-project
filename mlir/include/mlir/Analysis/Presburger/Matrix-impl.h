@@ -13,6 +13,7 @@
 
 using namespace mlir;
 using namespace analysis::presburger;
+#include <execinfo.h>
 
 // Global variable to track valid input
 static bool VALIDINPUT = true;
@@ -29,6 +30,16 @@ Matrix<Int>::Matrix(unsigned rows, unsigned columns)
     : nRows(rows), nColumns(columns), nReservedColumns(isVectorized ? MatrixVectorColumns : nextPowOfTwo(nColumns)), data(nRows * nReservedColumns) {
 
   // std::cout << "Matrix constructor called with rows = " << rows << " and columns = " << columns << "\n";
+  // Log call stack
+  // void *callstack[128];
+  // int frames = backtrace(callstack, 128);
+  // char **symbols = backtrace_symbols(callstack, frames);
+  // std::cout << "Call stack:\n";
+  // for (int i = 0; i < frames; ++i) {
+  //   std::cout << symbols[i] << '\n';
+  // }
+  // free(symbols);
+
   if constexpr (isVectorized) {
     if constexpr (isChecked)
       throwOverflowIf(columns > MatrixVectorColumns);

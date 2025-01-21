@@ -93,7 +93,8 @@ public:
   pwaFunction<Int> findParamLexmin();
   void findParamLexminRecursively(Simplex<Int> &domainSimplex,
                                   PresburgerBasicSet<Int> &domainSet,
-                                  pwaFunction<Int> &result);
+                                  pwaFunction<Int> &result,
+                                  int depth = 0);
 
 private:
   SmallVector<Int, 8> getRowParamSample(unsigned row);

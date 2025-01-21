@@ -744,11 +744,11 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     
 
   // } else 
-  std::cout << "Inside Pivot nCols: " << tableau.getNumColumns() << ", nRows: " << tableau.getNumRows() <<  ", nReservedCols: " << tableau.getNReservedColumns() << "\n";
-  std::cout << "Pivoting on row: " << pivotRow << ", column: " << pivotCol << "\n";
+  // std::cout << "Inside Pivot nCols: " << tableau.getNumColumns() << ", nRows: " << tableau.getNumRows() <<  ", nReservedCols: " << tableau.getNReservedColumns() << "\n";
+  // std::cout << "Pivoting on row: " << pivotRow << ", column: " << pivotCol << "\n";
   // tableau.verifyVectorType();
-  std::cout << "Matrix before Pivot: \n";
-  tableau.dump();
+  // std::cout << "Matrix before Pivot: \n";
+  // tableau.dump();
 
   if constexpr (isMatrixized) {
     // MatrixRow &r = tableau.getMatrixRow(pivotRow);
@@ -846,7 +846,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       normalizeRow(row, vec);
     }
   } else {
-    std::cout << "Scalar pivot\n";
+    // std::cout << "Scalar pivot\n";
 
     std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
@@ -882,8 +882,8 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     }
   }
 
-  std::cout << "Matrix after Pivot: \n";
-  tableau.dump();
+  // std::cout << "Matrix after Pivot: \n";
+  // tableau.dump();
 }
 
 /// Perform pivots until the unknown has a non-negative sample value or until
@@ -1477,7 +1477,7 @@ void Simplex<Int>::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
 
 template <typename Int>
 void Simplex<Int>::addBasicSet(const PresburgerBasicSet<Int> &bs) {
-  // std::cout << "addBasicSet \n";
+  std::cout << "addBasicSet \n";
   assert(bs.getNumTotalDims() == numVariables() &&
          "BasicSet must have same dimensionality as simplex");
   unsigned totNewCons = bs.getNumInequalities() + bs.getNumEqualities() + 2*bs.getNumDivs();
@@ -1853,6 +1853,7 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
 /// overflows, this algorithm is implemented iteratively.
 template <typename Int>
 Optional<SmallVector<Int, 8>> Simplex<Int>::findIntegerSample() {
+  std::cout << "findIntegerSample\n";
   if (empty)
     return {};
   if (auto maybeSample = getSamplePointIfIntegral())
@@ -1873,7 +1874,12 @@ Optional<SmallVector<Int, 8>> Simplex<Int>::findIntegerSample() {
   snapshotStack.reserve(basis.getNumRows());
   upperBoundStack.reserve(basis.getNumRows());
   nextValueStack.reserve(basis.getNumRows());
+  unsigned levelLimit = 1000;
   while (level != -1u) {
+    if (levelLimit-- <= 0) {
+      break;
+    }
+    // std::cout << "level: " << level << "\n";
     if (level == basis.getNumRows()) {
       // We've assigned values to all variables. Return if we have a sample,
       // or go back up to the previous level otherwise.

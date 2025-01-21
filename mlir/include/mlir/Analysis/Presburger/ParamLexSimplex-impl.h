@@ -269,13 +269,22 @@ SmallVector<Int, 8> ParamLexSimplex<Int>::getRowParamSample(unsigned row) {
 template <typename Int>
 unsigned ParamLexSimplex<Int>::getSnapshot() { return getSnapshotBasis(); }
 
+const static int maxDepth = 1000; 
 template <typename Int>
 void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimplex,
                                                  PresburgerBasicSet<Int> &domainSet,
-                                                 pwaFunction<Int> &result) {
+                                                 pwaFunction<Int> &result,
+                                                 int depth) {
   // dump();
   // domainSet.dump();
   // llvm::errs() << "nParam = " << nParam << '\n';
+
+  // std::cout << "depth: " << depth << '\n';
+  if (depth > maxDepth) {
+    throw std::runtime_error("Recursion depth exceeded");
+  }
+
+
   if (empty || domainSimplex.isEmpty())
     return;
 
@@ -289,7 +298,7 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
       auto status = moveRowUnknownToColumn(row);
       if (failed(status))
         return;
-      findParamLexminRecursively(domainSimplex, domainSet, result);
+      findParamLexminRecursively(domainSimplex, domainSet, result, depth + 1);
       return;
     }
 
@@ -306,7 +315,7 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
       auto status = moveRowUnknownToColumn(row);
       if (failed(status))
         return;
-      findParamLexminRecursively(domainSimplex, domainSet, result);
+      findParamLexminRecursively(domainSimplex, domainSet, result, depth + 1);
       return;
     }
 
@@ -316,7 +325,7 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
     domainSet.addInequality(paramSample);
     auto idx = rowUnknown[row];
 
-    findParamLexminRecursively(domainSimplex, domainSet, result);
+    findParamLexminRecursively(domainSimplex, domainSet, result, depth + 1);
 
     domainSet.removeLastInequality();
     domainSimplex.rollback(domainSnapshot);
@@ -335,7 +344,7 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
     auto &u = unknownFromIndex(idx);
     assert(u.orientation == Orientation::Row);
     if (succeeded(moveRowUnknownToColumn(u.pos)))
-      findParamLexminRecursively(domainSimplex, domainSet, result);
+      findParamLexminRecursively(domainSimplex, domainSet, result, depth + 1);
 
     domainSet.removeLastInequality();
     domainSimplex.rollback(domainSnapshot);
@@ -416,7 +425,7 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
       }
       tableau(row, nCol - 1) += 1;
 
-      findParamLexminRecursively(domainSimplex, domainSet, result);
+      findParamLexminRecursively(domainSimplex, domainSet, result, depth + 1);
 
       domainSet.removeLastInequality();
       domainSet.removeLastDivision();
@@ -459,7 +468,7 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
     moveRowUnknownToColumn(nRow - 1);
     // restoreConsistency();
 
-    findParamLexminRecursively(domainSimplex, domainSet, result);
+    findParamLexminRecursively(domainSimplex, domainSet, result, depth + 1);
 
     domainSimplex.rollback(domainSnapshot);
     domainSet.removeLastDivision();

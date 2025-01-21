@@ -52,7 +52,7 @@ Simplex<Int>::~Simplex() {
 
 template <typename Int>
 Simplex<Int>::Simplex(const PresburgerBasicSet<Int> &bs) : Simplex(bs.getNumTotalDims()) {
-  std::cout << "Simplex constructor called with PresburgerBasicSet\n";
+  // std::cout << "Simplex constructor called with PresburgerBasicSet\n";
   addBasicSet(bs);
 }
 
@@ -744,11 +744,11 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     
 
   // } else 
-  std::cout << "Inside Pivot nCols: " << tableau.getNumColumns() << ", nRows: " << tableau.getNumRows() <<  ", nReservedCols: " << tableau.getNReservedColumns() << "\n";
-  std::cout << "Pivoting on row: " << pivotRow << ", column: " << pivotCol << "\n";
-  tableau.verifyVectorType();
-  std::cout << "Matrix before Pivot: \n";
-  tableau.dump();
+  // std::cout << "Inside Pivot nCols: " << tableau.getNumColumns() << ", nRows: " << tableau.getNumRows() <<  ", nReservedCols: " << tableau.getNReservedColumns() << "\n";
+  // std::cout << "Pivoting on row: " << pivotRow << ", column: " << pivotCol << "\n";
+  // tableau.verifyVectorType();
+  // std::cout << "Matrix before Pivot: \n";
+  // tableau.dump();
 
   if constexpr (isMatrixized) {
     // MatrixRow &r = tableau.getMatrixRow(pivotRow);
@@ -880,8 +880,8 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     }
   }
 
-  std::cout << "Matrix after Pivot: \n";
-  tableau.dump();
+  // std::cout << "Matrix after Pivot: \n";
+  // tableau.dump();
 }
 
 /// Perform pivots until the unknown has a non-negative sample value or until
@@ -892,7 +892,7 @@ LogicalResult Simplex<Int>::restoreRow(Unknown &u) {
   assert(u.orientation == Orientation::Row &&
          "unknown should be in row position");
 
-  std::cout << "restoreRow: pivot call here\n";
+  // std::cout << "restoreRow: pivot call here\n";
   while (tableau(u.pos, 1) < 0) {
     Optional<Pivot> maybePivot = findPivot(u.pos, Direction::Up);
     if (!maybePivot)
@@ -1475,7 +1475,7 @@ void Simplex<Int>::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
 
 template <typename Int>
 void Simplex<Int>::addBasicSet(const PresburgerBasicSet<Int> &bs) {
-  std::cout << "addBasicSet \n";
+  // std::cout << "addBasicSet \n";
   assert(bs.getNumTotalDims() == numVariables() &&
          "BasicSet must have same dimensionality as simplex");
   unsigned totNewCons = bs.getNumInequalities() + bs.getNumEqualities() + 2*bs.getNumDivs();
@@ -1487,17 +1487,17 @@ void Simplex<Int>::addBasicSet(const PresburgerBasicSet<Int> &bs) {
   int j = 0;
   for (const InequalityConstraint<Int> &ineq : bs.getInequalities()) {
     i++;
-    std::cout << "ineq: " << i << " eq: " << j << "\n";
+    // std::cout << "ineq: " << i << " eq: " << j << "\n";
     addInequality(ineq.getCoeffs());
   }
     
   for (const EqualityConstraint<Int> &eq : bs.getEqualities()) {
     j++;
-    std::cout << "ineq: " << i << " eq: " << j << "\n";
+    // std::cout << "ineq: " << i << " eq: " << j << "\n";
     addEquality(eq.getCoeffs());
   }
     
-  std::cout << "FINAL ineq: " << i << " eq: " << j << "\n";
+  // std::cout << "FINAL ineq: " << i << " eq: " << j << "\n";
 }
 
 template <typename Int>

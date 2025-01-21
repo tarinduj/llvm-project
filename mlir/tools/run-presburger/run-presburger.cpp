@@ -119,6 +119,19 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
   std::ofstream fruntime("data/runtime_fpl" + suffix + "_" + op + ".txt");
 
+  // td::ofstream fwaterline, fstat;
+  std::error_code EC;
+  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  if (printAuxInfo) {
+    // fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
+    // fstat = std::ofstream("data/stats_fpl_" + op + ".txt", std::ios_base::app);
+    if (EC) {
+      std::cerr << "Could not open outputs_fpl_" + op + ".txt!\n";
+      std::abort();
+    }
+    fout << numCases << '\n';
+  }
+
   for (unsigned j = 0; j < numCases; ++j) {
     int times[numRuns];
     // printing progress
@@ -138,8 +151,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       }
     }
 
-    if constexpr (printAuxInfo)
-      Set::waterline = 0;
+    // if constexpr (printAuxInfo)
+    //   Set::waterline = 0;
     if (op == "empty") {
       Set setA = getSetFromInput<Set>();
       for (unsigned i = 0; i < numRuns; ++i) {
@@ -236,7 +249,6 @@ times[i] = static_cast<int>(duration);
         auto b = setB;
         unsigned int dummy;
         auto start = std::chrono::high_resolution_clock::now();
-        std::cout << "Subtract call\n";
         a.subtract(b);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -340,6 +352,6 @@ int main(int argc, char **argv) {
   // else if (prec == "T")
   //   run<TransprecSet, true>(op, "", {});
   else if (prec == "f32")
-    run<PresburgerSet<float_t>, false>(op, "f32", {});
+    run<PresburgerSet<float_t>, true>(op, "f32", {});
 }
 

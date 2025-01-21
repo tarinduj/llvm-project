@@ -25,7 +25,7 @@ template <typename Int>
 Matrix<Int>::Matrix(unsigned rows, unsigned columns)
     : nRows(rows), nColumns(columns), nReservedColumns(isVectorized ? MatrixVectorColumns : nextPowOfTwo(nColumns)), data(nRows * nReservedColumns) {
 
-  std::cout << "Matrix constructor called with rows = " << rows << " and columns = " << columns << "\n";
+  // std::cout << "Matrix constructor called with rows = " << rows << " and columns = " << columns << "\n";
   if constexpr (isVectorized) {
     if constexpr (isChecked)
       throwOverflowIf(columns > MatrixVectorColumns);
@@ -33,8 +33,7 @@ Matrix<Int>::Matrix(unsigned rows, unsigned columns)
       std::abort();
     // llvm::errs() << "Cannot construct matrix with " <  < nColumns << " columns; limit is " << nReservedColumns << ".\n";
     // exit(1);
-  } else if (isMatrixized)
-  {
+  } else if (isMatrixized) {
     if (columns > MatrixSize || rows > MatrixSize)
       std::abort();
   }
@@ -60,15 +59,14 @@ unsigned Matrix<Int>::getNReservedColumns() const {return nReservedColumns; }
 
 template <typename Int>
 void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
-  std::cout << "Matrix resize called with newNRows = " << newNRows << " and newNColumns = " << newNColumns << "\n";
+  // std::cout << "Matrix resize called with newNRows = " << newNRows << " and newNColumns = " << newNColumns << "\n";
   if (newNColumns > nReservedColumns) {
     if constexpr (isVectorized) {
       if constexpr (std::is_same<Int, SafeInteger<int16_t>>::value)
         throwOverflowIf(true);
       else 
         std::abort();
-    } else if (isMatrixized)
-    {
+    } else if (isMatrixized) {
       if (newNColumns > MatrixSize || newNRows > MatrixSize)
         std::abort();
     }

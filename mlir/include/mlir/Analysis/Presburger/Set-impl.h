@@ -202,7 +202,7 @@ template <typename Int>
 void subtractRecursively(PresburgerBasicSet<Int> &b, Simplex<Int> &simplex,
                          const PresburgerSet<Int> &s, unsigned i,
                          PresburgerSet<Int> &result) {
-  std::cout << "subtractRecursively\n";
+  // std::cout << "subtractRecursively\n";
   if (i == s.getNumBasicSets()) {
     // PresburgerBasicSet<Int> BCopy = B;
     // BCopy.simplify();
@@ -331,7 +331,7 @@ PresburgerSet<Int>::eliminateExistentials(const PresburgerBasicSet<Int> &bs) {
 
 template <typename Int>
 PresburgerSet<Int> PresburgerSet<Int>::eliminateExistentials(const PresburgerSet<Int> &set) {
-  std::cout << "In PresburgerSet<Int>::eliminateExistentials\n";
+  // std::cout << "In PresburgerSet<Int>::eliminateExistentials\n";
   PresburgerSet<Int> unquantifiedSet(set.getNumDims(), set.getNumSyms());
   for (const auto &bs : set.getBasicSets()) {
     if (bs.getNumExists() == 0) {
@@ -371,23 +371,23 @@ template <typename Int>
 PresburgerSet<Int> PresburgerSet<Int>::subtract(PresburgerBasicSet<Int> cs,
                                       const PresburgerSet<Int> &set) {
 
-  std::cout << "In Presburger Set Subtract\n";
+  // std::cout << "In Presburger Set Subtract\n";
   assertDimensionsCompatible(cs, set);
 
-  std::cout << "After assertDimensionsCompatible\n";
+  // std::cout << "After assertDimensionsCompatible\n";
 
   if (set.isUniverse())
     return PresburgerSet<Int>::makeEmptySet(set.getNumDims(), set.getNumSyms());
   if (set.isMarkedEmpty())
     return PresburgerSet<Int>(cs);
 
-  std::cout << "After isUniverse and isMarkedEmpty\n";
+  // std::cout << "After isUniverse and isMarkedEmpty\n";
 
   Simplex<Int> simplex(cs);
-  std::cout << "After Simplex<Int> simplex(cs)\n";
+  // std::cout << "After Simplex<Int> simplex(cs)\n";
 
   PresburgerSet<Int> result(set.getNumDims(), set.getNumSyms());
-  std::cout << "After PresburgerSet<Int> result(set.getNumDims(), set.getNumSyms())\n";
+  // std::cout << "After PresburgerSet<Int> result(set.getNumDims(), set.getNumSyms())\n";
 
   subtractRecursively(cs, simplex, eliminateExistentials(set), 0, result);
   return result;

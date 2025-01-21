@@ -143,14 +143,35 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
   std::ofstream filtered_bench("benchmark/fpl-sme/" + op + ".txt");
 
+  std::ifstream isl_bench("benchmark/isl/" + op + ".txt");
+  std::ofstream filtered_isl_bench("benchmark/isl-sme/" + op + ".txt");
+  
   filtered_bench << numCases << '\n';
+  filtered_isl_bench << numCases << '\n';
 
   unsigned filteredNumCases = 0;
+
+  // consume numcases
+  std::string line;
+  std::getline(isl_bench, line);
+
 
   for (unsigned j = 0; j < numCases; ++j) {
     VALIDINPUT = true;
     std::string inputStringA;
     std::string inputStringB;
+
+    std::string currentISLCase;
+    while (true) {
+      if (!std::getline(isl_bench, line)) {
+        break;
+      }
+      if (line == "=====") {
+        currentISLCase += line + '\n';
+        break;
+      }
+      currentISLCase += line + '\n';
+    }
 
     int times[numRuns];
     // printing progress
@@ -376,11 +397,14 @@ times[i] = static_cast<int>(duration);
       if (!inputStringB.empty()) 
         filtered_bench << inputStringB << '\n';
       filtered_bench << outputString << '\n';
+
+      filtered_isl_bench << currentISLCase;
     }
 
   }
 
   filtered_bench.close();
+  filtered_isl_bench.close();
 
   std::fstream file("benchmark/fpl-sme/" + op + ".txt", std::ios::in | std::ios::out);
   if (file.is_open()) {
@@ -388,6 +412,13 @@ times[i] = static_cast<int>(duration);
       file << filteredNumCases << '\n'; // Overwrite the number of cases
       file.close();
   }
+  std::fstream isl_file("benchmark/isl-sme/" + op + ".txt", std::ios::in | std::ios::out);
+  if (isl_file.is_open()) {
+      isl_file.seekp(0); // Go to the beginning of the file
+      isl_file << filteredNumCases << '\n'; // Overwrite the number of cases
+      isl_file.close();
+  }
+  
 }
 
 int main(int argc, char **argv) {

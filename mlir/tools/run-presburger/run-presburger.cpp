@@ -121,7 +121,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
   // td::ofstream fwaterline, fstat;
   std::error_code EC;
-  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl_" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
   if (printAuxInfo) {
     // fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
     // fstat = std::ofstream("data/stats_fpl_" + op + ".txt", std::ios_base::app);
@@ -135,10 +135,11 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   for (unsigned j = 0; j < numCases; ++j) {
     int times[numRuns];
     // printing progress
-    if (j % 50000 == 0)
+    if (j % 1 == 0)
       std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
     if (maxWaterline) {
+      // std::cout << "maxWaterline\n";
       unsigned waterline;
       fwaterlineIn >> waterline;
       if (waterline > *maxWaterline) {
@@ -256,12 +257,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
-  //           fwaterline << Set::waterline << '\n';
-  //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+          if constexpr (printAuxInfo) {
+            // fwaterline << Set::waterline << '\n';
+            // dumpStats(fstat, a);
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "coalesce") {
@@ -344,9 +345,9 @@ int main(int argc, char **argv) {
   std::string op = argv[1];
   std::string prec = argc == 2 ? "T" : argv[2];
   if (prec == "16")
-    run<PresburgerSet<int16_t>, false>(op, "16", 0);
+    run<PresburgerSet<int16_t>, true>(op, "16", {});
   else if (prec == "64")
-    run<PresburgerSet<int64_t>, false>(op, "64", 1);
+    run<PresburgerSet<int64_t>, true>(op, "64", {});
   // else if (prec == "gmp")
   //   run<PresburgerSet<mpz_class>, false>(op, "gmp", 3);
   // else if (prec == "T")

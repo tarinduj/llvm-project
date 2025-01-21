@@ -224,12 +224,12 @@ void Simplex<Int>::normalizeRowScalar(unsigned row) {
 
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row, Vector &rowVec) {
-  // if constexpr (isVectorized) {
-  //   if (equalMask(rowVec, 1))
-  //     return;
-  // }
+  if constexpr (isVectorized) {
+    if (equalMask(rowVec, 1))
+      return;
+  }
 
-  // normalizeRowScalar(row);
+  normalizeRowScalar(row);
 }
 
 namespace {
@@ -876,7 +876,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
                           tableau(row, pivotCol) * tableau(pivotRow, j);
       }
       tableau(row, pivotCol) *= tableau(pivotRow, pivotCol);
-      // normalizeRowScalar(row);
+      normalizeRowScalar(row);
     }
   }
 

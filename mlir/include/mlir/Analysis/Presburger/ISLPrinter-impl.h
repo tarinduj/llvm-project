@@ -82,7 +82,7 @@ void printConstraints(raw_ostream &os, const PresburgerBasicSet<Int> &bs) {
       auto &div = bs.getDivisions()[i];
       printExpr(os, div.getCoeffs().take_front(numTotalDims),
                 div.getCoeffs()[numTotalDims], bs);
-      os << ")/" << div.getDenominator() << "]";
+      os << ")/" << int32_t(div.getDenominator()) << "]";
     }
     os << " : ";
   }
@@ -118,7 +118,9 @@ void printConstraints(raw_ostream &os, const PresburgerBasicSet<Int> &bs) {
 /// Returns false if the coefficient value is 0 and therefore is not printed.
 ///
 template <typename Int>
-bool printCoeff(raw_ostream &os, Int val, bool first) {
+bool printCoeff(raw_ostream &os, Int valT, bool first) {
+  int32_t val = int32_t(valT);
+
   if (val == 0)
     return false;
 
@@ -180,7 +182,9 @@ void printVarName(raw_ostream &os, unsigned i,
 /// Prints a constant with an additional '+' or '-' is first = false. First
 /// indicates if this is the first summand of an expression.
 template <typename Int>
-void printConst(raw_ostream &os, Int c, bool first) {
+void printConst(raw_ostream &os, Int cT, bool first) {
+
+  int32_t c = int32_t(cT);
   if (first) {
     os << c;
   } else {

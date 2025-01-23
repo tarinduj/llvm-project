@@ -744,9 +744,11 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     
 
   // } else 
+
+  // tableau.verifyVectorType();
+
   // std::cout << "Inside Pivot nCols: " << tableau.getNumColumns() << ", nRows: " << tableau.getNumRows() <<  ", nReservedCols: " << tableau.getNReservedColumns() << "\n";
   // std::cout << "Pivoting on row: " << pivotRow << ", column: " << pivotCol << "\n";
-  // tableau.verifyVectorType();
   // std::cout << "Matrix before Pivot: \n";
   // tableau.dump();
 
@@ -846,6 +848,8 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       normalizeRow(row, vec);
     }
   } else {
+
+    // std::cout << "Scalar\n";
     std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
     if (tableau(pivotRow, 0) < 0) {
@@ -860,7 +864,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
         tableau(pivotRow, col) = -tableau(pivotRow, col);
       }
     }
-    // normalizeRowScalar(pivotRow);
+    normalizeRowScalar(pivotRow);
 
     for (unsigned row = 0; row < nRow; ++row) {
       if (row == pivotRow)

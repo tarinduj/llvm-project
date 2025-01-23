@@ -8,6 +8,7 @@
 #include <string>
 #include <fstream>
 #include "llvm/ADT/Optional.h"
+#include <cfenv>
 
 using namespace mlir;
 using namespace mlir::presburger;
@@ -121,7 +122,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
   // td::ofstream fwaterline, fstat;
   std::error_code EC;
-  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl_" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
   if (printAuxInfo) {
     // fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
     // fstat = std::ofstream("data/stats_fpl_" + op + ".txt", std::ios_base::app);
@@ -132,11 +133,14 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     fout << numCases << '\n';
   }
 
+  int fpexcepts = 0;
   for (unsigned j = 0; j < numCases; ++j) {
+    std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
+
     int times[numRuns];
     // printing progress
-    if (j % 1 == 0)
-      std::cerr << op << ' ' << j << '/' << numCases << '\n';
+    // if (j % 1 == 0)
+    //   std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
     if (maxWaterline) {
       // std::cout << "maxWaterline\n";
@@ -168,10 +172,10 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
-  //           fout << res << '\n';
-  //         }
+            fout << res << '\n';
+          }
         }
       }
     } else if (op == "equal") {
@@ -190,10 +194,10 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
-  //           fout << res << '\n';
-  //         }
+            fout << res << '\n';
+          }
         }
       }
     } else if (op == "union") {
@@ -211,12 +215,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "intersect") {
@@ -234,12 +238,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "subtract") {
@@ -278,12 +282,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, res);
-  //           res.printISL(fout);
-  //           fout << '\n';
-  //         }
+            res.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "complement") {
@@ -299,12 +303,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           res.printISL(fout);
-  //           fout << '\n';
-  //         }
+            res.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "eliminate") {
@@ -320,12 +324,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else {
@@ -333,7 +337,15 @@ times[i] = static_cast<int>(duration);
       std::abort();
     }
     consumeLine();
+
+    if (std::fetestexcept(FE_ALL_EXCEPT)) {
+      // std::cerr << op << ' ' << j << '/' << numCases << '\n';
+      // std::cerr << "Floating point exception!\n";
+      fpexcepts++;
+    }
   }
+  if (fpexcepts)
+    std::cerr << "Floating point exceptions: " << fpexcepts << '\n';
 }
 
 int main(int argc, char **argv) {

@@ -8,6 +8,7 @@
 #include <string>
 #include <fstream>
 #include "llvm/ADT/Optional.h"
+#include <cfenv>
 
 using namespace mlir;
 using namespace mlir::presburger;
@@ -157,6 +158,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
 
   for (unsigned j = 0; j < numCases; ++j) {
+    std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
     VALIDINPUT = true;
     std::string inputStringA;
     std::string inputStringB;
@@ -388,6 +390,10 @@ times[i] = static_cast<int>(duration);
 
     std::string outputString;
     consumeLine(1, &outputString);
+
+    if (std::fetestexcept(FE_ALL_EXCEPT)) {
+      VALIDINPUT = false;
+    } 
 
     if (!VALIDINPUT) {
       // std::cout << "INVALID INPUT\n";

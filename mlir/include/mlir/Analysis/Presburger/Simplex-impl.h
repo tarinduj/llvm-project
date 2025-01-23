@@ -1477,7 +1477,7 @@ void Simplex<Int>::addFlatAffineConstraints(const FlatAffineConstraints &cs) {
 
 template <typename Int>
 void Simplex<Int>::addBasicSet(const PresburgerBasicSet<Int> &bs) {
-  std::cout << "addBasicSet \n";
+  // std::cout << "addBasicSet \n";
   assert(bs.getNumTotalDims() == numVariables() &&
          "BasicSet must have same dimensionality as simplex");
   unsigned totNewCons = bs.getNumInequalities() + bs.getNumEqualities() + 2*bs.getNumDivs();

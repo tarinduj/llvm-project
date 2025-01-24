@@ -156,6 +156,18 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   std::string line;
   std::getline(isl_bench, line);
 
+  std::error_code EC;
+  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  if (printAuxInfo) {
+    // fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
+    // fstat = std::ofstream("data/stats_fpl_" + op + ".txt", std::ios_base::app);
+    if (EC) {
+      std::cerr << "Could not open outputs_fpl_" + op + ".txt!\n";
+      std::abort();
+    }
+    fout << numCases << '\n';
+  }
+
 
   for (unsigned j = 0; j < numCases; ++j) {
     std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
@@ -193,8 +205,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       }
     }
 
-    if constexpr (printAuxInfo)
-      Set::waterline = 0;
+    // if constexpr (printAuxInfo)
+    //   Set::waterline = 0;
     if (op == "empty") {
       Set setA = getSetFromInput<Set>(&inputStringA);
       for (unsigned i = 0; i < numRuns; ++i) {
@@ -209,10 +221,10 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
-  //           fout << res << '\n';
-  //         }
+            fout << res << '\n';
+          }
         }
       }
     } else if (op == "equal") {
@@ -231,10 +243,10 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
-  //           fout << res << '\n';
-  //         }
+            fout << res << '\n';
+          }
         }
       }
     } else if (op == "union") {
@@ -252,12 +264,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "intersect") {
@@ -275,12 +287,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "subtract") {
@@ -298,12 +310,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "coalesce") {
@@ -319,12 +331,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, res);
-  //           res.printISL(fout);
-  //           fout << '\n';
-  //         }
+            res.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "complement") {
@@ -340,12 +352,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           res.printISL(fout);
-  //           fout << '\n';
-  //         }
+            res.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "eliminate") {
@@ -375,12 +387,12 @@ times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else {
@@ -444,6 +456,6 @@ int main(int argc, char **argv) {
   // else if (prec == "T")
   //   run<TransprecSet, true>(op, "", {});
   else if (prec == "f32")
-    run<PresburgerSet<float_t>, false>(op, "f32", {});
+    run<PresburgerSet<float_t>, true>(op, "f32", {});
 }
 

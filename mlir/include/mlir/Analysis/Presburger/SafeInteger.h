@@ -430,13 +430,13 @@ inline std::ostream &operator<<(std::ostream &os, const SafeInteger<Int> &x) {
 template <typename Int>
 inline Int ceilDiv(Int lhs, Int rhs) {
   assert(rhs >= 1);
-  return int32_t(lhs) % int32_t(rhs) > 0 ? lhs / rhs + 1 : lhs / rhs;
+  return int32_t(lhs) % int32_t(rhs) > 0 ? int32_t(lhs) / int32_t(rhs) + 1 : int32_t(lhs) / int32_t(rhs);
 }
 
 template <typename Int>
 inline Int floorDiv(Int lhs, Int rhs) {
   assert(rhs >= 1);
-  return int32_t(lhs) % int32_t(rhs) < 0 ? lhs / rhs - 1 : lhs / rhs;
+  return int32_t(lhs) % int32_t(rhs) < 0 ? int32_t(lhs) / int32_t(rhs) - 1 : int32_t(lhs) / int32_t(rhs);
 }
 
 inline mpz_class ceilDiv(mpz_class lhs, mpz_class rhs) {

@@ -886,6 +886,17 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   // std::cout << "Matrix after Pivot: \n";
   // tableau.dump();
+
+  // Log call stack
+  // void *callstack[128];
+  // int frames = backtrace(callstack, 128);
+  // char **symbols = backtrace_symbols(callstack, frames);
+  // std::cout << "Call stack:\n";
+  // for (int i = 0; i < frames; ++i) {
+  //   std::cout << symbols[i] << '\n';
+  // }
+  // free(symbols);
+
 }
 
 /// Perform pivots until the unknown has a non-negative sample value or until

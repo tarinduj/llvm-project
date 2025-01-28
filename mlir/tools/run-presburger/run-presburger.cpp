@@ -19,6 +19,8 @@ using namespace mlir::presburger;
 #include <csetjmp>
 
 extern bool VALIDINPUT;
+extern bool PIVOTCALLED;
+extern int MAXMATSIZE;
 
 sigjmp_buf jumpBuffer;
 
@@ -150,6 +152,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   filtered_bench << numCases << '\n';
   filtered_isl_bench << numCases << '\n';
 
+  std::ofstream matrix_size("data/matrix-size-" + op + ".txt");
+
   unsigned filteredNumCases = 0;
 
   // consume numcases
@@ -171,7 +175,11 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
   for (unsigned j = 0; j < numCases; ++j) {
     std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
+    
     VALIDINPUT = true;
+    PIVOTCALLED = false;
+    MAXMATSIZE = 0;
+
     std::string inputStringA;
     std::string inputStringB;
 
@@ -404,8 +412,12 @@ times[i] = static_cast<int>(duration);
     consumeLine(1, &outputString);
 
     if (std::fetestexcept(FE_ALL_EXCEPT)) {
-      VALIDINPUT = false;
+      // VALIDINPUT = false;
     } 
+
+    if (!PIVOTCALLED) {
+      VALIDINPUT = false;
+    }
 
     if (!VALIDINPUT) {
       // std::cout << "INVALID INPUT\n";
@@ -417,8 +429,10 @@ times[i] = static_cast<int>(duration);
       filtered_bench << outputString << '\n';
 
       filtered_isl_bench << currentISLCase;
-    }
 
+      // std::cout << "MAXMAT: " << MAXMATSIZE << "\n";
+      matrix_size << MAXMATSIZE << "\n";
+    }
   }
 
   filtered_bench.close();

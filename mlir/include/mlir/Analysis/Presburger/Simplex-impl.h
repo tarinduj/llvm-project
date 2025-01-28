@@ -14,6 +14,9 @@
 #include "mlir/Analysis/Presburger/PresburgerBasicSet.h"
 #include "mlir/Support/MathExtras.h"
 
+static int MAXMATSIZE = 0;
+static bool PIVOTCALLED = false;
+
 using namespace mlir;
 using namespace analysis::presburger;
 
@@ -732,6 +735,8 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
+  PIVOTCALLED = true;
+
   swapRowWithCol(pivotRow, pivotCol);
 
   // size_t vl = get_sme_vector_length();
@@ -749,6 +754,11 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   // tableau.verifyVectorType();
   // std::cout << "Matrix before Pivot: \n";
   // tableau.dump();
+
+  if (MAXMATSIZE < tableau.getNumColumns() * tableau.getNReservedColumns()) {
+    MAXMATSIZE = tableau.getNumColumns() * tableau.getNReservedColumns();
+  }
+  std::cout << "Size: " << MAXMATSIZE << "\n";
 
   if constexpr (isMatrixized) {
     // MatrixRow &r = tableau.getMatrixRow(pivotRow);

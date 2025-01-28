@@ -4,6 +4,7 @@
 // #include "mlir/Analysis/Presburger/TransprecSet.h"
 #include "mlir/Dialect/Presburger/Parser.h"
 #include "mlir/Analysis/Presburger/Presburger-impl.h"
+#include "mlir/Analysis/Presburger/SafeInteger.h"
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -110,19 +111,24 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 1;
+  const unsigned numRuns = 5;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
 
-  if (!suffix.empty())
+  if (!suffix.empty()) {
     suffix = "_" + suffix;
+    #ifdef ENABLE_SME
+      suffix = suffix + "-sme";
+    #endif  
+  }
+    
   std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
-  std::ofstream fruntime("data/runtime_fpl" + suffix + "_" + op + ".txt");
+  std::ofstream fruntime("data/runtime" + suffix + "_" + op + ".txt");
 
   // td::ofstream fwaterline, fstat;
   std::error_code EC;
-  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
   if (printAuxInfo) {
     // fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
     // fstat = std::ofstream("data/stats_fpl_" + op + ".txt", std::ios_base::app);
@@ -167,7 +173,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         volatile auto res = a.isIntegerEmpty();
         res = res;
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
@@ -189,7 +195,7 @@ times[i] = static_cast<int>(duration);
         volatile auto res = Set::equal(a, b);
         res = res;
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
@@ -210,7 +216,7 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         a.unionSet(b);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
@@ -233,7 +239,7 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         a.intersectSet(b);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
@@ -256,7 +262,7 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         a.subtract(b);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
@@ -277,7 +283,7 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         Set res = coalesce(a);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
         times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
@@ -298,7 +304,7 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         auto res = Set::complement(a);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
@@ -319,7 +325,7 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         auto res = Set::eliminateExistentials(a);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
@@ -341,7 +347,7 @@ times[i] = static_cast<int>(duration);
     if (std::fetestexcept(FE_ALL_EXCEPT)) {
       // std::cerr << op << ' ' << j << '/' << numCases << '\n';
       std::cerr << "Floating point exception!\n";
-      std::abort();
+      // std::abort();
       fpexcepts++;
     }
   }

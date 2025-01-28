@@ -864,7 +864,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
         tableau(pivotRow, col) = -tableau(pivotRow, col);
       }
     }
-    normalizeRowScalar(pivotRow);
+    // normalizeRowScalar(pivotRow);
 
     for (unsigned row = 0; row < nRow; ++row) {
       if (row == pivotRow)
@@ -880,7 +880,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
                           tableau(row, pivotCol) * tableau(pivotRow, j);
       }
       tableau(row, pivotCol) *= tableau(pivotRow, pivotCol);
-      normalizeRowScalar(row);
+      // normalizeRowScalar(row);
     }
   }
 

@@ -140,7 +140,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     int times[numRuns];
     // printing progress
     // if (j % 1 == 0)
-    //   std::cerr << op << ' ' << j << '/' << numCases << '\n';
+      std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
     if (maxWaterline) {
       // std::cout << "maxWaterline\n";
@@ -340,7 +340,8 @@ times[i] = static_cast<int>(duration);
 
     if (std::fetestexcept(FE_ALL_EXCEPT)) {
       // std::cerr << op << ' ' << j << '/' << numCases << '\n';
-      // std::cerr << "Floating point exception!\n";
+      std::cerr << "Floating point exception!\n";
+      std::abort();
       fpexcepts++;
     }
   }

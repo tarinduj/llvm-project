@@ -412,7 +412,7 @@ times[i] = static_cast<int>(duration);
     consumeLine(1, &outputString);
 
     if (std::fetestexcept(FE_ALL_EXCEPT)) {
-      // VALIDINPUT = false;
+      VALIDINPUT = false;
     } 
 
     if (!PIVOTCALLED) {

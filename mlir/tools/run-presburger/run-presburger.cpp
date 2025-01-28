@@ -124,6 +124,34 @@ void consumeNewline() {
   }
 }
 
+void modifyFirstLine(const std::string& filename, const std::string& newFirstLine) {
+    std::ifstream fileIn(filename);
+    std::ostringstream tempBuffer;
+
+    if (fileIn.is_open()) {
+        std::string line;
+        bool isFirstLine = true;
+
+        while (std::getline(fileIn, line)) {
+            if (isFirstLine) {
+                tempBuffer << newFirstLine << "\n"; // Replace first line
+                isFirstLine = false;
+            } else {
+                tempBuffer << line << "\n"; // Keep other lines unchanged
+            }
+        }
+
+        fileIn.close();
+    }
+
+    // Write the modified content back to the file
+    std::ofstream fileOut(filename, std::ios::trunc);
+    if (fileOut.is_open()) {
+        fileOut << tempBuffer.str();
+        fileOut.close();
+    }
+}
+
 template <typename Set, bool printAuxInfo>
 void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterline) {
   std::cout << "Running " << op << '\n';
@@ -198,7 +226,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     int times[numRuns];
     // printing progress
     if (j % 1 == 0)
-      std::cerr << op << ' ' << j << '/' << numCases << '\n';
+      // std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
     if (maxWaterline) {
       unsigned waterline;
@@ -431,25 +459,21 @@ times[i] = static_cast<int>(duration);
       filtered_isl_bench << currentISLCase;
 
       // std::cout << "MAXMAT: " << MAXMATSIZE << "\n";
-      matrix_size << MAXMATSIZE << "\n";
+      // matrix_size << MAXMATSIZE << "\n";
     }
   }
 
   filtered_bench.close();
   filtered_isl_bench.close();
 
-  std::fstream file("benchmark/fpl-sme/" + op + ".txt", std::ios::in | std::ios::out);
-  if (file.is_open()) {
-      file.seekp(0); // Go to the beginning of the file
-      file << filteredNumCases << '\n'; // Overwrite the number of cases
-      file.close();
-  }
-  std::fstream isl_file("benchmark/isl-sme/" + op + ".txt", std::ios::in | std::ios::out);
-  if (isl_file.is_open()) {
-      isl_file.seekp(0); // Go to the beginning of the file
-      isl_file << filteredNumCases << '\n'; // Overwrite the number of cases
-      isl_file.close();
-  }
+  // std::fstream file("benchmark/fpl-sme/" + op + ".txt", std::ios::in | std::ios::out);
+  // if (file.is_open()) {
+  //     file.seekp(0); // Go to the beginning of the file
+  //     file << filteredNumCases; // Overwrite the number of cases
+  //     file.close();
+  // }
+  modifyFirstLine("benchmark/fpl-sme/" + op + ".txt", std::to_string(filteredNumCases));
+  modifyFirstLine("benchmark/isl-sme/" + op + ".txt", std::to_string(filteredNumCases));
   
 }
 

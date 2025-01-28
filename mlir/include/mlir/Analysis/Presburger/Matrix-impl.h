@@ -47,10 +47,11 @@ Matrix<Int>::Matrix(unsigned rows, unsigned columns)
       std::abort();
     // llvm::errs() << "Cannot construct matrix with " <  < nColumns << " columns; limit is " << nReservedColumns << ".\n";
     // exit(1);
-  } else if (isMatrixized)
-  {
-    if (columns > MatrixSize || rows > MatrixSize)
+  } else if (isMatrixized) {
+    if (columns > MatrixSize || rows > MatrixSize) {
+      std::cerr << "Size exceeds matrix size limit.\n";
       std::abort();
+    }
   }
   
 }
@@ -78,8 +79,10 @@ void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
   if (newNColumns > MatrixSize || newNRows > MatrixSize)
     VALIDINPUT = false;
   if (isMatrixized) {
-    if (newNColumns > MatrixSize || newNRows > MatrixSize)
-      std::abort();
+    if (newNColumns > MatrixSize || newNRows > MatrixSize) {  
+      // std::cerr << "Size exceeds matrix size limit.\n";
+      // std::abort();
+    }
   }
   if (newNColumns > nReservedColumns) {
     if constexpr (isVectorized) {

@@ -21,6 +21,8 @@ using namespace mlir::presburger;
 extern bool VALIDINPUT;
 extern bool PIVOTCALLED;
 extern int MAXMATSIZE;
+extern int TOTALMATSIZE;
+extern int NUMPIVOTS;
 
 sigjmp_buf jumpBuffer;
 
@@ -207,6 +209,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     VALIDINPUT = true;
     PIVOTCALLED = false;
     MAXMATSIZE = 0;
+    TOTALMATSIZE = 0;
+    NUMPIVOTS = 0;
 
     std::string inputStringA;
     std::string inputStringB;
@@ -459,7 +463,7 @@ times[i] = static_cast<int>(duration);
       filtered_isl_bench << currentISLCase;
 
       // std::cout << "MAXMAT: " << MAXMATSIZE << "\n";
-      // matrix_size << MAXMATSIZE << "\n";
+      matrix_size << TOTALMATSIZE / NUMPIVOTS << '\n';
     }
   }
 

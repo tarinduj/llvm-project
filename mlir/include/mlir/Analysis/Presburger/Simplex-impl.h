@@ -15,6 +15,8 @@
 #include "mlir/Support/MathExtras.h"
 
 static int MAXMATSIZE = 0;
+static int TOTALMATSIZE = 0;
+static int NUMPIVOTS = 0;
 static bool PIVOTCALLED = false;
 
 using namespace mlir;
@@ -758,7 +760,10 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   if (MAXMATSIZE < tableau.getNumColumns() * tableau.getNReservedColumns()) {
     MAXMATSIZE = tableau.getNumColumns() * tableau.getNReservedColumns();
   }
-  std::cout << "Size: " << MAXMATSIZE << "\n";
+  // std::cout << "Size: " << MAXMATSIZE << "\n";
+
+  TOTALMATSIZE = TOTALMATSIZE + tableau.getNumColumns() * tableau.getNReservedColumns();
+  NUMPIVOTS = NUMPIVOTS + 1;
 
   if constexpr (isMatrixized) {
     // MatrixRow &r = tableau.getMatrixRow(pivotRow);
@@ -1863,7 +1868,6 @@ void Simplex<Int>::reduceBasis(Matrix<Int> &basis, unsigned level) {
 /// overflows, this algorithm is implemented iteratively.
 template <typename Int>
 Optional<SmallVector<Int, 8>> Simplex<Int>::findIntegerSample() {
-  std::cout << "findIntegerSample\n";
   if (empty)
     return {};
   if (auto maybeSample = getSamplePointIfIntegral())

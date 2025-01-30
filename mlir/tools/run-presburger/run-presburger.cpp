@@ -1,18 +1,19 @@
 #include "llvm/Support/FileSystem.h"
 #include "mlir/Analysis/Presburger/Coalesce.h"
 #include "mlir/Analysis/Presburger/Set.h"
-#include "mlir/Analysis/Presburger/TransprecSet.h"
+// #include "mlir/Analysis/Presburger/TransprecSet.h"
 #include "mlir/Dialect/Presburger/Parser.h"
 #include "mlir/Analysis/Presburger/Presburger-impl.h"
 #include <iostream>
 #include <string>
 #include <fstream>
 #include "llvm/ADT/Optional.h"
+#include <cfenv>
 
 using namespace mlir;
 using namespace mlir::presburger;
 
-unsigned TransprecSet::waterline = 0;
+// unsigned TransprecSet::waterline = 0;
 
 template <typename Int>
 Optional<PresburgerSet<Int>> setFromString(StringRef string) {
@@ -41,21 +42,21 @@ Optional<PresburgerSet<Int>> setFromString(StringRef string) {
   return res;
 }
 
-void dumpStats(std::ofstream &f, TransprecSet &a) {
-  // a.dumpISL();
-  // return;
-  std::visit([&](auto &&set) {
-    unsigned ids = set.getNumDims() + set.getNumSyms(), nDivs = 0, nEqs = 0, nIneqs = 0, nBS = 0;
-    for (auto &bs : set.getBasicSets()) {
-      ids = std::max(ids, bs.getNumTotalDims());
-      nDivs += bs.getDivisions().size();
-      nEqs += bs.getNumEqualities();
-      nIneqs += bs.getNumInequalities();
-      nBS += 1;
-    }
-    f << ids << ' ' << nBS << ' ' << nDivs << ' ' << nIneqs << ' ' << nEqs << '\n';
-  }, a.setvar);
-}
+// void dumpStats(std::ofstream &f, TransprecSet &a) {
+//   // a.dumpISL();
+//   // return;
+//   std::visit([&](auto &&set) {
+//     unsigned ids = set.getNumDims() + set.getNumSyms(), nDivs = 0, nEqs = 0, nIneqs = 0, nBS = 0;
+//     for (auto &bs : set.getBasicSets()) {
+//       ids = std::max(ids, bs.getNumTotalDims());
+//       nDivs += bs.getDivisions().size();
+//       nEqs += bs.getNumEqualities();
+//       nIneqs += bs.getNumInequalities();
+//       nBS += 1;
+//     }
+//     f << ids << ' ' << nBS << ' ' << nDivs << ' ' << nIneqs << ' ' << nEqs << '\n';
+//   }, a.setvar);
+// }
 
 void consumeLine(unsigned cnt = 1) {
   while (cnt--) {
@@ -65,31 +66,31 @@ void consumeLine(unsigned cnt = 1) {
   }
 }
 
-TransprecSet getTransprecSetFromString(StringRef str) {
-  // std::cerr << "Read '" << str << "'\n";
-  if (auto set = setFromString<SafeInteger<int16_t>>(str))
-    return TransprecSet(*set);
-  else if (auto set = setFromString<SafeInteger<int64_t>>(str))
-    return TransprecSet(*set);
-  else if (auto set = setFromString<mpz_class>(str))
-    return TransprecSet(*set);
-  else
-    llvm_unreachable("Input did not fit in 128-bits!");
-  // return setFromString(str);
-}
+// TransprecSet getTransprecSetFromString(StringRef str) {
+//   // std::cerr << "Read '" << str << "'\n";
+//   if (auto set = setFromString<SafeInteger<int16_t>>(str))
+//     return TransprecSet(*set);
+//   else if (auto set = setFromString<SafeInteger<int64_t>>(str))
+//     return TransprecSet(*set);
+//   else if (auto set = setFromString<mpz_class>(str))
+//     return TransprecSet(*set);
+//   else
+//     llvm_unreachable("Input did not fit in 128-bits!");
+//   // return setFromString(str);
+// }
 
 template <typename Set>
 Set getSetFromInput() {
   char str[1'000'000];
   std::cin.getline(str, 1'000'000);
-  if constexpr (std::is_same_v<Set, TransprecSet>) {
-    return getTransprecSetFromString(str);
-  } else {
+  // if constexpr (std::is_same_v<Set, TransprecSet>) {
+  //   return getTransprecSetFromString(str);
+  // } else {
     if (auto set = setFromString<typename Set::UnderlyingInt>(str)) {
       return *set;
     } else
       llvm_unreachable("Input did not fit in specified precision!");
-  }
+  // }
 }
 
 void consumeNewline() {
@@ -109,7 +110,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 5;
+  const unsigned numRuns = 1;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
@@ -119,13 +120,30 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
   std::ofstream fruntime("data/runtime_fpl" + suffix + "_" + op + ".txt");
 
+  // td::ofstream fwaterline, fstat;
+  std::error_code EC;
+  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  if (printAuxInfo) {
+    // fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
+    // fstat = std::ofstream("data/stats_fpl_" + op + ".txt", std::ios_base::app);
+    if (EC) {
+      std::cerr << "Could not open outputs_fpl_" + op + ".txt!\n";
+      std::abort();
+    }
+    fout << numCases << '\n';
+  }
+
+  int fpexcepts = 0;
   for (unsigned j = 0; j < numCases; ++j) {
+    std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
+
     int times[numRuns];
     // printing progress
-    if (j % 50000 == 0)
+    // if (j % 1 == 0)
       std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
     if (maxWaterline) {
+      // std::cout << "maxWaterline\n";
       unsigned waterline;
       fwaterlineIn >> waterline;
       if (waterline > *maxWaterline) {
@@ -138,8 +156,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       }
     }
 
-    if constexpr (printAuxInfo)
-      Set::waterline = 0;
+    // if constexpr (printAuxInfo)
+    //   Set::waterline = 0;
     if (op == "empty") {
       Set setA = getSetFromInput<Set>();
       for (unsigned i = 0; i < numRuns; ++i) {
@@ -149,15 +167,15 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         volatile auto res = a.isIntegerEmpty();
         res = res;
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
-  //           fout << res << '\n';
-  //         }
+            fout << res << '\n';
+          }
         }
       }
     } else if (op == "equal") {
@@ -171,15 +189,15 @@ times[i] = static_cast<int>(duration);
         volatile auto res = Set::equal(a, b);
         res = res;
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
-  //           fout << res << '\n';
-  //         }
+            fout << res << '\n';
+          }
         }
       }
     } else if (op == "union") {
@@ -192,17 +210,17 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         a.unionSet(b);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "intersect") {
@@ -215,17 +233,17 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         a.intersectSet(b);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "subtract") {
@@ -236,20 +254,19 @@ times[i] = static_cast<int>(duration);
         auto b = setB;
         unsigned int dummy;
         auto start = std::chrono::high_resolution_clock::now();
-        std::cout << "Subtract call\n";
         a.subtract(b);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
-  //           fwaterline << Set::waterline << '\n';
-  //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+          if constexpr (printAuxInfo) {
+            // fwaterline << Set::waterline << '\n';
+            // dumpStats(fstat, a);
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "coalesce") {
@@ -260,17 +277,17 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         Set res = coalesce(a);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
         times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, res);
-  //           res.printISL(fout);
-  //           fout << '\n';
-  //         }
+            res.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "complement") {
@@ -281,17 +298,17 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         auto res = Set::complement(a);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           res.printISL(fout);
-  //           fout << '\n';
-  //         }
+            res.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else if (op == "eliminate") {
@@ -302,17 +319,17 @@ times[i] = static_cast<int>(duration);
         auto start = std::chrono::high_resolution_clock::now();
         auto res = Set::eliminateExistentials(a);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
           std::sort(times, times + numRuns);
           fruntime << times[numRuns/2] << '\n';
-  //         if constexpr (printAuxInfo) {
+          if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
-  //           a.printISL(fout);
-  //           fout << '\n';
-  //         }
+            a.printISL(fout);
+            fout << '\n';
+          }
         }
       }
     } else {
@@ -320,7 +337,16 @@ times[i] = static_cast<int>(duration);
       std::abort();
     }
     consumeLine();
+
+    if (std::fetestexcept(FE_ALL_EXCEPT)) {
+      // std::cerr << op << ' ' << j << '/' << numCases << '\n';
+      std::cerr << "Floating point exception!\n";
+      std::abort();
+      fpexcepts++;
+    }
   }
+  if (fpexcepts)
+    std::cerr << "Floating point exceptions: " << fpexcepts << '\n';
 }
 
 int main(int argc, char **argv) {
@@ -332,12 +358,9 @@ int main(int argc, char **argv) {
   std::string op = argv[1];
   std::string prec = argc == 2 ? "T" : argv[2];
   if (prec == "16")
-    run<PresburgerSet<int16_t>, false>(op, "16", 0);
+    run<PresburgerSet<int16_t>, true>(op, "16", {});
   else if (prec == "64")
-    run<PresburgerSet<int64_t>, false>(op, "64", 1);
-  else if (prec == "gmp")
-    run<PresburgerSet<mpz_class>, false>(op, "gmp", 3);
-  else if (prec == "T")
-    run<TransprecSet, true>(op, "", {});
+    run<PresburgerSet<int64_t>, true>(op, "64", {});
+  else
+    std::abort();
 }
-

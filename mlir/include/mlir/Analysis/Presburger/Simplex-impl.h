@@ -496,9 +496,9 @@ inline void Simplex<Int>::SMEPivotHelper(Int *matrix, int rows, int cols, int pi
         "mov x1, %[src]                                           \n" // Source matrix pointer
         // "mov x6, %[test_mat]                                      \n" // Test matrix pointer
 
-        "fmov s2, %w[coeff1]                                      \n" // Coefficient 1/ Coefficient 3
-        "fmov s3, %w[coeff2]                                      \n" // Coefficient 2
-
+        "mov w2, %w[coeff1]                                       \n" // Coefficient 1/ Coefficient 3
+        "mov w3, %w[coeff2]                                       \n" // Coefficient 2
+        
         "mov w4, %w[nrows]                                        \n" // Move rows to w4
         "mov w5, %w[ncols]                                        \n" // Move cols to w5
         "mov w6, %w[reservedcols]                                 \n" // Move reservedcols to w6
@@ -544,27 +544,6 @@ inline void Simplex<Int>::SMEPivotHelper(Int *matrix, int rows, int cols, int pi
       
         "mov z0.s, p0/m, za0h.s[w13, 0]                           \n" // Move pivot row from ZA to z0
         "mov z1.s, p0/m, za0v.s[w14, 0]                           \n" // Move pivot column from ZA to z1
-
-        /* ******************** */
-        // If the denominator is negative, we canonicalize the row.
-        "fcvtzs w2, s2                                           \n" // Convert coeff1 to integer
-        "cmp w2, #0                                               \n" // Compare w2 (coeff1) with 0
-        "b.ge 1f                                                  \n" // If >= 0, skip negation
-
-        // Negate pivotRowVec if tableau(pivotRow, 0) < 0
-        "fneg z0.s, p0/m, z0.s                                    \n" // Negate z0.s
-        "mov za0h.s[w13, 0], p0/m, z0.s                           \n" // Store back negated pivot row to ZA
-
-        // Negate coeff1 and coeff2
-        "fneg s2, s2                                              \n" // Negate coeff1
-        "fneg s3, s3                                              \n" // Negate coeff2
-
-        "1:                                                       \n"
-        /* ******************** */
-
-        // move to general purpose registers
-        "fmov w2, s2                                              \n" // Coefficient 1/ Coefficient 3
-        "fmov w3, s3                                              \n" // Coefficient 2
 
         // Take the outer product of the pivot row and pivot column
         "zero	{za1.s}                                             \n" // Zero ZA
@@ -759,18 +738,28 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     // for (unsigned i = 0; i < nCol; i++) {
     //   std::cout << r[i] << " ";
     // } std::cout << std::endl;
-
-    
-    Int* dataptr = tableau.getDataPointer();
     
     // for (unsigned i = 0; i < nCol; i++) {
     //   std::cout << dataptr[pivotRow * tableau.getNReservedColumns() + i] << " ";
     // } std::cout << std::endl;
 
 
-    Int tmp = tableau(pivotRow, 0);
-    tableau(pivotRow, 0) = -tableau(pivotRow, pivotCol);
-    tableau(pivotRow, pivotCol) = -tmp;
+    std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
+    // We need to negate the whole pivot row except for the pivot column.
+    if (tableau(pivotRow, 0) < 0) {
+      // If the denominator is negative, we negate the row by simply negating
+      // the denominator.
+      tableau(pivotRow, 0) = -tableau(pivotRow, 0);
+      tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
+    } else {
+      for (unsigned col = 1; col < nCol; ++col) {
+        if (col == pivotCol)
+          continue;
+        tableau(pivotRow, col) = -tableau(pivotRow, col);
+      }
+    }
+
+    Int* dataptr = tableau.getDataPointer();
 
     // if (tableau(pivotRow, 0) < 0) {
     //   for (unsigned col = 0; col < tableau.getNumColumns(); col++) {

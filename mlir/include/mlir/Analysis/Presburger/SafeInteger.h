@@ -33,6 +33,8 @@ inline void throwOverflowIf(bool cond) {
     throw std::overflow_error("Overflow!");
 }
 
+#define ENABLE_SME
+
 // #if __AVX512BW__ && __AVX512F__
 // #define ENABLE_VECTORIZATION
 // #endif

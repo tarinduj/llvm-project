@@ -45,11 +45,19 @@ public:
   static constexpr bool isVectorized = false;
 #endif
 
+#ifdef ENABLE_SME
+  // TODO: set this using IsInt equiavlent
+  static constexpr bool isMatrixized = true;
+#else
+  static constexpr bool isMatrixized = false;
+#endif
+
   // using Vector = typename std::conditional<isInt<Int, int16_t>,
   //   Vector16x32,
   //   void>::type;
   // using Vector = Vector16x32;
   static constexpr unsigned MatrixVectorColumns = isInt<Int, int16_t> ? 32 : 16;
+  static constexpr unsigned MatrixSize = 16;
   typedef int16_t Vector __attribute__((ext_vector_type(MatrixVectorColumns)));
   static constexpr bool isChecked = std::is_same_v<Int, SafeInteger<int16_t>> ||
                                     std::is_same_v<Int, SafeInteger<int32_t>> ||
@@ -105,6 +113,8 @@ public:
 
   unsigned getNumColumns() const;
 
+  unsigned getNReservedColumns() const;
+
   __attribute__((always_inline))
   Vector &getRowVector(unsigned row) {
     static_assert(isVectorized, "getRowVector is only valid for int16_t matrices!");
@@ -145,6 +155,10 @@ public:
       }
     }
     return result;
+  }
+
+  Int* getDataPointer() {
+    return data.data();
   }
 
 private:

@@ -136,6 +136,17 @@ public:
   void print(raw_ostream &os) const;
   void dump() const;
 
+  template <typename OtherInt>
+  Matrix<OtherInt> castTo() const {
+    Matrix<OtherInt> result(getNumRows(), getNumColumns());
+    for (unsigned i = 0; i < getNumRows(); ++i) {
+      for (unsigned j = 0; j < getNumColumns(); ++j) {
+        result(i, j) = static_cast<OtherInt>(at(i, j));
+      }
+    }
+    return result;
+  }
+
 private:
   unsigned nRows, nColumns, nReservedColumns;
 

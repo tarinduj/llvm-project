@@ -11,6 +11,10 @@
 #include "llvm/ADT/Optional.h"
 #include <cfenv>
 
+#include "performancecounters/event_counter.h"
+
+event_collector collector;
+
 using namespace mlir;
 using namespace mlir::presburger;
 
@@ -146,7 +150,9 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     int times[numRuns];
     // printing progress
     // if (j % 1 == 0)
-      // std::cerr << op << ' ' << j << '/' << numCases << '\n';
+      // std::cerr << op << ' ' << j << '/' << numCases << '\n';]
+
+    event_aggregate aggregate{};
 
     if (maxWaterline) {
       // std::cout << "maxWaterline\n";
@@ -169,15 +175,13 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        auto start = std::chrono::high_resolution_clock::now();
+        collector.start();
         volatile auto res = a.isIntegerEmpty();
         res = res;
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-times[i] = static_cast<int>(duration);
+        event_count allocate_count = collector.end();
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          fruntime << times[numRuns/2] << '\n';
+          aggregate << allocate_count;
+          fruntime << aggregate.total.elapsed_ns() << "\n";
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
             fout << res << '\n';
@@ -191,15 +195,13 @@ times[i] = static_cast<int>(duration);
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        auto start = std::chrono::high_resolution_clock::now();
+        collector.start();
         volatile auto res = Set::equal(a, b);
         res = res;
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-times[i] = static_cast<int>(duration);
+        event_count allocate_count = collector.end();
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          fruntime << times[numRuns/2] << '\n';
+          aggregate << allocate_count;
+          fruntime << aggregate.total.elapsed_ns() << "\n";
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
             fout << res << '\n';
@@ -213,14 +215,12 @@ times[i] = static_cast<int>(duration);
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        auto start = std::chrono::high_resolution_clock::now();
+        collector.start();
         a.unionSet(b);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-times[i] = static_cast<int>(duration);
+        event_count allocate_count = collector.end();
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          fruntime << times[numRuns/2] << '\n';
+          aggregate << allocate_count;
+          fruntime << aggregate.total.elapsed_ns() << "\n";
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
@@ -238,12 +238,10 @@ times[i] = static_cast<int>(duration);
         unsigned int dummy;
         auto start = std::chrono::high_resolution_clock::now();
         a.intersectSet(b);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-times[i] = static_cast<int>(duration);
+        event_count allocate_count = collector.end();
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          fruntime << times[numRuns/2] << '\n';
+          aggregate << allocate_count;
+          fruntime << aggregate.total.elapsed_ns() << "\n";
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
@@ -259,14 +257,18 @@ times[i] = static_cast<int>(duration);
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
+        collector.start();
         a.subtract(b);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-times[i] = static_cast<int>(duration);
+        event_count allocate_count = collector.end();
+        // auto end = std::chrono::high_resolution_clock::now();
+        // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // times[i] = static_cast<int>(duration);
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          fruntime << times[numRuns/2] << '\n';
+          // std::sort(times, times + numRuns);
+          // fruntime << times[numRuns/2] << '\n';
+          aggregate << allocate_count;
+          fruntime << aggregate.total.elapsed_ns() << "\n";
           if constexpr (printAuxInfo) {
             // fwaterline << Set::waterline << '\n';
             // dumpStats(fstat, a);
@@ -280,14 +282,12 @@ times[i] = static_cast<int>(duration);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        auto start = std::chrono::high_resolution_clock::now();
+        collector.start();
         Set res = coalesce(a);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        times[i] = static_cast<int>(duration);
+        event_count allocate_count = collector.end();
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          fruntime << times[numRuns/2] << '\n';
+          aggregate << allocate_count;
+          fruntime << aggregate.total.elapsed_ns() << "\n";
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, res);
@@ -301,14 +301,12 @@ times[i] = static_cast<int>(duration);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        auto start = std::chrono::high_resolution_clock::now();
+        collector.start();
         auto res = Set::complement(a);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-times[i] = static_cast<int>(duration);
+        event_count allocate_count = collector.end();
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          fruntime << times[numRuns/2] << '\n';
+          aggregate << allocate_count;
+          fruntime << aggregate.total.elapsed_ns() << "\n";
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
@@ -322,14 +320,12 @@ times[i] = static_cast<int>(duration);
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        auto start = std::chrono::high_resolution_clock::now();
+        collector.start();
         auto res = Set::eliminateExistentials(a);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-times[i] = static_cast<int>(duration);
+        event_count allocate_count = collector.end();
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          fruntime << times[numRuns/2] << '\n';
+          aggregate << allocate_count;
+          fruntime << aggregate.total.elapsed_ns() << "\n";
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);

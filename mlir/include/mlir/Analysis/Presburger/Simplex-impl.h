@@ -486,7 +486,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   float* dataptr = floattableu.getDataPointer();
   int numReserveCols = floattableu.getNReservedColumns();
 
-  auto t2 = std::chrono::high_resolution_clock::now();
+  // auto t2 = std::chrono::high_resolution_clock::now();
   #ifdef ENABLE_SME
     // event_aggregate aggregate{};
     // collector.start();
@@ -552,7 +552,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   #endif
 
-  auto t5 = std::chrono::high_resolution_clock::now();
+  // auto t5 = std::chrono::high_resolution_clock::now();
 
   // tableau = floattableu.template castTo<Int>();
 
@@ -560,13 +560,13 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   tableau = floattableu.template castTo<Int>();
 
-  auto t4 = std::chrono::high_resolution_clock::now();
+  // auto t4 = std::chrono::high_resolution_clock::now();
 
-  auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t2).count();
-  std::cout << "Pivot took: " << duration << " ns\n";
+  // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t2).count();
+  // std::cout << "Pivot took: " << duration << " ns\n";
 
-  duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t4-t5).count();
-  std::cout << "Tableau cast took: " << duration << " ns\n";
+  // duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t4-t5).count();
+  // std::cout << "Tableau cast took: " << duration << " ns\n";
   // duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t5).count();
   // std::cout << "Tableau cast 2 took: " << duration << " ns\n";
   // duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t4-t3).count();

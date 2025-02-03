@@ -4,6 +4,7 @@
 // #include "mlir/Analysis/Presburger/TransprecSet.h"
 #include "mlir/Dialect/Presburger/Parser.h"
 #include "mlir/Analysis/Presburger/Presburger-impl.h"
+#include "mlir/Analysis/Presburger/SafeInteger.h"
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -110,19 +111,24 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 1;
+  const unsigned numRuns = 5;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
 
-  if (!suffix.empty())
+  if (!suffix.empty()) {
     suffix = "_" + suffix;
+    #ifdef ENABLE_SME
+      suffix = suffix + "-sme";
+    #endif  
+  }
+    
   std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
-  std::ofstream fruntime("data/runtime_fpl" + suffix + "_" + op + ".txt");
+  std::ofstream fruntime("data/runtime" + suffix + "_" + op + ".txt");
 
   // td::ofstream fwaterline, fstat;
   std::error_code EC;
-  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs_fpl" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
   if (printAuxInfo) {
     // fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
     // fstat = std::ofstream("data/stats_fpl_" + op + ".txt", std::ios_base::app);
@@ -361,6 +367,4 @@ int main(int argc, char **argv) {
     run<PresburgerSet<int16_t>, true>(op, "16", {});
   else if (prec == "64")
     run<PresburgerSet<int64_t>, true>(op, "64", {});
-  else
-    std::abort();
 }

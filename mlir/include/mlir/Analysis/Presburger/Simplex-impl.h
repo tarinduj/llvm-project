@@ -14,6 +14,11 @@
 #include "mlir/Analysis/Presburger/PresburgerBasicSet.h"
 #include "mlir/Support/MathExtras.h"
 
+
+// #include "performancecounters/event_counter.h"
+
+// event_collector collector;
+
 using namespace mlir;
 using namespace analysis::presburger;
 
@@ -467,12 +472,25 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
+  // std::cout << "Size of tableau: " << nRow << " x " << nCol << '\n';
+  
+
   swapRowWithCol(pivotRow, pivotCol);
+
+  // auto t1 = std::chrono::high_resolution_clock::now();
 
   Matrix<float> floattableu = tableau.template castTo<float>();
 
-  if constexpr (isVectorized) {
-  } else {
+  int numRows = floattableu.getNumRows();
+  int numCols = floattableu.getNumColumns();
+  float* dataptr = floattableu.getDataPointer();
+  int numReserveCols = floattableu.getNReservedColumns();
+
+  auto t2 = std::chrono::high_resolution_clock::now();
+  #ifdef ENABLE_SME
+    // event_aggregate aggregate{};
+    // collector.start();
+
     std::swap(floattableu(pivotRow, 0), floattableu(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
     if (floattableu(pivotRow, 0) < 0) {
@@ -482,9 +500,31 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       floattableu(pivotRow, pivotCol) = -floattableu(pivotRow, pivotCol);
     } else {
       for (unsigned col = 1; col < nCol; ++col) {
-        if (col == pivotCol)
-          continue;
-        floattableu(pivotRow, col) = -floattableu(pivotRow, col);
+        if (col != pivotCol)
+          floattableu(pivotRow, col) = -floattableu(pivotRow, col);
+      }
+    }
+
+    SMEPivotHelper(dataptr, numRows, numCols, pivotRow, pivotCol, numReserveCols);
+    
+    // event_count allocate_count = collector.end();
+    // aggregate << allocate_count;
+    // printf("Pivot-SME %8.2f ns-average\n", aggregate.total.elapsed_ns() / aggregate.iterations);
+  #else
+    // event_aggregate aggregate{};
+    // collector.start();
+
+    std::swap(floattableu(pivotRow, 0), floattableu(pivotRow, pivotCol));
+    // We need to negate the whole pivot row except for the pivot column.
+    if (floattableu(pivotRow, 0) < 0) {
+      // If the denominator is negative, we negate the row by simply negating
+      // the denominator.
+      floattableu(pivotRow, 0) = -floattableu(pivotRow, 0);
+      floattableu(pivotRow, pivotCol) = -floattableu(pivotRow, pivotCol);
+    } else {
+      for (unsigned col = 1; col < nCol; ++col) {
+        if (col != pivotCol)
+          floattableu(pivotRow, col) = -floattableu(pivotRow, col);
       }
     }
     // normalizeRowScalar(pivotRow);
@@ -492,8 +532,8 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     for (unsigned row = 0; row < nRow; ++row) {
       if (row == pivotRow)
         continue;
-      if (floattableu(row, pivotCol) == 0) // Nothing to do.
-        continue;
+      // if (floattableu(row, pivotCol) == 0) // Nothing to do.
+      //   continue;
       floattableu(row, 0) *= floattableu(pivotRow, 0);
       for (unsigned j = 1; j < nCol; ++j) {
         if (j == pivotCol)
@@ -505,8 +545,33 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       floattableu(row, pivotCol) *= floattableu(pivotRow, pivotCol);
       // normalizeRowScalar(row);
     }
-  }
+    
+    // event_count allocate_count = collector.end();
+    // aggregate << allocate_count;
+    // printf("Pivot-Scalar %8.2f ns-average\n", aggregate.total.elapsed_ns() / aggregate.iterations);
+
+  #endif
+
+  auto t5 = std::chrono::high_resolution_clock::now();
+
+  // tableau = floattableu.template castTo<Int>();
+
+  // auto t3 = std::chrono::high_resolution_clock::now();
+
   tableau = floattableu.template castTo<Int>();
+
+  auto t4 = std::chrono::high_resolution_clock::now();
+
+  auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t2).count();
+  std::cout << "Pivot took: " << duration << " ns\n";
+
+  duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t4-t5).count();
+  std::cout << "Tableau cast took: " << duration << " ns\n";
+  // duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t5).count();
+  // std::cout << "Tableau cast 2 took: " << duration << " ns\n";
+  // duration = std::chrono::duration_cast<std::chrono::nanoseconds>(t4-t3).count();
+  // std::cout << "Tableau cast 3 took: " << duration << " ns\n";
+  // std::cout << "****************************************\n";
 }
 
 /// Perform pivots until the unknown has a non-negative sample value or until

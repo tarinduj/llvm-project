@@ -23,16 +23,14 @@ inline unsigned nextPowOfTwo(unsigned n) {
 
 template <typename Int>
 Matrix<Int>::Matrix(unsigned rows, unsigned columns)
-    : nRows(rows), nColumns(columns), nReservedColumns(isVectorized ? MatrixVectorColumns : nextPowOfTwo(nColumns)), data(nRows * nReservedColumns) {
+    : nRows(rows), nColumns(columns), nReservedColumns(nextPowOfTwo(nColumns)), data(nRows * nReservedColumns) {
 
-  if constexpr (isVectorized) {
-    if constexpr (isChecked)
-      throwOverflowIf(columns > MatrixVectorColumns);
-    else if (columns > MatrixVectorColumns)
-      std::abort();
-    // llvm::errs() << "Cannot construct matrix with " << nColumns << " columns; limit is " << nReservedColumns << ".\n";
-    // exit(1);
-  }
+  // if (isMatrixized) {
+  //   if (columns > MatrixSize || rows > MatrixSize) {
+  //     std::cerr << "Size exceeds matrix size limit.\n";
+  //     std::abort();
+  //   }
+  // }
 }
 
 template <typename Int>
@@ -50,14 +48,17 @@ template <typename Int>
 unsigned Matrix<Int>::getNumColumns() const { return nColumns; }
 
 template <typename Int>
+unsigned Matrix<Int>::getNReservedColumns() const {return nReservedColumns; }
+
+template <typename Int>
 void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
+  // if (isMatrixized) {
+  //   if (newNColumns > MatrixSize || newNRows > MatrixSize) { 
+  //     std::cerr << "Size exceeds matrix size limit.\n";
+  //     std::abort();
+  //   }
+  // }
   if (newNColumns > nReservedColumns) {
-    if constexpr (isVectorized) {
-      if constexpr (std::is_same<Int, SafeInteger<int16_t>>::value)
-        throwOverflowIf(true);
-      else 
-        std::abort();
-    }
     unsigned newNReservedColumns = nextPowOfTwo(newNColumns);
     data.resize(newNRows * newNReservedColumns);
     for (int row = newNRows - 1; row >= 0; --row)

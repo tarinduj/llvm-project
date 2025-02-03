@@ -164,10 +164,11 @@ public:
 private:
   unsigned nRows, nColumns, nReservedColumns;
 
-  using VectorType = typename std::conditional<isVectorized,
-      std::vector<Int, AlignedAllocator<Int, 64>>,
-      llvm::SmallVector<Int, 16>
-  >::type;
+  // using VectorType = typename std::conditional<isVectorized,
+  //     std::vector<Int, AlignedAllocator<Int, 64>>,
+  //     llvm::SmallVector<Int, 16>
+  // >::type;
+  using VectorType = llvm::SmallVector<Int, 16>;
   /// Stores the data. data.size() is equal to nRows * nColumns.
   VectorType data;
 };

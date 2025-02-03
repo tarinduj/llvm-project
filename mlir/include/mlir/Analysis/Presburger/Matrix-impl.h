@@ -25,12 +25,12 @@ template <typename Int>
 Matrix<Int>::Matrix(unsigned rows, unsigned columns)
     : nRows(rows), nColumns(columns), nReservedColumns(nextPowOfTwo(nColumns)), data(nRows * nReservedColumns) {
 
-  // if (isMatrixized) {
-  //   if (columns > MatrixSize || rows > MatrixSize) {
-  //     std::cerr << "Size exceeds matrix size limit.\n";
-  //     std::abort();
-  //   }
-  // }
+  if (isMatrixized) {
+    if (columns > MatrixSize || rows > MatrixSize) {
+      std::cerr << "Size exceeds matrix size limit.\n";
+      std::abort();
+    }
+  }
 }
 
 template <typename Int>
@@ -52,12 +52,12 @@ unsigned Matrix<Int>::getNReservedColumns() const {return nReservedColumns; }
 
 template <typename Int>
 void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
-  // if (isMatrixized) {
-  //   if (newNColumns > MatrixSize || newNRows > MatrixSize) { 
-  //     std::cerr << "Size exceeds matrix size limit.\n";
-  //     std::abort();
-  //   }
-  // }
+  if (isMatrixized) {
+    if (newNColumns > MatrixSize || newNRows > MatrixSize) { 
+      std::cerr << "Size exceeds matrix size limit.\n";
+      std::abort();
+    }
+  }
   if (newNColumns > nReservedColumns) {
     unsigned newNReservedColumns = nextPowOfTwo(newNColumns);
     data.resize(newNRows * newNReservedColumns);

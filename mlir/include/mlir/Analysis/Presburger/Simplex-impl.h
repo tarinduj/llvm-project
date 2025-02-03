@@ -487,7 +487,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   int numReserveCols = floattableu.getNReservedColumns();
 
   // auto t2 = std::chrono::high_resolution_clock::now();
-  #ifdef ENABLE_SME
+  if constexpr (isMatrixized) {
     // event_aggregate aggregate{};
     // collector.start();
 
@@ -510,7 +510,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     // event_count allocate_count = collector.end();
     // aggregate << allocate_count;
     // printf("Pivot-SME %8.2f ns-average\n", aggregate.total.elapsed_ns() / aggregate.iterations);
-  #else
+  } else {
     // event_aggregate aggregate{};
     // collector.start();
 
@@ -545,12 +545,11 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       floattableu(row, pivotCol) *= floattableu(pivotRow, pivotCol);
       // normalizeRowScalar(row);
     }
+  }
     
     // event_count allocate_count = collector.end();
     // aggregate << allocate_count;
     // printf("Pivot-Scalar %8.2f ns-average\n", aggregate.total.elapsed_ns() / aggregate.iterations);
-
-  #endif
 
   // auto t5 = std::chrono::high_resolution_clock::now();
 

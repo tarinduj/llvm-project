@@ -23,9 +23,29 @@
 #include <cassert>
 #include <vector>
 
+#include <cfenv>
+
 namespace mlir {
 namespace analysis {
 namespace presburger {
+
+void checkFloatingPointExceptions() {
+  if (std::fetestexcept(FE_DIVBYZERO)) {
+      std::cerr << "Floating point exception: Division by zero!\n";
+  }
+  if (std::fetestexcept(FE_INVALID)) {
+      std::cerr << "Floating point exception: Invalid operation!\n";
+  }
+  if (std::fetestexcept(FE_OVERFLOW)) {
+      std::cerr << "Floating point exception: Overflow!\n";
+  }
+  if (std::fetestexcept(FE_UNDERFLOW)) {
+      std::cerr << "Floating point exception: Underflow!\n";
+  }
+  if (std::fetestexcept(FE_INEXACT)) {
+      std::cerr << "Floating point exception: Inexact result!\n";
+  }
+}
 
 static inline void assert_aligned(const void *pointer, size_t byte_count)
 { assert((uintptr_t)pointer % byte_count == 0); }
@@ -151,7 +171,14 @@ public:
     Matrix<OtherInt> result(getNumRows(), getNumColumns());
     for (unsigned i = 0; i < getNumRows(); ++i) {
       for (unsigned j = 0; j < getNumColumns(); ++j) {
+        std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
         result(i, j) = static_cast<OtherInt>(at(i, j));
+        if (std::fetestexcept(FE_ALL_EXCEPT)) {
+          std::cerr << "Floating point exception in castTo!\n";
+          std::cerr << "from: " << at(i, j) << " to: " << result(i, j) << '\n';
+          checkFloatingPointExceptions();
+          abort();
+        }
       }
     }
     return result;

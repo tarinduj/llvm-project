@@ -474,53 +474,80 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   swapRowWithCol(pivotRow, pivotCol);
 
-  collector.start();
+  std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
 
-  Matrix<float> floattableu = tableau.template castTo<float>();
+  // collector.start();
 
-  event_count c1 = collector.end();
-  std::cout << "Cast to float: " << c1.cycles() << " cycles\n";
-  
-  int numRows = floattableu.getNumRows();
-  int numCols = floattableu.getNumColumns();
-  float* dataptr = floattableu.getDataPointer();
-  int numReserveCols = floattableu.getNReservedColumns();
+  Matrix<float> floattableau = tableau.template castTo<float>();
 
+  // event_count c1 = collector.end();
+  // std::cout << "Cast to float: " << c1.cycles() << " cycles\n";
+
+  if (std::fetestexcept(FE_ALL_EXCEPT)) {
+    std::cerr << "Floating point exception in castTo<float>!\n";
+    checkFloatingPointExceptions();
+
+    std::cout << "Int tableau: \n";
+    tableau.dump();
+
+    std::cout << "Float tableau: \n";
+    floattableau.dump();
+
+    abort();
+  }
+
+  int numRows = floattableau.getNumRows();
+  int numCols = floattableau.getNumColumns();
+  float* dataptr = floattableau.getDataPointer();
+  int numReserveCols = floattableau.getNReservedColumns();
+
+  std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
   if constexpr (isMatrixized) {
-    collector.start();
+    // collector.start();
 
-    std::swap(floattableu(pivotRow, 0), floattableu(pivotRow, pivotCol));
+    std::swap(floattableau(pivotRow, 0), floattableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
-    if (floattableu(pivotRow, 0) < 0) {
+    if (floattableau(pivotRow, 0) < 0) {
       // If the denominator is negative, we negate the row by simply negating
       // the denominator.
-      floattableu(pivotRow, 0) = -floattableu(pivotRow, 0);
-      floattableu(pivotRow, pivotCol) = -floattableu(pivotRow, pivotCol);
+      floattableau(pivotRow, 0) = -floattableau(pivotRow, 0);
+      floattableau(pivotRow, pivotCol) = -floattableau(pivotRow, pivotCol);
     } else {
       for (unsigned col = 1; col < nCol; ++col) {
         if (col != pivotCol)
-          floattableu(pivotRow, col) = -floattableu(pivotRow, col);
+          floattableau(pivotRow, col) = -floattableau(pivotRow, col);
       }
     }
 
-    SMEPivotHelper(dataptr, numRows, numCols, pivotRow, pivotCol, numReserveCols);
-    
-    event_count c2 = collector.end();
-    std::cout << "Pivot: " << c2.cycles() << " cycles\n";
-  } else {
-    collector.start();
+    if (std::fetestexcept(FE_ALL_EXCEPT)) {
+      std::cerr << "Floating point exception in pivot!\n";
+      checkFloatingPointExceptions();
+    }
 
-    std::swap(floattableu(pivotRow, 0), floattableu(pivotRow, pivotCol));
+    std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
+    SMEPivotHelper(dataptr, numRows, numCols, pivotRow, pivotCol, numReserveCols);
+
+    if (std::fetestexcept(FE_ALL_EXCEPT)) {
+      std::cerr << "Floating point exception in pivot helper!\n";
+      checkFloatingPointExceptions();
+    }
+    
+    // event_count c2 = collector.end();
+    // std::cout << "Pivot SME: " << c2.cycles() << " cycles\n";
+  } else {
+    // collector.start();
+
+    std::swap(floattableau(pivotRow, 0), floattableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
-    if (floattableu(pivotRow, 0) < 0) {
+    if (floattableau(pivotRow, 0) < 0) {
       // If the denominator is negative, we negate the row by simply negating
       // the denominator.
-      floattableu(pivotRow, 0) = -floattableu(pivotRow, 0);
-      floattableu(pivotRow, pivotCol) = -floattableu(pivotRow, pivotCol);
+      floattableau(pivotRow, 0) = -floattableau(pivotRow, 0);
+      floattableau(pivotRow, pivotCol) = -floattableau(pivotRow, pivotCol);
     } else {
       for (unsigned col = 1; col < nCol; ++col) {
         if (col != pivotCol)
-          floattableu(pivotRow, col) = -floattableu(pivotRow, col);
+          floattableau(pivotRow, col) = -floattableau(pivotRow, col);
       }
     }
     // normalizeRowScalar(pivotRow);
@@ -528,35 +555,55 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     for (unsigned row = 0; row < nRow; ++row) {
       if (row == pivotRow)
         continue;
-      // if (floattableu(row, pivotCol) == 0) // Nothing to do.
+      // if (floattableau(row, pivotCol) == 0) // Nothing to do.
       //   continue;
-      floattableu(row, 0) *= floattableu(pivotRow, 0);
+      floattableau(row, 0) *= floattableau(pivotRow, 0);
       for (unsigned j = 1; j < nCol; ++j) {
         if (j == pivotCol)
           continue;
         // Add rather than subtract because the pivot row has been negated.
-        floattableu(row, j) = floattableu(row, j) * floattableu(pivotRow, 0) +
-                          floattableu(row, pivotCol) * floattableu(pivotRow, j);
+        floattableau(row, j) = floattableau(row, j) * floattableau(pivotRow, 0) +
+                          floattableau(row, pivotCol) * floattableau(pivotRow, j);
       }
-      floattableu(row, pivotCol) *= floattableu(pivotRow, pivotCol);
+      floattableau(row, pivotCol) *= floattableau(pivotRow, pivotCol);
       // normalizeRowScalar(row);
     }
 
-    event_count c2 = collector.end();
-    std::cout << "Pivot: " << c2.cycles() << " cycles\n";
+    // event_count c2 = collector.end();
+    // std::cout << "Pivot Scalar: " << c2.cycles() << " cycles\n";
   }
+
+  // if (std::fetestexcept(FE_ALL_EXCEPT)) {
+  //   std::cerr << "Floating point exception in pivot!\n";
+  //   checkFloatingPointExceptions();
+  // }
+
+  std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
     
-  collector.start();
+  // collector.start();
 
-  tableau = floattableu.template castTo<Int>();
+  tableau = floattableau.template castTo<Int>();
 
-  event_count c3 = collector.end();
-  std::cout << "Cast to Int: " << c3.cycles() << " cycles\n";
+  // event_count c3 = collector.end();
+  // std::cout << "Cast to Int: " << c3.cycles() << " cycles\n";
 
-  collector.start();
-  event_count c4 = collector.end();
-  std::cout << "Cycle count for nothing: " << c4.cycles() << " cycles\n";
-  std::cout << "****************************************\n";
+  if (std::fetestexcept(FE_ALL_EXCEPT)) {
+    std::cerr << "Floating point exception in castTo<float>!\n";
+    checkFloatingPointExceptions();
+
+    std::cout << "Int tableau: \n";
+    tableau.dump();
+
+    std::cout << "Float tableau: \n";
+    floattableau.dump();
+
+    abort();
+  }
+
+  // collector.start();
+  // event_count c4 = collector.end();
+  // std::cout << "Cycle count for nothing: " << c4.cycles() << " cycles\n";
+  // std::cout << "****************************************\n";
 }
 
 /// Perform pivots until the unknown has a non-negative sample value or until

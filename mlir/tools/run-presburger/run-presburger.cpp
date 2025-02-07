@@ -9,7 +9,6 @@
 #include <string>
 #include <fstream>
 #include "llvm/ADT/Optional.h"
-#include <cfenv>
 
 event_collector rpcollector;
 
@@ -113,7 +112,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 5;
+  const unsigned numRuns = 2;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();

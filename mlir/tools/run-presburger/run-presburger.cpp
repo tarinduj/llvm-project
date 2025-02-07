@@ -11,9 +11,7 @@
 #include "llvm/ADT/Optional.h"
 #include <cfenv>
 
-#include "performancecounters/event_counter.h"
-
-event_collector collector;
+event_collector rpcollector;
 
 using namespace mlir;
 using namespace mlir::presburger;
@@ -258,9 +256,9 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         auto b = setB;
         unsigned int dummy;
         // auto start = std::chrono::high_resolution_clock::now();
-        collector.start();
+        rpcollector.start();
         a.subtract(b);
-        event_count allocate_count = collector.end();
+        event_count allocate_count = rpcollector.end();
         // auto end = std::chrono::high_resolution_clock::now();
         // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
         // times[i] = static_cast<int>(duration);
@@ -286,8 +284,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         Set res = coalesce(a);
         event_count allocate_count = collector.end();
         if (i == numRuns - 1) {
-          aggregate << allocate_count;
-          fruntime << aggregate.total.elapsed_ns() << "\n";
+          fruntime << allocate_count.cycles() << "\n";
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, res);

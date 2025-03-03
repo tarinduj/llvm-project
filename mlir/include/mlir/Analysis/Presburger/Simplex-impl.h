@@ -476,25 +476,25 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
 
-  // collector.start();
+  collector.start();
 
   Matrix<float> floattableau = tableau.template castTo<float>();
 
-  // event_count c1 = collector.end();
-  // std::cout << "Cast to float: " << c1.cycles() << " cycles\n";
+  event_count c1 = collector.end();
+  std::cout << "Cast to float: " << c1.cycles() << " cycles\n";
 
-  if (std::fetestexcept(FE_ALL_EXCEPT)) {
-    std::cerr << "Floating point exception in castTo<float>!\n";
-    checkFloatingPointExceptions();
+  // if (std::fetestexcept(FE_ALL_EXCEPT)) {
+  //   std::cerr << "Floating point exception in castTo<float>!\n";
+  //   checkFloatingPointExceptions();
 
-    std::cout << "Int tableau: \n";
-    tableau.dump();
+  //   std::cout << "Int tableau: \n";
+  //   tableau.dump();
 
-    std::cout << "Float tableau: \n";
-    floattableau.dump();
+  //   std::cout << "Float tableau: \n";
+  //   floattableau.dump();
 
-    abort();
-  }
+  //   abort();
+  // }
 
   int numRows = floattableau.getNumRows();
   int numCols = floattableau.getNumColumns();
@@ -503,39 +503,41 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
   if constexpr (isMatrixized) {
-    // collector.start();
+    collector.start();
 
-    std::swap(floattableau(pivotRow, 0), floattableau(pivotRow, pivotCol));
-    // We need to negate the whole pivot row except for the pivot column.
-    if (floattableau(pivotRow, 0) < 0) {
-      // If the denominator is negative, we negate the row by simply negating
-      // the denominator.
-      floattableau(pivotRow, 0) = -floattableau(pivotRow, 0);
-      floattableau(pivotRow, pivotCol) = -floattableau(pivotRow, pivotCol);
-    } else {
-      for (unsigned col = 1; col < nCol; ++col) {
-        if (col != pivotCol)
-          floattableau(pivotRow, col) = -floattableau(pivotRow, col);
-      }
-    }
+    // std::swap(floattableau(pivotRow, 0), floattableau(pivotRow, pivotCol));
+    // // We need to negate the whole pivot row except for the pivot column.
+    // if (floattableau(pivotRow, 0) < 0) {
+    //   // If the denominator is negative, we negate the row by simply negating
+    //   // the denominator.
+    //   floattableau(pivotRow, 0) = -floattableau(pivotRow, 0);
+    //   floattableau(pivotRow, pivotCol) = -floattableau(pivotRow, pivotCol);
+    // } else {
+    //   for (unsigned col = 1; col < nCol; ++col) {
+    //     if (col != pivotCol)
+    //       floattableau(pivotRow, col) = -floattableau(pivotRow, col);
+    //   }
+    // }
 
-    if (std::fetestexcept(FE_ALL_EXCEPT)) {
-      std::cerr << "Floating point exception in pivot!\n";
-      checkFloatingPointExceptions();
-    }
+    // if (std::fetestexcept(FE_ALL_EXCEPT)) {
+    //   std::cerr << "Floating point exception in pivot!\n";
+    //   checkFloatingPointExceptions();
+    // }
 
-    std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
+    // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
     SMEPivotHelper(dataptr, numRows, numCols, pivotRow, pivotCol, numReserveCols);
 
-    if (std::fetestexcept(FE_ALL_EXCEPT)) {
-      std::cerr << "Floating point exception in pivot helper!\n";
-      checkFloatingPointExceptions();
-    }
+    // if (std::fetestexcept(FE_ALL_EXCEPT)) {
+    //   std::cerr << "Floating point exception in pivot helper!\n";
+    //   checkFloatingPointExceptions();
+    // }
     
-    // event_count c2 = collector.end();
-    // std::cout << "Pivot SME: " << c2.cycles() << " cycles\n";
+    event_count c2 = collector.end();
+    std::cout << "Pivot SME: " << c2.cycles() << " cycles\n";
+    std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
+    std::cout << "Instructions: " << c2.instructions() << "\n";
   } else {
-    // collector.start();
+    collector.start();
 
     std::swap(floattableau(pivotRow, 0), floattableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
@@ -569,8 +571,10 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       // normalizeRowScalar(row);
     }
 
-    // event_count c2 = collector.end();
-    // std::cout << "Pivot Scalar: " << c2.cycles() << " cycles\n";
+    event_count c2 = collector.end();
+    std::cout << "Pivot Scalar: " << c2.cycles() << " cycles\n";
+    std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
+    std::cout << "Instructions: " << c2.instructions() << "\n";
   }
 
   // if (std::fetestexcept(FE_ALL_EXCEPT)) {
@@ -580,30 +584,313 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
   std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
     
-  // collector.start();
+  collector.start();
 
   tableau = floattableau.template castTo<Int>();
 
-  // event_count c3 = collector.end();
-  // std::cout << "Cast to Int: " << c3.cycles() << " cycles\n";
+  event_count c3 = collector.end();
+  std::cout << "Cast to Int: " << c3.cycles() << " cycles\n";
 
-  if (std::fetestexcept(FE_ALL_EXCEPT)) {
-    std::cerr << "Floating point exception in castTo<float>!\n";
-    checkFloatingPointExceptions();
+  // if (std::fetestexcept(FE_ALL_EXCEPT)) {
+  //   std::cerr << "Floating point exception in castTo<float>!\n";
+  //   checkFloatingPointExceptions();
 
-    std::cout << "Int tableau: \n";
-    tableau.dump();
+  //   std::cout << "Int tableau: \n";
+  //   tableau.dump();
 
-    std::cout << "Float tableau: \n";
-    floattableau.dump();
+  //   std::cout << "Float tableau: \n";
+  //   floattableau.dump();
 
-    abort();
+  //   abort();
+  // }
+
+  collector.start();
+  event_count c4 = collector.end();
+  std::cout << "Cycle count for nothing: " << c4.cycles() << " cycles\n";
+  std::cout << "****************************************\n";
+}
+
+template <typename Int>
+__attribute__((always_inline))
+inline void  Simplex<Int>::SMEPivotHelper(float *matrix, int rows, int cols, int pivot_row, int pivot_col, int reserved_cols) {
+
+  // Matrix<Int, numRows, numCols> test_matrix;
+  // test_matrix.initZero();
+
+  // Int c1 = 0;
+  // Int c2 = 0;
+
+  // printf("coeff1: %f\n", matrix[pivot_row * cols + 0]);
+  // printf("coeff2: %f\n", matrix[pivot_row * cols + pivot_col]);
+
+  float* output = new float[cols];
+  for (int i = 0; i < cols; ++i) {
+    output[i] = 0;
   }
 
-  // collector.start();
-  // event_count c4 = collector.end();
-  // std::cout << "Cycle count for nothing: " << c4.cycles() << " cycles\n";
-  // std::cout << "****************************************\n";
+  __asm__ __volatile__(
+
+      // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
+      "smstart                                                  \n" // Start SME
+      "zero {za}                                                \n" // Zero ZA  
+      
+      "mov x1, %[src]                                           \n" // Source matrix pointer
+      // "mov x6, %[test_mat]                                      \n" // Test matrix pointer
+
+      // "mov x11, %[output_arr]                                    \n" // output_arr pointer
+      
+      "mov w4, %w[nrows]                                        \n" // Move rows to w4
+      "mov w5, %w[ncols]                                        \n" // Move cols to w5
+      "mov w6, %w[reservedcols]                                 \n" // Move reservedcols to w6
+
+      "mov x12, #0                                              \n" // Zeroth column index
+      "mov w13, %w[prow]                                        \n" // Move pivot_row to w13
+      "mov w14, %w[pcol]                                        \n" // Move pivot_col to w14
+      
+      "ptrue	p0.s                                              \n" // Predicate vector
+      // Set predicate to enable 'cols' elements
+      // "whilelt p0.s, xzr, %w[cols]                                \n"
+
+      // Initialize registers
+      "mov w15, #0                                              \n" // Loop counter i = 0
+      "mov x9, #0                                               \n" // Offset in source matrix
+
+      /* ******************** */
+      // Load the matrix into ZA
+      // Loop label
+      "1:                                                       \n"
+      "cmp w15, w4                                              \n" // Compare i with nrows
+      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
+
+      // Load ith row of source matrix into ZA
+      "ld1w {za0h.s[w15, 0]}, p0/z, [x1, x9, lsl #2]            \n"
+      /*
+      [x1, x9, lsl #2]:
+        Take the base address in x1.
+        Add to it the value in x9, multiplied by 4 (lsl #2). (In bytes)
+      za0h.s[w15, 0]:
+        za0h is the base ZA tile to work with. It refers to a tile in the ZA register that can hold a matrix-like structure.
+        w15 is an index specifying which row or group of elements to operate on within the za0h tile.
+        0 acts as an offset to further refine the selection of elements within that row or group.
+      */
+
+      // Increment loop counter
+      "add w15, w15, #1                                         \n" // i++
+      "add x9, x9, x6                                           \n" // Increment offset by number of columns
+
+      // Loop back
+      "b 1b                                                     \n"
+
+      // Loop exit label
+      "2:                                                       \n"
+      
+
+      /* ******************** */
+      // Do the swap
+      "mov z0.s, p0/m, za0h.s[w13, 0]                           \n" // Move pivot row from ZA to z0
+      
+      // create predicates for the 0th and pivot columns
+      "index z2.s, #0, #1                                       \n" // z2.s = [0, 1, 2, 3, ...]
+      // create a predicate for the 0th column
+      "cmpeq p1.s, p0/z, z2.s, #0                               \n" // p1.s[i] = (z2.s[i] == 0) ? 1 : 0
+      // create a predicate for the pivot column
+      "dup z3.s, w14                                            \n" // z3.s = [pivot_col, pivot_col, pivot_col, ...]
+      "cmpeq p2.s, p0/z, z2.s, z3.s                             \n" // p2.s[i] = (z2.s[i] == pivot_col) ? 1 : 0
+
+      // Use LASTB to extract the element from z0 in the lane indicated by each predicate.
+      // LASTB extracts the last (i.e. the only, if one is active) active element.
+      "lastb s4, p1, z0.s                                       \n" // s0 gets the element from lane 0
+      "lastb s5, p2, z0.s                                       \n" // s1 gets the element from lane pivot_col
+
+      // Negate the values
+      "fneg s4, s4                                              \n" // Negate s4
+      "fneg s5, s5                                              \n" // Negate s5
+
+      // Write back the swapped values
+      // CAUTION: S and Z are overlapped
+      // Write s5 into the lane selected by p1
+      "mov z0.s, p1/m, s5                                       \n" // In lane 0, z0 becomes s5
+      // Write s4 into the lane selected by p2
+      "mov z0.s, p2/m, s4                                       \n" // In lane pivot_col, z0 becomes s4
+
+      // If the denominator (lane 0) is negative, we canonicalize the row
+      "fcmp s5, #0.0                                            \n" // Compare s5 with 0
+      "b.ge 1f                                                  \n" // If >= 0, skip negation
+
+      // Negate pivotRowVec if tableau(pivotRow, 0) < 0
+      "fneg z0.s, p0/m, z0.s                                    \n" // Negate z0.s
+      "fneg s5, s5                                              \n" // Negate s5
+      "fneg s4, s4                                              \n" // Negate s4
+
+      // End if
+      "1:                                                       \n"
+      "mov za0h.s[w13, 0], p0/m, z0.s                           \n" // Store back negated pivot row to ZA
+
+      // Move coefficients to general purpose registers
+      "fmov w2, s5                                              \n" // Coefficient 1/ Coefficient 3
+      "fmov w3, s4                                              \n" // Coefficient 2
+
+      // // test 
+      // "st1w z0.s, p0, [x11, x12, lsl #2]                        \n" // Store z0 back into memory
+
+      /* ******************** */
+      // Matrix Outer Product
+
+      "mov z1.s, p0/m, za0v.s[w14, 0]                           \n" // Move pivot column from ZA to z1
+
+      // Take the outer product of the pivot row and pivot column
+      "zero	{za1.s}                                             \n" // Zero ZA
+      // https://developer.arm.com/documentation/ddi0602/2023-03/SME-Instructions/FMOPA--non-widening---Floating-point-outer-product-and-accumulate-?lang=en
+      "fmopa	za1.s, p0/m, p0/m, z1.s, z0.s                     \n" // Multiply pivot row and pivot column
+      // TODO: Reimplement the above instruction using SMOPA
+
+
+      /* ******************** */
+      // Masked Column Multiplies
+
+      "mov z0.s, p0/m, za0v.s[W12, 0]                           \n" // Move zeroth column from ZA to z0
+      "mov z1.s, p0/m, za0v.s[w14, 0]                           \n" // Move pivot column from ZA to z1
+    
+      // create a predicate with masking pivot_row
+      "index z2.s, #0, #1                                       \n" // z2.s = [0, 1, 2, 3, ...]
+      "dup z3.s, w13                                            \n" // z3.s = [pivot_row, pivot_row, pivot_row, ...]
+      "cmpne p1.s, p0/z, z2.s, z3.s                             \n" // p1.s[i] = (z2.s[i] != z3.s[i]) ? 1 : 0
+
+      // Broadcast coeff1 into z2.s
+      "dup z2.s, w2                                             \n" // z2.s = [coeff1, coeff1, coeff1, ...]
+
+      // Multiply z0 with coeff1 where p1.s == 1
+      "fmul z0.s, p1/m, z0.s, z2.s                              \n" // z0.s = z0.s * z2.s where p1.s == 1
+
+      // Broadcast coeff2 into z2.s
+      "dup z2.s, w3                                             \n" // z2.s = [coeff2, coeff2, coeff2, ...]
+
+      // Multiply z1 with coeff2 where p1.s == 1
+      "fmul z1.s, p1/m, z1.s, z2.s                              \n" // z1.s = z1.s * z2.s where p1.s == 1
+      
+      // mov z0 and z1 back to ZA
+      "mov za0v.s[w12, 0], p0/m, z0.s                           \n" // Move zeroth column from z0 to ZA
+      "mov za0v.s[w14, 0], p0/m, z1.s                           \n" // Move pivot column from z1 to ZA
+
+
+      /* ******************** */
+      // Masked Multiply-Add
+
+      // create a predicate with masking pivot_row
+      "whilelo p0.s, xzr, x4                                    \n" // Set predicate register to nrows 
+
+      "index z0.s, #0, #1                                       \n" // z2.s = [0, 1, 2, 3, ...] 
+      "dup z1.s, w13                                            \n" // z3.s = [pivot_row, pivot_row, pivot_row, ...]
+      "cmpne p1.s, p0/z, z0.s, z1.s                             \n" // p1.s[i] = (z2.s[i] != z3.s[i]) ? 1 : 0
+
+      // p1 = [0,1]
+
+      // broadcast coeff3 into z2.s
+      "dup z2.s, w2                                             \n" // z2.s = [coeff3, coeff3, coeff3, ...]
+
+      // Initialize registers
+      "mov w15, #1                                              \n" // Loop counter i = 1
+
+      // Loop label
+      "1:                                                       \n"
+      "cmp w15, w14                                             \n" // Compare i with pivot_col
+      "b.ge 2f                                                  \n" // If i >= pivot_col, exit loop
+
+      // Load ith column of ZA0 and ZA1 into z0 and z1
+      "mov z0.s, p0/m, za0v.s[w15, 0]                           \n" // Move ith column from ZA0 to z0
+      "mov z1.s, p0/m, za1v.s[w15, 0]                           \n" // Move ith column from ZA1 to z1
+
+      // Multiply z0 with coeff3 where p1.s == 1
+      "fmul z0.s, p1/m, z0.s, z2.s                              \n" // z0.s = z0.s * coeff3 
+
+      // Add z0 and z1
+      "fadd z0.s, p1/m, z0.s, z1.s                              \n" // z0.s = z0.s + z1.s
+
+      // mov z0 back to ZA0
+      "mov za0v.s[w15, 0], p0/m, z0.s                           \n" // Move ith column from z0 to ZA0
+
+      // Increment loop counter
+      "add w15, w15, #1                                         \n" // i++
+
+      // Loop back
+      "b 1b                                                     \n"
+
+      // Loop exit label
+      "2:                                                       \n"
+      "add w15, w15, #1                                         \n" // Loop counter i = pivot_col + 1
+
+      // Loop label
+      "3:                                                       \n"
+      "cmp w15, w5                                              \n" // Compare i with cols
+      "b.ge 4f                                                  \n" // If i >= cols, exit loop
+      
+      // Load ith column of ZA0 and ZA1 into z0 and z1
+      "mov z0.s, p0/m, za0v.s[w15, 0]                           \n" // Move ith column from ZA0 to z0
+      "mov z1.s, p0/m, za1v.s[w15, 0]                           \n" // Move ith column from ZA1 to z1
+
+      // Multiply z0 with coeff3 where p1.s == 1
+      "fmul z0.s, p1/m, z0.s, z2.s                              \n" // z0.s = z0.s * coeff3 
+
+      // Add z0 and z1
+      "fadd z0.s, p1/m, z0.s, z1.s                              \n" // z0.s = z0.s + z1.s
+
+      // mov z0 back to ZA0
+      "mov za0v.s[w15, 0], p0/m, z0.s                           \n" // Move ith column from z0 to ZA0
+
+      // Increment loop counter
+      "add w15, w15, #1                                         \n" // i++
+
+      // Loop back
+      "b 3b                                                     \n"
+
+      // Loop exit label
+      "4:                                                       \n"
+
+      /* ******************** */
+      // Store the result back into the matrix
+      "whilelo p0.s, xzr, x5                                    \n" // Set predicate register to cols to mask seg faults
+
+      // Initialize registers
+      "mov w15, #0                                              \n" // Loop counter i = 0
+      "mov x9, #0                                               \n" // Offset in source matrix
+
+      // Loop label
+      "1:                                                       \n"
+      "cmp w15, w4                                              \n" // Compare i with nrows
+      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
+
+      // Store ith row of ZA into matrix
+      "st1w {za0h.s[w15, 0]}, p0, [x1, x9, lsl #2]              \n"
+
+      // Increment loop counter
+      "add w15, w15, #1                                         \n" // i++
+      "add x9, x9, x6                                           \n" // Increment offset by number of columns
+
+      // Loop back
+      "b 1b                                                     \n"
+
+      // Loop exit label
+      "2:                                                       \n"
+
+      // "str w2, %[c1]                                            \n" // Coefficient 1/ Coefficient 3
+      // "str w3, %[c2]                                            \n" // Coefficient 2
+
+      "smstop                                                   \n"
+  : /*[c1] "=m"(c1),
+    [c2] "=m"(c2)*/
+  : [src] "r"(matrix),
+    /* [test_mat] "r"(&test_matrix.m[0][0]), */
+    [prow] "r"(pivot_row), 
+    [pcol] "r"(pivot_col),
+    [nrows] "r"(rows),
+    [ncols] "r"(cols),
+    [reservedcols] "r"(reserved_cols)
+    /* [output_arr] "r" (output) */
+  : "x1", "x2", "x3", "x4", "x5", "x6", "x9", "x12", "x13", "x14", "x15", "za", "z0", "z1", "z2", "z3", "p0", "p1", "p2", "s3", "s4", "memory"
+  );
+
+// printf("coeff1: %f\n", c1);
+// printf("coeff2: %f\n", c2);
 }
 
 /// Perform pivots until the unknown has a non-negative sample value or until

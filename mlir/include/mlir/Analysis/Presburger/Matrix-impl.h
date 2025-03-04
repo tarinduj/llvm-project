@@ -21,9 +21,18 @@ inline unsigned nextPowOfTwo(unsigned n) {
   return ret;
 }
 
+inline unsigned nextMultipleOfFour(unsigned n) {
+  unsigned ret = 4;
+  while (n > ret)
+    ret += 4;
+  return ret;
+}
+
 template <typename Int>
 Matrix<Int>::Matrix(unsigned rows, unsigned columns)
-    : nRows(rows), nColumns(columns), nReservedColumns(nextPowOfTwo(nColumns)), data(nRows * nReservedColumns) {
+    : nRows(rows), nColumns(columns), 
+    nReservedColumns(nextPowOfTwo(nColumns)), nReservedRows(nextMultipleOfFour(nRows)), 
+    data(nReservedRows * nReservedColumns) {
 
   if (isMatrixized) {
     if (columns > MatrixSize || rows > MatrixSize) {
@@ -60,24 +69,28 @@ void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
   }
   if (newNColumns > nReservedColumns) {
     unsigned newNReservedColumns = nextPowOfTwo(newNColumns);
-    data.resize(newNRows * newNReservedColumns);
+    unsigned newNReservedRows = nextMultipleOfFour(newNRows);
+    data.resize(newNReservedRows * newNReservedColumns);
     for (int row = newNRows - 1; row >= 0; --row)
       for (int col = newNReservedColumns - 1; col >= 0; --col)
         data[row * newNReservedColumns + col] = unsigned(row) < nRows && unsigned(col) < nColumns ? at(row, col) : 0;
     nRows = newNRows;
     nColumns = newNColumns;
     nReservedColumns = newNReservedColumns;
+    nReservedRows = newNReservedRows;
   } else {
-    nRows = newNRows;
-    data.resize(nRows * nReservedColumns);
+    unsigned newNReservedRows = nextMultipleOfFour(newNRows);
+    data.resize(newNReservedRows * nReservedColumns);
     if (newNColumns < nColumns) {
-      for (unsigned row = 0; row < nRows; ++row) {
+      for (unsigned row = 0; row < newNRows; ++row) {
         for (unsigned col = newNColumns; col < nColumns; ++col) {
           at(row, col) = 0;
         }
       }
     }
+    nRows = newNRows;
     nColumns = newNColumns;
+    nReservedRows = newNReservedRows;
   }
 }
 

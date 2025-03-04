@@ -189,7 +189,7 @@ public:
   }
 
 private:
-  unsigned nRows, nColumns, nReservedColumns;
+  unsigned nRows, nColumns, nReservedColumns, nReservedRows;
 
   // using VectorType = typename std::conditional<isVectorized,
   //     std::vector<Int, AlignedAllocator<Int, 64>>,

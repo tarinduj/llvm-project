@@ -74,6 +74,12 @@ void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
     for (int row = newNRows - 1; row >= 0; --row)
       for (int col = newNReservedColumns - 1; col >= 0; --col)
         data[row * newNReservedColumns + col] = unsigned(row) < nRows && unsigned(col) < nColumns ? at(row, col) : 0;
+    for (unsigned row = std::min(nRows, newNRows); row < newNReservedRows; ++row) {
+      for (unsigned col = 0; col < nReservedColumns; ++col) {
+        data[row * newNReservedColumns + col] = 0;
+      }
+    }
+    
     nRows = newNRows;
     nColumns = newNColumns;
     nReservedColumns = newNReservedColumns;
@@ -81,11 +87,18 @@ void Matrix<Int>::resize(unsigned newNRows, unsigned newNColumns) {
   } else {
     unsigned newNReservedRows = nextMultipleOfFour(newNRows);
     data.resize(newNReservedRows * nReservedColumns);
+
     if (newNColumns < nColumns) {
-      for (unsigned row = 0; row < newNRows; ++row) {
+      for (unsigned row = 0; row < newNReservedRows; ++row) {
         for (unsigned col = newNColumns; col < nColumns; ++col) {
           at(row, col) = 0;
         }
+      }
+    }
+
+    for (unsigned row = std::min(nRows, newNRows); row < newNReservedRows; ++row) {
+      for (unsigned col = 0; col < nReservedColumns; ++col) {
+        at(row, col) = 0;
       }
     }
     nRows = newNRows;

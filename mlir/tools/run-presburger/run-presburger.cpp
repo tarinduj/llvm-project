@@ -10,7 +10,7 @@
 #include <fstream>
 #include "llvm/ADT/Optional.h"
 
-event_collector rpcollector;
+event_collector collector;
 
 using namespace mlir;
 using namespace mlir::presburger;
@@ -112,7 +112,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 2;
+  const unsigned numRuns = 1000000;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
@@ -126,6 +126,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     
   std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
   std::ofstream fruntime("data/runtime" + suffix + "_" + op + ".txt");
+  std::ofstream fcycles("data/cycles" + suffix + "_" + op + ".txt");
+  std::ofstream finstructions("data/instructions" + suffix + "_" + op + ".txt");
 
   // td::ofstream fwaterline, fstat;
   std::error_code EC;
@@ -145,11 +147,12 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
 
     int times[numRuns];
+    int cycles[numRuns];
+    int instructions[numRuns];
+
     // printing progress
     // if (j % 1 == 0)
       // std::cerr << op << ' ' << j << '/' << numCases << '\n';]
-
-    event_aggregate aggregate{};
 
     if (maxWaterline) {
       // std::cout << "maxWaterline\n";
@@ -161,6 +164,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         if (op == "subtract" || op == "union" || op == "intersect" || op == "equal")
           consumeLine();
         fruntime << "0\n";
+        fcycles << "0\n";
+        finstructions << "0\n";
         continue;
       }
     }
@@ -176,9 +181,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         volatile auto res = a.isIntegerEmpty();
         res = res;
         event_count allocate_count = collector.end();
+        times[i] = static_cast<int>(allocate_count.elapsed_ns());
+        cycles[i] = static_cast<int>(allocate_count.cycles());
+        instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          aggregate << allocate_count;
-          fruntime << aggregate.total.elapsed_ns() << "\n";
+          std::sort(times, times + numRuns);
+          std::sort(cycles, cycles + numRuns);
+          std::sort(instructions, instructions + numRuns);
+          fruntime << times[numRuns/2] << '\n';
+          fcycles << cycles[numRuns/2] << '\n';
+          finstructions << instructions[numRuns/2] << '\n';
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
             fout << res << '\n';
@@ -196,9 +208,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         volatile auto res = Set::equal(a, b);
         res = res;
         event_count allocate_count = collector.end();
+        times[i] = static_cast<int>(allocate_count.elapsed_ns());
+        cycles[i] = static_cast<int>(allocate_count.cycles());
+        instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          aggregate << allocate_count;
-          fruntime << aggregate.total.elapsed_ns() << "\n";
+          std::sort(times, times + numRuns);
+          std::sort(cycles, cycles + numRuns);
+          std::sort(instructions, instructions + numRuns);
+          fruntime << times[numRuns/2] << '\n';
+          fcycles << cycles[numRuns/2] << '\n';
+          finstructions << instructions[numRuns/2] << '\n';
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
             fout << res << '\n';
@@ -215,9 +234,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         collector.start();
         a.unionSet(b);
         event_count allocate_count = collector.end();
+        times[i] = static_cast<int>(allocate_count.elapsed_ns());
+        cycles[i] = static_cast<int>(allocate_count.cycles());
+        instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          aggregate << allocate_count;
-          fruntime << aggregate.total.elapsed_ns() << "\n";
+          std::sort(times, times + numRuns);
+          std::sort(cycles, cycles + numRuns);
+          std::sort(instructions, instructions + numRuns);
+          fruntime << times[numRuns/2] << '\n';
+          fcycles << cycles[numRuns/2] << '\n';
+          finstructions << instructions[numRuns/2] << '\n';
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
@@ -236,9 +262,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         auto start = std::chrono::high_resolution_clock::now();
         a.intersectSet(b);
         event_count allocate_count = collector.end();
+        times[i] = static_cast<int>(allocate_count.elapsed_ns());
+        cycles[i] = static_cast<int>(allocate_count.cycles());
+        instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          aggregate << allocate_count;
-          fruntime << aggregate.total.elapsed_ns() << "\n";
+          std::sort(times, times + numRuns);
+          std::sort(cycles, cycles + numRuns);
+          std::sort(instructions, instructions + numRuns);
+          fruntime << times[numRuns/2] << '\n';
+          fcycles << cycles[numRuns/2] << '\n';
+          finstructions << instructions[numRuns/2] << '\n';
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
@@ -254,18 +287,19 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        // auto start = std::chrono::high_resolution_clock::now();
-        rpcollector.start();
+        collector.start();
         a.subtract(b);
-        event_count allocate_count = rpcollector.end();
-        // auto end = std::chrono::high_resolution_clock::now();
-        // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        // times[i] = static_cast<int>(duration);
+        event_count allocate_count = collector.end();
+        times[i] = static_cast<int>(allocate_count.elapsed_ns());
+        cycles[i] = static_cast<int>(allocate_count.cycles());
+        instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          // std::sort(times, times + numRuns);
-          // fruntime << times[numRuns/2] << '\n';
-          aggregate << allocate_count;
-          fruntime << aggregate.total.elapsed_ns() << "\n";
+          std::sort(times, times + numRuns);
+          std::sort(cycles, cycles + numRuns);
+          std::sort(instructions, instructions + numRuns);
+          fruntime << times[numRuns/2] << '\n';
+          fcycles << cycles[numRuns/2] << '\n';
+          finstructions << instructions[numRuns/2] << '\n';
           if constexpr (printAuxInfo) {
             // fwaterline << Set::waterline << '\n';
             // dumpStats(fstat, a);
@@ -282,8 +316,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         collector.start();
         Set res = coalesce(a);
         event_count allocate_count = collector.end();
+        times[i] = static_cast<int>(allocate_count.elapsed_ns());
+        cycles[i] = static_cast<int>(allocate_count.cycles());
+        instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          fruntime << allocate_count.cycles() << "\n";
+          std::sort(times, times + numRuns);
+          std::sort(cycles, cycles + numRuns);
+          std::sort(instructions, instructions + numRuns);
+          fruntime << times[numRuns/2] << '\n';
+          fcycles << cycles[numRuns/2] << '\n';
+          finstructions << instructions[numRuns/2] << '\n';
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, res);
@@ -300,9 +342,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         collector.start();
         auto res = Set::complement(a);
         event_count allocate_count = collector.end();
+        times[i] = static_cast<int>(allocate_count.elapsed_ns());
+        cycles[i] = static_cast<int>(allocate_count.cycles());
+        instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          aggregate << allocate_count;
-          fruntime << aggregate.total.elapsed_ns() << "\n";
+          std::sort(times, times + numRuns);
+          std::sort(cycles, cycles + numRuns);
+          std::sort(instructions, instructions + numRuns);
+          fruntime << times[numRuns/2] << '\n';
+          fcycles << cycles[numRuns/2] << '\n';
+          finstructions << instructions[numRuns/2] << '\n';
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
@@ -319,9 +368,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         collector.start();
         auto res = Set::eliminateExistentials(a);
         event_count allocate_count = collector.end();
+        times[i] = static_cast<int>(allocate_count.elapsed_ns());
+        cycles[i] = static_cast<int>(allocate_count.cycles());
+        instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          aggregate << allocate_count;
-          fruntime << aggregate.total.elapsed_ns() << "\n";
+          std::sort(times, times + numRuns);
+          std::sort(cycles, cycles + numRuns);
+          std::sort(instructions, instructions + numRuns);
+          fruntime << times[numRuns/2] << '\n';
+          fcycles << cycles[numRuns/2] << '\n';
+          finstructions << instructions[numRuns/2] << '\n';
           if constexpr (printAuxInfo) {
   //           fwaterline << Set::waterline << '\n';
   //           dumpStats(fstat, a);
@@ -348,10 +404,21 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 }
 
 int main(int argc, char **argv) {
-  if (argc != 2 && argc != 3) {
-    std::cerr << "usage: ./run-presburger <op> [precision:16/64/128/gmp/T]\nPass input to stdin.\n";
-    return 1;
+  // if (argc != 2 && argc != 3) {
+  //   std::cerr << "usage: ./run-presburger <op> [precision:16/64/128/gmp/T]\nPass input to stdin.\n";
+  //   return 1;
+  // }
+
+  const char* filename = "/Users/ajayati/Documents/mac-arm-sme/fpl-sme/benchmark/fpl/subtract.txt";
+  std::ifstream infile(filename);
+
+  if (!infile) {
+      std::cerr << "Error opening file: " << filename << std::endl;
+      return 1;
   }
+
+    // Redirect std::cin to read from the file
+    std::cin.rdbuf(infile.rdbuf());
 
   std::string op = argv[1];
   std::string prec = argc == 2 ? "T" : argv[2];

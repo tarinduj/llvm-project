@@ -15,7 +15,7 @@
 #include "mlir/Support/MathExtras.h"
 
 #include "performancecounters/event_counter.h"
-event_collector collector;
+// event_collector collector;
 
 /* SME Pivot Controls */
 #define FUSE_LEVEL 2 // 0: no fusion, 1: fuse masked multiply-add + store, 2: fuse masked multiply-add + outer product 
@@ -486,19 +486,19 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
-  std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
+  // std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
   // std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
 
   swapRowWithCol(pivotRow, pivotCol);
 
-  std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
+  // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
 
-  collector.start();
+  // collector.start();
 
   Matrix<float> floattableau = tableau.template castTo<float>();
 
-  event_count c1 = collector.end();
-  std::cout << "Cast to float: " << c1.cycles() << " cycles\n";
+  // event_count c1 = collector.end();
+  // std::cout << "Cast to float: " << c1.cycles() << " cycles\n";
 
   // if (std::fetestexcept(FE_ALL_EXCEPT)) {
   //   std::cerr << "Floating point exception in castTo<float>!\n";
@@ -518,9 +518,9 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   float* dataptr = floattableau.getDataPointer();
   int numReserveCols = floattableau.getNReservedColumns();
 
-  std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
+  // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
   if constexpr (isMatrixized) {
-    collector.start();
+    // collector.start();
 
     #if SWAP
 
@@ -562,12 +562,12 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     //   checkFloatingPointExceptions();
     // }
     
-    event_count c2 = collector.end();
-    std::cout << "Pivot SME: " << c2.cycles() << " cycles\n";
-    std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
-    std::cout << "Instructions: " << c2.instructions() << "\n";
+    // event_count c2 = collector.end();
+    // std::cout << "Pivot SME: " << c2.cycles() << " cycles\n";
+    // std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
+    // std::cout << "Instructions: " << c2.instructions() << "\n";
   } else {
-    collector.start();
+    // collector.start();
 
     std::swap(floattableau(pivotRow, 0), floattableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
@@ -601,10 +601,10 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       // normalizeRowScalar(row);
     }
 
-    event_count c2 = collector.end();
-    std::cout << "Pivot Scalar: " << c2.cycles() << " cycles\n";
-    std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
-    std::cout << "Instructions: " << c2.instructions() << "\n";
+    // event_count c2 = collector.end();
+    // std::cout << "Pivot Scalar: " << c2.cycles() << " cycles\n";
+    // std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
+    // std::cout << "Instructions: " << c2.instructions() << "\n";
   }
 
   // if (std::fetestexcept(FE_ALL_EXCEPT)) {
@@ -612,14 +612,14 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   //   checkFloatingPointExceptions();
   // }
 
-  std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
+  // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
     
-  collector.start();
+  // collector.start();
 
   tableau = floattableau.template castTo<Int>();
 
-  event_count c3 = collector.end();
-  std::cout << "Cast to Int: " << c3.cycles() << " cycles\n";
+  // event_count c3 = collector.end();
+  // std::cout << "Cast to Int: " << c3.cycles() << " cycles\n";
 
   // if (std::fetestexcept(FE_ALL_EXCEPT)) {
   //   std::cerr << "Floating point exception in castTo<float>!\n";
@@ -634,10 +634,10 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   //   abort();
   // }
 
-  collector.start();
-  event_count c4 = collector.end();
-  std::cout << "Cycle count for nothing: " << c4.cycles() << " cycles\n";
-  std::cout << "****************************************\n";
+  // collector.start();
+  // event_count c4 = collector.end();
+  // std::cout << "Cycle count for nothing: " << c4.cycles() << " cycles\n";
+  // std::cout << "****************************************\n";
 }
 
 template <typename Int>

@@ -171,14 +171,14 @@ public:
     Matrix<OtherInt> result(getNumRows(), getNumColumns());
     for (unsigned i = 0; i < getNumRows(); ++i) {
       for (unsigned j = 0; j < getNumColumns(); ++j) {
-        std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
+        // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
         result(i, j) = static_cast<OtherInt>(at(i, j));
-        if (std::fetestexcept(FE_ALL_EXCEPT)) {
-          std::cerr << "Floating point exception in castTo!\n";
-          std::cerr << "from: " << at(i, j) << " to: " << result(i, j) << '\n';
-          checkFloatingPointExceptions();
-          abort();
-        }
+        // if (std::fetestexcept(FE_ALL_EXCEPT)) {
+        //   std::cerr << "Floating point exception in castTo!\n";
+        //   std::cerr << "from: " << at(i, j) << " to: " << result(i, j) << '\n';
+        //   checkFloatingPointExceptions();
+        //   abort();
+        // }
       }
     }
     return result;

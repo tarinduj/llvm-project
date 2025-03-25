@@ -8,9 +8,10 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <vector>
 #include "llvm/ADT/Optional.h"
 
-event_collector collector;
+event_collector rpcollector;
 
 using namespace mlir;
 using namespace mlir::presburger;
@@ -146,9 +147,9 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   for (unsigned j = 0; j < numCases; ++j) {
     std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
 
-    int times[numRuns];
-    int cycles[numRuns];
-    int instructions[numRuns];
+    std::vector<int> times(numRuns);
+    std::vector<int> cycles(numRuns);
+    std::vector<int> instructions(numRuns);
 
     // printing progress
     // if (j % 1 == 0)
@@ -177,17 +178,17 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        collector.start();
+        rpcollector.start();
         volatile auto res = a.isIntegerEmpty();
         res = res;
-        event_count allocate_count = collector.end();
+        event_count allocate_count = rpcollector.end();
         times[i] = static_cast<int>(allocate_count.elapsed_ns());
         cycles[i] = static_cast<int>(allocate_count.cycles());
         instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          std::sort(cycles, cycles + numRuns);
-          std::sort(instructions, instructions + numRuns);
+          std::sort(times.begin(), times.end());
+          std::sort(cycles.begin(), cycles.end());
+          std::sort(instructions.begin(), instructions.end());
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';
@@ -204,17 +205,17 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        collector.start();
+        rpcollector.start();
         volatile auto res = Set::equal(a, b);
         res = res;
-        event_count allocate_count = collector.end();
+        event_count allocate_count = rpcollector.end();
         times[i] = static_cast<int>(allocate_count.elapsed_ns());
         cycles[i] = static_cast<int>(allocate_count.cycles());
         instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          std::sort(cycles, cycles + numRuns);
-          std::sort(instructions, instructions + numRuns);
+          std::sort(times.begin(), times.end());
+          std::sort(cycles.begin(), cycles.end());
+          std::sort(instructions.begin(), instructions.end());
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';
@@ -231,16 +232,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        collector.start();
+        rpcollector.start();
         a.unionSet(b);
-        event_count allocate_count = collector.end();
+        event_count allocate_count = rpcollector.end();
         times[i] = static_cast<int>(allocate_count.elapsed_ns());
         cycles[i] = static_cast<int>(allocate_count.cycles());
         instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          std::sort(cycles, cycles + numRuns);
-          std::sort(instructions, instructions + numRuns);
+          std::sort(times.begin(), times.end());
+          std::sort(cycles.begin(), cycles.end());
+          std::sort(instructions.begin(), instructions.end());
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';
@@ -261,14 +262,14 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         unsigned int dummy;
         auto start = std::chrono::high_resolution_clock::now();
         a.intersectSet(b);
-        event_count allocate_count = collector.end();
+        event_count allocate_count = rpcollector.end();
         times[i] = static_cast<int>(allocate_count.elapsed_ns());
         cycles[i] = static_cast<int>(allocate_count.cycles());
         instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          std::sort(cycles, cycles + numRuns);
-          std::sort(instructions, instructions + numRuns);
+          std::sort(times.begin(), times.end());
+          std::sort(cycles.begin(), cycles.end());
+          std::sort(instructions.begin(), instructions.end());
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';
@@ -287,16 +288,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
-        collector.start();
+        rpcollector.start();
         a.subtract(b);
-        event_count allocate_count = collector.end();
+        event_count allocate_count = rpcollector.end();
         times[i] = static_cast<int>(allocate_count.elapsed_ns());
         cycles[i] = static_cast<int>(allocate_count.cycles());
         instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          std::sort(cycles, cycles + numRuns);
-          std::sort(instructions, instructions + numRuns);
+          std::sort(times.begin(), times.end());
+          std::sort(cycles.begin(), cycles.end());
+          std::sort(instructions.begin(), instructions.end());
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';
@@ -313,16 +314,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        collector.start();
+        rpcollector.start();
         Set res = coalesce(a);
-        event_count allocate_count = collector.end();
+        event_count allocate_count = rpcollector.end();
         times[i] = static_cast<int>(allocate_count.elapsed_ns());
         cycles[i] = static_cast<int>(allocate_count.cycles());
         instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          std::sort(cycles, cycles + numRuns);
-          std::sort(instructions, instructions + numRuns);
+          std::sort(times.begin(), times.end());
+          std::sort(cycles.begin(), cycles.end());
+          std::sort(instructions.begin(), instructions.end());
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';
@@ -339,16 +340,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        collector.start();
+        rpcollector.start();
         auto res = Set::complement(a);
-        event_count allocate_count = collector.end();
+        event_count allocate_count = rpcollector.end();
         times[i] = static_cast<int>(allocate_count.elapsed_ns());
         cycles[i] = static_cast<int>(allocate_count.cycles());
         instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          std::sort(cycles, cycles + numRuns);
-          std::sort(instructions, instructions + numRuns);
+          std::sort(times.begin(), times.end());
+          std::sort(cycles.begin(), cycles.end());
+          std::sort(instructions.begin(), instructions.end());
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';
@@ -365,16 +366,16 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       for (unsigned i = 0; i < numRuns; ++i) {
         auto a = setA;
         unsigned int dummy;
-        collector.start();
+        rpcollector.start();
         auto res = Set::eliminateExistentials(a);
-        event_count allocate_count = collector.end();
+        event_count allocate_count = rpcollector.end();
         times[i] = static_cast<int>(allocate_count.elapsed_ns());
         cycles[i] = static_cast<int>(allocate_count.cycles());
         instructions[i] = static_cast<int>(allocate_count.instructions());
         if (i == numRuns - 1) {
-          std::sort(times, times + numRuns);
-          std::sort(cycles, cycles + numRuns);
-          std::sort(instructions, instructions + numRuns);
+          std::sort(times.begin(), times.end());
+          std::sort(cycles.begin(), cycles.end());
+          std::sort(instructions.begin(), instructions.end());
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';

@@ -605,6 +605,16 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     // std::cout << "Pivot Scalar: " << c2.cycles() << " cycles\n";
     // std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
     // std::cout << "Instructions: " << c2.instructions() << "\n";
+
+    __asm__ __volatile__(
+
+      // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
+      "smstart                                                  \n" // Start SME
+      "smstop                                                   \n" // Stop SME
+      :
+      :
+      :
+    );
   }
 
   // if (std::fetestexcept(FE_ALL_EXCEPT)) {

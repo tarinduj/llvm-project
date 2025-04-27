@@ -202,12 +202,16 @@ template <typename Int>
 void subtractRecursively(PresburgerBasicSet<Int> &b, Simplex<Int> &simplex,
                          const PresburgerSet<Int> &s, unsigned i,
                          PresburgerSet<Int> &result) {
+  std::cout << "subtractRecursively: i = " << i << "\n";
+
+  // base case
   if (i == s.getNumBasicSets()) {
     // PresburgerBasicSet<Int> BCopy = B;
     // BCopy.simplify();
     result.addBasicSet(b);
     return;
   }
+
   PresburgerBasicSet<Int> oldB = b;
   PresburgerBasicSet<Int> sI = s.getBasicSets()[i];
 
@@ -216,6 +220,8 @@ void subtractRecursively(PresburgerBasicSet<Int> &b, Simplex<Int> &simplex,
   PresburgerBasicSet<Int>::toCommonSpace(b, sI);
   for (unsigned j = 0; j < numSIDivs; ++j)
     simplex.addVariable();
+
+  
 
   for (unsigned j = sI.getNumDivs() - numSIDivs, e = sI.getNumDivs(); j < e;
        ++j) {
@@ -226,9 +232,18 @@ void subtractRecursively(PresburgerBasicSet<Int> &b, Simplex<Int> &simplex,
 
   unsigned offset = simplex.numConstraints();
   auto snapshot = simplex.getSnapshot();
+
+  std::cout << "Before add basic set: "<< "\n";
+  simplex.dump();
+
   simplex.addBasicSet(sI);
 
+  std::cout << "After add basic set: "<< "\n";
+  simplex.dump();
+
   if (simplex.isEmpty()) {
+    // If B /\ sI is empty, that means B - sI == B.
+    // So just skip subtracting this piece and move on to the next set S_{i+1}.
     simplex.rollback(snapshot);
     subtractRecursively(b, simplex, s, i + 1, result);
     simplex.rollback(initialSnapshot);
@@ -236,11 +251,21 @@ void subtractRecursively(PresburgerBasicSet<Int> &b, Simplex<Int> &simplex,
     return;
   }
 
+  std::cout << "After isEmpty check: "<< "\n";
+  simplex.dump();
+
   simplex.detectRedundant();
   SmallVector<bool, 8> isMarkedRedundant;
   for (unsigned j = 0; j < 2 * sI.getNumEqualities() + sI.getNumInequalities();
        j++)
     isMarkedRedundant.push_back(simplex.isMarkedRedundant(offset + j));
+
+  std::cout << "isMarkedRedundant: ";
+  for (unsigned j = 0; j < isMarkedRedundant.size(); j++)
+    std::cout << isMarkedRedundant[j] << " ";
+  std::cout << "\n";  
+  std::cout << "After detectRedundant: "<< "\n";
+  simplex.dump();
 
   simplex.rollback(snapshot);
   // Recurse with the part b ^ ~ineq. Note that b is modified throughout
@@ -377,8 +402,13 @@ PresburgerSet<Int> PresburgerSet<Int>::subtract(PresburgerBasicSet<Int> cs,
     return PresburgerSet<Int>(cs);
 
   Simplex<Int> simplex(cs);
+  std::cout << "Simplex created: " << "\n";
+  simplex.dump();
 
   PresburgerSet<Int> result(set.getNumDims(), set.getNumSyms());
+
+  std::cout << "Result created: " << "\n";
+  result.dump();
 
   subtractRecursively(cs, simplex, eliminateExistentials(set), 0, result);
   return result;

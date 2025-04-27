@@ -113,7 +113,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 1000000;
+  const unsigned numRuns = 1;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();

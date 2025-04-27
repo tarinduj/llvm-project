@@ -325,6 +325,7 @@ protected:
   void pivot(unsigned row, unsigned col);
   void pivot(Pivot pair);
   inline void SMEPivotHelper(float *matrix, int reserved_rows, int reserved_cols, int pivot_row, int pivot_col);
+  inline void ScalarPivotHelper(float *matrix, int reserved_rows, int reserved_cols, int pivot_row, int pivot_col);
 
   /// Pivot \p unknown down or up to row position depending on \p direction.
   ///

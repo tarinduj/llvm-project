@@ -371,7 +371,6 @@ template <typename Int>
 PresburgerSet<Int> PresburgerSet<Int>::subtract(PresburgerBasicSet<Int> cs,
                                       const PresburgerSet<Int> &set) {
 
-  // std::cout << "In Presburger Set Subtract\n";
   assertDimensionsCompatible(cs, set);
 
   // std::cout << "After assertDimensionsCompatible\n";

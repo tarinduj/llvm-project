@@ -17,6 +17,8 @@
 static int MAXMATSIZE = 0;
 static int TOTALMATSIZE = 0;
 static int NUMPIVOTS = 0;
+static int NUMREDPIVOTS = 0;
+static int NUMREDPIVOTSTEMP = 0;
 static bool PIVOTCALLED = false;
 
 using namespace mlir;
@@ -1029,6 +1031,7 @@ bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
   if (con[conIndex].redundant)
     return true;
 
+  NUMREDPIVOTSTEMP = 0;
   if (con[conIndex].orientation == Orientation::Column) {
     unsigned col = con[conIndex].pos;
     auto maybeRow = findPivotRow({}, Direction::Down, col);
@@ -1036,6 +1039,7 @@ bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
       return false;
     assert(col >= 2 && "bullshit");
     pivot(*maybeRow, col);
+    NUMREDPIVOTSTEMP++;
   }
 
   while (tableau(con[conIndex].pos, 1) >= 0) {
@@ -1046,6 +1050,7 @@ bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
     if (maybePivot->row == con[conIndex].pos)
       return false;
     pivot(*maybePivot);
+    NUMREDPIVOTSTEMP++;
   }
 
   if (tableau(con[conIndex].pos, 1) >= 0)
@@ -1142,6 +1147,7 @@ void Simplex<Int>::detectRedundant() {
   for (int i = con.size() - 1; i >= 0; i--) {
     if (con[i].redundant)
       continue;
+
     if (constraintIsRedundant(i)) {
       // constraintIsRedundant must leave the constraint in row position if it
       // returns true.
@@ -1149,6 +1155,7 @@ void Simplex<Int>::detectRedundant() {
              "Constraint to be marked redundant must be a row!");
       markRedundant(con[i].pos);
     }
+    NUMREDPIVOTS = std::max(NUMREDPIVOTS, NUMREDPIVOTSTEMP);
   }
 }
 

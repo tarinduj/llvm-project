@@ -23,6 +23,7 @@ extern bool PIVOTCALLED;
 extern int MAXMATSIZE;
 extern int TOTALMATSIZE;
 extern int NUMPIVOTS;
+extern int NUMREDPIVOTS;
 
 sigjmp_buf jumpBuffer;
 
@@ -184,6 +185,9 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
   std::ofstream matrix_size("data/matrix-size-" + op + ".txt");
 
+  std::ofstream numredpivots("data/numredpivots-" + op + ".txt");
+  std::ofstream numpivots("data/numpivots-" + op + ".txt");
+
   unsigned filteredNumCases = 0;
 
   // consume numcases
@@ -204,6 +208,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
 
   for (unsigned j = 0; j < numCases; ++j) {
+    // std::cout << "Running case " << j << '\n';
     std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
     
     VALIDINPUT = true;
@@ -211,6 +216,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     MAXMATSIZE = 0;
     TOTALMATSIZE = 0;
     NUMPIVOTS = 0;
+    NUMREDPIVOTS = 0;
+    NUMREDPIVOTSTEMP = 0;
 
     std::string inputStringA;
     std::string inputStringB;
@@ -232,18 +239,21 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     if (j % 1 == 0)
       // std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
-    if (maxWaterline) {
-      unsigned waterline;
-      fwaterlineIn >> waterline;
-      if (waterline > *maxWaterline) {
-        consumeLine();
-        consumeLine();
-        if (op == "subtract" || op == "union" || op == "intersect" || op == "equal")
-          consumeLine();
-        fruntime << "0\n";
-        continue;
-      }
-    }
+    // std::cout << "Running case " << j << '\n';
+    // if (maxWaterline) {
+    //   unsigned waterline;
+    //   fwaterlineIn >> waterline;
+    //   if (waterline > *maxWaterline) {
+    //     consumeLine();
+    //     consumeLine();
+    //     if (op == "subtract" || op == "union" || op == "intersect" || op == "equal")
+    //       consumeLine();
+    //     fruntime << "0\n";
+    //     continue;
+    //   }
+    // }
+
+    // std::cout << "Reading input\n";
 
     // if constexpr (printAuxInfo)
     //   Set::waterline = 0;
@@ -336,9 +346,11 @@ times[i] = static_cast<int>(duration);
         }
       }
     } else if (op == "subtract") {
+      // std::cout << "Running subtract with numruns " << numRuns << '\n';
       Set setA = getSetFromInput<Set>(&inputStringA);
       Set setB = getSetFromInput<Set>(&inputStringB);
       for (unsigned i = 0; i < numRuns; ++i) {
+        // std::cout << "Running run " << j << '\n';
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
@@ -464,6 +476,8 @@ times[i] = static_cast<int>(duration);
 
       // std::cout << "MAXMAT: " << MAXMATSIZE << "\n";
       matrix_size << TOTALMATSIZE / NUMPIVOTS << '\n';
+      numredpivots << NUMREDPIVOTS << '\n';
+      numpivots << NUMPIVOTS << '\n';
     }
   }
 

@@ -34,6 +34,17 @@ inline void throwOverflowIf(bool cond) {
 }
 
 // #define ENABLE_SME
+// #define ENABLE_DEBUG_PRINTS
+
+#ifdef ENABLE_DEBUG_PRINTS
+  #define DEBUG_PRINT(fmt, ...) \
+      do { \
+          printf("[DEBUG] %s:%d: " fmt, __FILE__, __LINE__, ##__VA_ARGS__); \
+      } while (0)
+#else
+  #define DEBUG_PRINT(fmt, ...) \
+      do { } while (0)
+#endif
 
 // #if __AVX512BW__ && __AVX512F__
 // #define ENABLE_VECTORIZATION

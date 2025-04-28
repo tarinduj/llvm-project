@@ -410,7 +410,9 @@ template <typename Int>
 Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
                                             Direction direction) const {
 
-  std::cout << "findPivot: row: " << row << " direction: " << (direction == Direction::Up ? "Up" : "Down") << '\n';
+  DEBUG_PRINT("findPivot: row: %d direction: %s\n", 
+              row, 
+              (direction == Direction::Up ? "Up" : "Down"));
   Optional<unsigned> col;
 
   //  Iterate over the columns of the tableau, starting from the first live (except denom and const)
@@ -487,10 +489,10 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
-  std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
-  std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
-  tableau.dump();
-  std::cout << "\n";
+  DEBUG_PRINT("Pivot: %d Size: %d x %d\n", numPivots++, nRow, nCol);
+  DEBUG_PRINT("Pivot row: %d Pivot col: %d\n", pivotRow, pivotCol);
+  DEBUG_DUMP(tableau);
+  DEBUG_PRINT("\n");
 
   swapRowWithCol(pivotRow, pivotCol);
 
@@ -1122,7 +1124,7 @@ template <typename Int>
 Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
                                          Direction direction,
                                          unsigned col) const {
-  std::cout << "findPivotRow: " << col << " direction: " << (direction == Direction::Up ? "Up" : "Down") << '\n';
+  DEBUG_PRINT("findPivotRow: %u direction: %s\n", col, (direction == Direction::Up ? "Up" : "Down"));
   Optional<unsigned> retRow;
   Int retElem, retConst;
   for (unsigned row = nRedundant; row < nRow; ++row) {
@@ -1201,12 +1203,12 @@ void Simplex<Int>::markEmpty() {
 /// not redundant, so we restore the row to a non-negative value and return.
 template <typename Int>
 bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
-  std::cout << "\n ##### Checking if constraint " << conIndex << " is redundant\n";
+  DEBUG_PRINT("\n ##### Checking if constraint " << conIndex << " is redundant\n");
   if (con[conIndex].redundant)
     return true;
 
   if (con[conIndex].orientation == Orientation::Column) {
-    std::cout << "Constraint is in column position\n";
+    DEBUG_PRINT("Constraint is in column position\n");
     unsigned col = con[conIndex].pos;
     auto maybeRow = findPivotRow({}, Direction::Down, col);
     if (!maybeRow)
@@ -1216,7 +1218,7 @@ bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
   }
 
   while (tableau(con[conIndex].pos, 1) >= 0) {
-    std::cout << "findPivot pos: " << con[conIndex].pos << "\n";
+    DEBUG_PRINT("findPivot pos: " << con[conIndex].pos << "\n");
     auto maybePivot = findPivot(con[conIndex].pos, Direction::Down);
     if (!maybePivot)
       return true;
@@ -1227,12 +1229,12 @@ bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
     pivot(*maybePivot);
   }
 
-  std::cout << "Out of loop \n";
+  DEBUG_PRINT("Out of loop \n");
 
   if (tableau(con[conIndex].pos, 1) >= 0)
     return true;
 
-  LogicalResult result = restorei Row(con[conIndex]);
+  LogicalResult result = restoreRow(con[conIndex]);
   assert(succeeded(result) && "Constraint was not restored succesfully!");
   return false;
 }
@@ -1317,7 +1319,7 @@ bool Simplex<Int>::markRedundant(unsigned row) {
 /// if it is redundant via constraintIsRedundant, and if it is, mark it as such.
 template <typename Int>
 void Simplex<Int>::detectRedundant() {
-  std::cout << "##### Detecting redundant constraints\n";
+  DEBUG_PRINT("##### Detecting redundant constraints\n");
   if (empty)
     return;
   for (int i = con.size() - 1; i >= 0; i--) {
@@ -1330,7 +1332,6 @@ void Simplex<Int>::detectRedundant() {
              "Constraint to be marked redundant must be a row!");
       markRedundant(con[i].pos);
     }
-    std::cout << "Constraint " << i << " check done\n";
   }
 }
 

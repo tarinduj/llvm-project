@@ -39,7 +39,7 @@ inline void throwOverflowIf(bool cond) {
 #ifdef ENABLE_DEBUG_PRINTS
   #define DEBUG_PRINT(fmt, ...) \
       do { \
-          printf("[DEBUG] %s:%d: " fmt, __FILE__, __LINE__, ##__VA_ARGS__); \
+          printf("[DEBUG] : " fmt, ##__VA_ARGS__); \
       } while (0)
 #else
   #define DEBUG_PRINT(fmt, ...) \

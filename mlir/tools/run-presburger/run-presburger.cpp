@@ -23,7 +23,11 @@ extern bool PIVOTCALLED;
 extern int MAXMATSIZE;
 extern int TOTALMATSIZE;
 extern int NUMPIVOTS;
-extern int NUMREDPIVOTS;
+
+extern std::vector<int> WHILEPIVOTSCOUNT;
+
+extern int DETECTREDUNDANTPIVOTCOUNT;
+extern int DETECTREDUNDANTCALLS;
 
 sigjmp_buf jumpBuffer;
 
@@ -185,8 +189,11 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
   std::ofstream matrix_size("data/matrix-size-" + op + ".txt");
 
-  std::ofstream numredpivots("data/numredpivots-" + op + ".txt");
   std::ofstream numpivots("data/numpivots-" + op + ".txt");
+  std::ofstream whilepivotscount("data/whilepivotscount-" + op + ".txt");
+
+  std::ofstream detectredundantpivots("data/detectredundantpivots-" + op + ".txt");
+  std::ofstream detectredundantcalls("data/detectredundantcalls-" + op + ".txt");
 
   unsigned filteredNumCases = 0;
 
@@ -216,8 +223,9 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     MAXMATSIZE = 0;
     TOTALMATSIZE = 0;
     NUMPIVOTS = 0;
-    NUMREDPIVOTS = 0;
-    NUMREDPIVOTSTEMP = 0;
+    WHILEPIVOTSCOUNT = std::vector<int>(20, 0);
+    DETECTREDUNDANTPIVOTCOUNT = 0;
+    DETECTREDUNDANTCALLS = 0;
 
     std::string inputStringA;
     std::string inputStringB;
@@ -469,15 +477,25 @@ times[i] = static_cast<int>(duration);
       filteredNumCases++;
       filtered_bench << inputStringA << '\n';
       if (!inputStringB.empty()) 
-        filtered_bench << inputStringB << '\n';
+      filtered_bench << inputStringB << '\n';
       filtered_bench << outputString << '\n';
 
       filtered_isl_bench << currentISLCase;
 
       // std::cout << "MAXMAT: " << MAXMATSIZE << "\n";
       matrix_size << TOTALMATSIZE / NUMPIVOTS << '\n';
-      numredpivots << NUMREDPIVOTS << '\n';
+      
       numpivots << NUMPIVOTS << '\n';
+      for (size_t i = 0; i < WHILEPIVOTSCOUNT.size(); ++i) {
+      whilepivotscount << WHILEPIVOTSCOUNT[i];
+      if (i != WHILEPIVOTSCOUNT.size() - 1) {
+        whilepivotscount << ", ";
+      }
+      }
+      whilepivotscount << '\n';
+
+      detectredundantpivots << DETECTREDUNDANTPIVOTCOUNT << '\n';
+      detectredundantcalls << DETECTREDUNDANTCALLS << '\n';
     }
   }
 

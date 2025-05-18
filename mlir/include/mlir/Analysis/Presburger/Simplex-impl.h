@@ -17,9 +17,15 @@
 static int MAXMATSIZE = 0;
 static int TOTALMATSIZE = 0;
 static int NUMPIVOTS = 0;
-static int NUMREDPIVOTS = 0;
-static int NUMREDPIVOTSTEMP = 0;
+
 static bool PIVOTCALLED = false;
+
+static std::vector<int> WHILEPIVOTSCOUNT(20, 0);
+static int WHILEPIVOTSCOUNTINDEX = 0;
+
+static bool INDETECTREDUNDANT = false;
+static int DETECTREDUNDANTPIVOTCOUNT = 0;
+static int DETECTREDUNDANTCALLS = 0;
 
 using namespace mlir;
 using namespace analysis::presburger;
@@ -371,6 +377,8 @@ template <typename Int>
 bool Simplex<Int>::rowIsAtLeastZero(Unknown &unknown) {
   assert(unknown.orientation == Orientation::Row &&
          "Unknown is in column position!");
+
+  WHILEPIVOTSCOUNTINDEX = 0;
   while (tableau(unknown.pos, 1) < 0) {
     auto p = findPivot(unknown.pos, Simplex<Int>::Direction::Up);
 
@@ -740,6 +748,14 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 #endif
 
   PIVOTCALLED = true;
+  WHILEPIVOTSCOUNTINDEX++;
+
+  WHILEPIVOTSCOUNT[WHILEPIVOTSCOUNTINDEX]++;
+  WHILEPIVOTSCOUNT[WHILEPIVOTSCOUNTINDEX - 1]--;
+
+  if (INDETECTREDUNDANT) {
+    DETECTREDUNDANTPIVOTCOUNT++;
+  }
 
   swapRowWithCol(pivotRow, pivotCol);
 
@@ -912,6 +928,7 @@ LogicalResult Simplex<Int>::restoreRow(Unknown &u) {
          "unknown should be in row position");
 
   // std::cout << "restoreRow: pivot call here\n";
+  WHILEPIVOTSCOUNTINDEX = 0;
   while (tableau(u.pos, 1) < 0) {
     Optional<Pivot> maybePivot = findPivot(u.pos, Direction::Up);
     if (!maybePivot)
@@ -1031,7 +1048,7 @@ bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
   if (con[conIndex].redundant)
     return true;
 
-  NUMREDPIVOTSTEMP = 0;
+  WHILEPIVOTSCOUNTINDEX = 0;
   if (con[conIndex].orientation == Orientation::Column) {
     unsigned col = con[conIndex].pos;
     auto maybeRow = findPivotRow({}, Direction::Down, col);
@@ -1039,7 +1056,6 @@ bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
       return false;
     assert(col >= 2 && "bullshit");
     pivot(*maybeRow, col);
-    NUMREDPIVOTSTEMP++;
   }
 
   while (tableau(con[conIndex].pos, 1) >= 0) {
@@ -1050,8 +1066,9 @@ bool Simplex<Int>::constraintIsRedundant(unsigned conIndex) {
     if (maybePivot->row == con[conIndex].pos)
       return false;
     pivot(*maybePivot);
-    NUMREDPIVOTSTEMP++;
   }
+
+
 
   if (tableau(con[conIndex].pos, 1) >= 0)
     return true;
@@ -1074,6 +1091,7 @@ template <typename Int>
 bool Simplex<Int>::constraintIsEquality(int conIndex) const {
   const Unknown &u = con[conIndex];
   if (u.zero)
+  
     return true;
   if (u.redundant)
     return false;
@@ -1144,6 +1162,9 @@ template <typename Int>
 void Simplex<Int>::detectRedundant() {
   if (empty)
     return;
+
+  INDETECTREDUNDANT = true;
+  DETECTREDUNDANTCALLS++;
   for (int i = con.size() - 1; i >= 0; i--) {
     if (con[i].redundant)
       continue;
@@ -1155,8 +1176,8 @@ void Simplex<Int>::detectRedundant() {
              "Constraint to be marked redundant must be a row!");
       markRedundant(con[i].pos);
     }
-    NUMREDPIVOTS = std::max(NUMREDPIVOTS, NUMREDPIVOTSTEMP);
   }
+  INDETECTREDUNDANT = false;
 }
 
 template <typename Int>
@@ -1194,6 +1215,7 @@ template <typename Int>
 void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
   if (entry == UndoLogEntry::RemoveLastConstraint) {
     Unknown &constraint = con.back();
+    WHILEPIVOTSCOUNTINDEX = 0;
     if (constraint.orientation == Orientation::Column) {
       unsigned column = constraint.pos;
       Optional<unsigned> row;
@@ -1271,6 +1293,7 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
     auto basis = std::move(savedBases.back());
     savedBases.pop_back();
 
+    WHILEPIVOTSCOUNTINDEX = 0;
     for (int index : basis) {
       Unknown &u = unknownFromIndex(index);
       if (u.orientation == Orientation::Column)
@@ -1312,6 +1335,7 @@ template <typename Int>
 Optional<Fraction<Int>> Simplex<Int>::computeRowOptimum(Direction direction,
                                               unsigned row) {
   // Keep trying to find a pivot for the row in the specified direction.
+  WHILEPIVOTSCOUNTINDEX = 0;
   while (Optional<Pivot> maybePivot = findPivot(row, direction)) {
     // If findPivot returns a pivot involving the row itself, then the optimum
     // is unbounded, so we return None.
@@ -2209,6 +2233,7 @@ inline void Simplex<Int>::toRow(Unknown &unknown, Direction direction) {
     return;
 
   auto row = findPivotRow({}, direction, unknown.pos);
+  WHILEPIVOTSCOUNTINDEX = 0;
   if (row)
     pivot(*row, unknown.pos);
   else
@@ -2258,6 +2283,7 @@ Int Simplex<Int>::signOfMax(Unknown &u) {
                        : tableau(row, 1) <= 0;
   };
 
+  WHILEPIVOTSCOUNTINDEX = 0;
   while (mustContinueLoop(u.pos)) {
     auto p = findPivot(u.pos, Direction::Up);
     if (!p) {

@@ -18,19 +18,14 @@
 // event_collector collector;
 
 /* SME Pivot Controls */
-#define FUSE_LEVEL 2 // 0: no fusion, 1: fuse masked multiply-add + store, 2: fuse masked multiply-add + outer product 
-
-#define SME_HELPERS 1
-#define SME_MATRIX_LOAD_STORE 1
-
 #define SWAP 1
-#define PARTIAL_SME_SWAP 0
-
-#define OUTER_PRODUCT 1
-
-#define MASKED_COLUMN_MULTIPLIES 1
-
-#define MASKED_MULTIPLY_ADD 1
+#define SME_START_STOP 1
+#define SME_HELPERS 1
+#define SME_MATRIX_LOAD 1
+#define SME_MATRIX_STORE 1
+#define SME_SAVE_ROWS_COLS 1
+#define SME_MULTIPLY_ROWS 1
+#define SME_OUTER_PRODUCT 1
 /* SME Pivot Controls */
 
 using namespace mlir;
@@ -489,13 +484,15 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   // std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
   // std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
 
+  // tableau.dump();
+  
   swapRowWithCol(pivotRow, pivotCol);
 
   // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
 
   // collector.start();
 
-  Matrix<float> floattableau = tableau.template castTo<float>();
+  // Matrix<float> floattableau = tableau.template castTo<float>();
 
   // event_count c1 = collector.end();
   // std::cout << "Cast to float: " << c1.cycles() << " cycles\n";
@@ -513,40 +510,30 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   //   abort();
   // }
 
-  int numRows = floattableau.getNumRows();
-  int numCols = floattableau.getNumColumns();
-  float* dataptr = floattableau.getDataPointer();
-  int numReserveCols = floattableau.getNReservedColumns();
+  int numRows = tableau.getNumRows();
+  int numCols = tableau.getNumColumns();
+  Int* dataptr = tableau.getDataPointer();
+  int numReserveCols = tableau.getNReservedColumns();
 
   // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
-  if constexpr (isMatrixized) {
+  if (isMatrixized && numCols + numRows > 25) {
     // collector.start();
 
     #if SWAP
-
-    #if PARTIAL_SME_SWAP == 1
     // swap
-    Int tmp = mat(pivotRow, 0);
-    mat(pivotRow, 0) = -mat(pivotRow, pivotCol);
-    mat(pivotRow, pivotCol) = -tmp;
-
-    #else
-    // swap
-    std::swap(floattableau(pivotRow, 0), floattableau(pivotRow, pivotCol));
+    std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
-    if (floattableau(pivotRow, 0) < 0) {
+    if (tableau(pivotRow, 0) < 0) {
       // If the denominator is negative, we negate the row by simply negating
       // the denominator.
-      floattableau(pivotRow, 0) = -floattableau(pivotRow, 0);
-      floattableau(pivotRow, pivotCol) = -floattableau(pivotRow, pivotCol);
+      tableau(pivotRow, 0) = -tableau(pivotRow, 0);
+      tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
     } else {
       for (unsigned col = 1; col < nCol; ++col) {
         if (col != pivotCol)
-          floattableau(pivotRow, col) = -floattableau(pivotRow, col);
+          tableau(pivotRow, col) = -tableau(pivotRow, col);
       }
     }
-    #endif
-
     #endif
 
     // if (std::fetestexcept(FE_ALL_EXCEPT)) {
@@ -569,17 +556,17 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   } else {
     // collector.start();
 
-    std::swap(floattableau(pivotRow, 0), floattableau(pivotRow, pivotCol));
+    std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
-    if (floattableau(pivotRow, 0) < 0) {
+    if (tableau(pivotRow, 0) < 0) {
       // If the denominator is negative, we negate the row by simply negating
       // the denominator.
-      floattableau(pivotRow, 0) = -floattableau(pivotRow, 0);
-      floattableau(pivotRow, pivotCol) = -floattableau(pivotRow, pivotCol);
+      tableau(pivotRow, 0) = -tableau(pivotRow, 0);
+      tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
     } else {
       for (unsigned col = 1; col < nCol; ++col) {
         if (col != pivotCol)
-          floattableau(pivotRow, col) = -floattableau(pivotRow, col);
+          tableau(pivotRow, col) = -tableau(pivotRow, col);
       }
     }
     // normalizeRowScalar(pivotRow);
@@ -589,15 +576,15 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
         continue;
       // if (floattableau(row, pivotCol) == 0) // Nothing to do.
       //   continue;
-      floattableau(row, 0) *= floattableau(pivotRow, 0);
+      tableau(row, 0) *= tableau(pivotRow, 0);
       for (unsigned j = 1; j < nCol; ++j) {
         if (j == pivotCol)
           continue;
         // Add rather than subtract because the pivot row has been negated.
-        floattableau(row, j) = floattableau(row, j) * floattableau(pivotRow, 0) +
-                          floattableau(row, pivotCol) * floattableau(pivotRow, j);
+        tableau(row, j) = tableau(row, j) * tableau(pivotRow, 0) +
+                          tableau(row, pivotCol) * tableau(pivotRow, j);
       }
-      floattableau(row, pivotCol) *= floattableau(pivotRow, pivotCol);
+      tableau(row, pivotCol) *= tableau(pivotRow, pivotCol);
       // normalizeRowScalar(row);
     }
 
@@ -605,17 +592,6 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     // std::cout << "Pivot Scalar: " << c2.cycles() << " cycles\n";
     // std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
     // std::cout << "Instructions: " << c2.instructions() << "\n";
-
-    __asm__ __volatile__(
-
-      // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
-      "smstart                                                  \n" // Start SME
-      "smstop                                                   \n" // Stop SME
-      :
-      :
-      :
-    );
-  }
 
   // if (std::fetestexcept(FE_ALL_EXCEPT)) {
   //   std::cerr << "Floating point exception in pivot!\n";
@@ -626,7 +602,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     
   // collector.start();
 
-  tableau = floattableau.template castTo<Int>();
+  // tableau = floattableau.template castTo<Int>();
 
   // event_count c3 = collector.end();
   // std::cout << "Cast to Int: " << c3.cycles() << " cycles\n";
@@ -648,13 +624,15 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   // event_count c4 = collector.end();
   // std::cout << "Cycle count for nothing: " << c4.cycles() << " cycles\n";
   // std::cout << "****************************************\n";
+  }
 }
 
 template <typename Int>
 __attribute__((always_inline))
-inline void  Simplex<Int>::SMEPivotHelper(float *matrix, int reserved_rows, int reserved_cols, int pivot_row, int pivot_col) {
+inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int reserved_cols, int pivot_row, int pivot_col) {
+  
   __asm__ __volatile__(
-
+      #if SME_START_STOP
       // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
       "smstart                                                  \n" // Start SME
       
@@ -671,32 +649,26 @@ inline void  Simplex<Int>::SMEPivotHelper(float *matrix, int reserved_rows, int 
 
       "mov x5, #4                                               \n" // Move 4 to x5 for unroll factor
 
-      #if PARTIAL_SME_SWAP == 1
-      "fmov s16, %w[coeff1]                                     \n" // Coefficient 1
-      "fmov s17, %w[coeff2]                                     \n" // Coefficient 2
-      #else
-      "mov w6, %w[coeff1]                                       \n" // Coefficient 1/ Coefficient 3
-      "mov w7, %w[coeff2]                                       \n" // Coefficient 2
-      #endif
+      "mov w6, %w[coeff]                                        \n" // Coefficient
 
       // ZA tiles can only be indexed through w12-w15
-      "mov x12, #0                                              \n" // Zeroth column index
+      // "mov x12, #0                                              \n" // Zeroth column index
       "mov w13, %w[prow]                                        \n" // Move pivot_row to w13
       "mov w14, %w[pcol]                                        \n" // Move pivot_col to w14
       // w15 will be used o iterate through the tile
 
       // predicates
       "ptrue p0.s                                               \n" // Predicate p0.s is set to true
-      "whilelo p1.s, xzr, x2                                    \n" // Predicate p1.s is set to true for ncols elements to prevent seg faults in load/store
+      "whilelt p1.s, xzr, x2                                    \n" // Predicate p1.s is set to true for ncols elements to prevent seg faults in load/store
       "ptrue pn8.s                                              \n" // Predicate pn8.s is set to true to load/store 4 rows at a time
       #endif
 
-      #if SME_MATRIX_LOAD_STORE
+      #if SME_MATRIX_LOAD
       // /* ******************** */
       // Load the matrix into ZA0
 
       // Initialize registers
-      "mov w15, #0                                              \n" // Loop counter i = 0
+      "mov w15, #0                                              \n" // Loop counter i = 
       "mov x8, #0                                               \n" // Offset in source matrix
 
       // Loop label
@@ -704,14 +676,11 @@ inline void  Simplex<Int>::SMEPivotHelper(float *matrix, int reserved_rows, int 
       "cmp w15, w1                                              \n" // Compare i with nrows
       "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
-      // Load i-i+3 th rows of source matrix into z0, z4, z8, z12
-      "ld1w {z0.s, z4.s, z8.s, z12.s}, pn8/z, [x0, x8, lsl #2]  \n"
+      // Load i-i+3 th rows of source matrix into z0-z3
+      "ld1w {z0.s-z3.s}, pn8/z, [x0, x8, lsl #2]                \n"
 
       // Move the loaded values to ZA0
-      "mov za0h.s[w15, 0], p0/m, z0.s                           \n"
-      "mov za0h.s[w15, 1], p0/m, z4.s                           \n"
-      "mov za0h.s[w15, 2], p0/m, z8.s                           \n"
-      "mov za0h.s[w15, 3], p0/m, z12.s                          \n"
+      "mov za0h.s[w15, 0:3], {z0.s-z3.s}                        \n"
 
       // Increment loop counter
       "add w15, w15, #4                                         \n" // i = i + 4
@@ -725,86 +694,25 @@ inline void  Simplex<Int>::SMEPivotHelper(float *matrix, int reserved_rows, int 
       #endif
 
       /* ******************** */
-      #if PARTIAL_SME_SWAP == 1
-      // Partial SME Swap
-      "fcmp s16, #0.0                                           \n" // Compare coeff1 with 0
-      "b.ge 1f                                                  \n" // If coeff1 >= 0, skip negation
-      
+      #if SME_SAVE_ROWS_COLS
+      // Save the pivot row and column
       "mov z30.s, p0/m, za0h.s[w13, 0]                          \n" // Move pivot row from ZA0 to z30
-      "fneg z30.s, p0/m, z30.s                                  \n" // Negate pivot row
-      "fneg s16, s16                                            \n" // Negate coeff1
-      "fneg s17, s17                                            \n" // Negate coeff2
-      "mov za0h.s[w13, 0], p0/m, z30.s                          \n" // Move pivot row from z30 to ZA0
-      
-      // End if
-      "1:                                                       \n"
-      
-      "fmov w6, s16                                             \n" // Coefficient 1/ Coefficient 3
-      "fmov w7, s17                                             \n" // Coefficient 2
-      #endif
-
-
-      /* ******************** */
-      #if OUTER_PRODUCT
-      // Matrix Outer Product
-      #if PARTIAL_SME_SWAP != 1
-      "mov z30.s, p0/m, za0h.s[w13, 0]                          \n" // Move pivot row from ZA0 to z30
-      #endif
       "mov z31.s, p0/m, za0v.s[w14, 0]                          \n" // Move pivot column from ZA0 to z31
       // these are needed for outer product
-
-      #if FUSE_LEVEL == 0 || FUSE_LEVEL == 1
-      // Take the outer product of the pivot row and pivot column
-      "fmopa	za2.s, p0/m, p0/m, z31.s, z30.s                   \n" // pivot column x pivot row
-      #endif
   
       /* SME Registers:
       za0 - original matrix
-      za2 - outer product
       z30 - pivot row
       z31 - pivot column
       */
       #endif
 
       /* ******************** */
-      #if MASKED_COLUMN_MULTIPLIES
-      // Masked Column Multiplies
-      "mov z29.s, p0/m, za0v.s[W12, 0]                          \n" // Move zeroth column from ZA0 to z29
-
-      // create a predicate masking pivot_row 
-      "index z1.s, #0, #1                                       \n" // z1.s = [0, 1, 2, 3, ...]
-      "dup z2.s, w13                                            \n" // z2.s = [pivot_row, pivot_row, pivot_row, ...]
-      "cmpne p2.s, p0/z, z1.s, z2.s                             \n" // p2.s[i] = (z4.s[i] != z5.s[i]) ? 1 : 0
-
-      // Broadcast coeff1/ coeff3 
-      "dup z20.s, w6                                            \n" // z20.s = [coeff1, coeff1, coeff1, ...]/ [coeff3, coeff3, coeff3, ...]
-      // Broadcast coeff2 
-      "dup z21.s, w7                                            \n" // z21.s = [coeff2, coeff2, coeff2, ...]
-
-      // Multiply zeroth col with coeff1 where p2.s == 1
-      "fmul z29.s, p2/m, z29.s, z20.s                           \n" // z29.s = z29.s * z20.s where p2.s == 1
-      // Multiply pivot col with coeff2 where p2.s == 1
-      "fmul z21.s, p2/m, z21.s, z31.s                           \n" // z21.s = z21.s * z31.s where p2.s == 1
+      #if SME_MULTIPLY_ROWS
+      // Multiply rows with coefficients
       
-      // mov back to ZA 
-      "mov za0v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA
-      "mov za0v.s[w14, 0], p0/m, z21.s                          \n" // Move pivot column from z21 to ZA
-
-      /* SME Registers:
-      za0 - matrix
-      z29 - current zeroth column
-      z30 - current pivot row
-      z31 - old pivot column for outer product
-      z21 - current pivot column
-      z20 - coeff1/ coeff3 
-      */
-      #endif
-
-      /* ******************** */
-      #if MASKED_MULTIPLY_ADD
-      #if FUSE_LEVEL == 2
-      // Masked Multiply-Add
-      // z20.s = [coeff3, coeff3, coeff3, ...]
+      // Broadcast coeff
+      "dup z20.s, w6                                            \n" // z20.s = [coeff, coeff, coeff, ...]
 
       // Initialize registers
       "mov w15, #0                                              \n" // Loop counter i = 0
@@ -817,12 +725,14 @@ inline void  Simplex<Int>::SMEPivotHelper(float *matrix, int reserved_rows, int 
       // move matrix rows to z0, z1, z2, z3
       "mov {z0.s, z1.s, z2.s, z3.s}, za0h.s[w15, 0:3]           \n"
 
-      // Multiply matrix rows with coeff3
-      // z20.s = [coeff3, coeff3, coeff3, ...]
-      "fmul z0.s, p0/m, z0.s, z20.s                             \n"
-      "fmul z1.s, p0/m, z1.s, z20.s                             \n"
-      "fmul z2.s, p0/m, z2.s, z20.s                             \n"
-      "fmul z3.s, p0/m, z3.s, z20.s                             \n"
+      // Multiply matrix rows with coeff
+      "mul z0.s, p0/m, z0.s, z20.s                             \n"
+      "mul z1.s, p0/m, z1.s, z20.s                             \n"
+      "mul z2.s, p0/m, z2.s, z20.s                             \n"
+      "mul z3.s, p0/m, z3.s, z20.s                             \n"
+
+      // NOTE: Has somnething like this in 2024-06 version; But M4 was realeased in 2024-05.
+      // "fmul {z0.s-z3.s}, {z4.s-z8.s}, {z4.s-z8.s} \n"
 
       // Move the multiplied values to ZA1
       "mov za1h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
@@ -836,122 +746,42 @@ inline void  Simplex<Int>::SMEPivotHelper(float *matrix, int reserved_rows, int 
       // Loop exit label
       "2:                                                       \n"
 
-      // Add outer product to ZA1
-      "fmopa	za1.s, p0/m, p0/m, z31.s, z30.s                   \n" // old pivot column x pivot row
-
-      // Replaced masked rows/ columns with the saved values
-      "mov za1v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA1
-      "mov za1h.s[w13, 0], p0/m, z30.s                          \n" // Move curr pivot row from z30 to ZA1
-      "mov za1v.s[w14, 0], p0/m, z21.s                          \n" // Move curr pivot column from z21 to ZA1
-      
-      #elif FUSE_LEVEL == 1
-      "dup z0.s, w14                                            \n" // z0.s = [pivot_col, pivot_col, pivot_col, ...]
-      "cmpne p2.s, p0/z, z0.s, z1.s                             \n" // p2.s[i] = (z0.s[i] != z1.s[i]) ? 1 : 0
-
-      "ptrue p3.s, VL1                                          \n" // p3 = [1, 0, 0, 0, ...]
-      "not p3.b, p0/z, p3.b                                     \n" // Invert p3.s to [0, 1, 1, 1, ...]
-      "and p2.b, p0/z, p2.b, p3.b                               \n" // p2.s = p2.s & p3.s
-
-      // Initialize registers
-      "mov w15, #0                                              \n" // Loop counter i = 0
-      "mov x8, #0                                               \n" // Offset in source matrix
-
-      // Loop label (0 -> nrows)
-      "1:                                                       \n"
-      "cmp w15, w1                                              \n" // Compare i with nrows
-      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
-
-      // move matrix rows to z0, z1, z2, z3
-      "mov {z0.s, z1.s, z2.s, z3.s}, za0h.s[w15, 0:3]           \n"
-      // move outer product rows to z4, z5, z6, z7
-      "mov {z4.s, z5.s, z6.s, z7.s}, za2h.s[w15, 0:3]           \n"
-
-      // Multiply matrix rows with coeff3 where p2.s == 1
-      // z20.s = [coeff3, coeff3, coeff3, ...]
-      "fmul z0.s, p2/m, z0.s, z20.s                             \n"
-      "fmul z1.s, p2/m, z1.s, z20.s                             \n"
-      "fmul z2.s, p2/m, z2.s, z20.s                             \n"
-      "fmul z3.s, p2/m, z3.s, z20.s                             \n"
-
-      // add outer product rows to matrix rows where p2.s == 1
-      "fadd z0.s, p2/m, z0.s, z4.s                              \n"
-      "fadd z1.s, p2/m, z1.s, z5.s                              \n"
-      "fadd z3.s, p2/m, z3.s, z7.s                              \n"
-      "fadd z2.s, p2/m, z2.s, z6.s                              \n"
-
-      // Store the result back into memory
-      "mov z4.s, p0/m, z1.s                                     \n"
-      "mov z8.s, p0/m, z2.s                                     \n"
-      "mov z12.s, p0/m, z3.s                                    \n"
-      "st1w {z0.s, z4.s, z8.s, z12.s}, pn8, [x0, x8, lsl #2]    \n"
-
-      // Increment loop counter
-      "add w15, w15, #4                                         \n" // i++
-      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
-
-      // Loop back
-      "b 1b                                                     \n"
-
-      // Loop exit label
-      "2:                                                       \n"
-
-      // replace the pivot row
-      "mul x8, x2, x12                                          \n" // x8 = ncols * pivot_row
-      "st1w z30.s, p0, [x0, x8, lsl #2]                         \n"
-      
-      #elif FUSE_LEVEL == 0
-      "dup z0.s, w14                                            \n" // z0.s = [pivot_col, pivot_col, pivot_col, ...]
-      "cmpne p2.s, p0/z, z0.s, z1.s                             \n" // p2.s[i] = (z0.s[i] != z1.s[i]) ? 1 : 0
-
-      "ptrue p3.s, VL1                                          \n" // p3 = [1, 0, 0, 0, ...]
-      "not p3.b, p0/z, p3.b                                     \n" // Invert p3.s to [0, 1, 1, 1, ...]
-      "and p2.b, p0/z, p2.b, p3.b                               \n" // p2.s = p2.s & p3.s
-
-      // Initialize registers
-      "mov w15, #0                                              \n" // Loop counter i = 0
-
-      // Loop label (0 -> nrows)
-      "1:                                                       \n"
-      "cmp w15, w1                                              \n" // Compare i with nrows
-      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
-
-      // move matrix rows to z0, z1, z2, z3
-      "mov {z0.s, z1.s, z2.s, z3.s}, za0h.s[w15, 0:3]           \n"
-      // move outer product rows to z4, z5, z6, z7
-      "mov {z4.s, z5.s, z6.s, z7.s}, za2h.s[w15, 0:3]           \n"
-
-      // Multiply matrix rows with coeff3 where p2.s == 1
-      // z20.s = [coeff3, coeff3, coeff3, ...]
-      "fmul z0.s, p2/m, z0.s, z20.s                             \n"
-      "fmul z1.s, p2/m, z1.s, z20.s                             \n"
-      "fmul z2.s, p2/m, z2.s, z20.s                             \n"
-      "fmul z3.s, p2/m, z3.s, z20.s                             \n"
-
-      // add outer product rows to matrix rows where p2.s == 1
-      "fadd z0.s, p2/m, z0.s, z4.s                              \n"
-      "fadd z1.s, p2/m, z1.s, z5.s                              \n"
-      "fadd z3.s, p2/m, z3.s, z7.s                              \n"
-      "fadd z2.s, p2/m, z2.s, z6.s                              \n"
-
-      "mov za1h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
-
-
-      // Increment loop counter
-      "add w15, w15, #4                                         \n" // i++
-
-      // Loop back
-      "b 1b                                                     \n"
-
-      // Loop exit label
-      "2:                                                       \n"
-      "mov za1h.s[w13, 0], p0/m, z30.s                          \n" // Move pivot row from z30 to ZA1
       #endif
+
+      /* ******************** */
+      #if SME_SAVE_ROWS_COLS
+      "mov w12, #0                                              \n" // Move 0 to w12 for zeroth column index
+      // save the zeroth column
+      "mov z29.s, p0/m, za1v.s[W12, 0]                          \n" // Move zeroth column from ZA1 to z29
+
+      // zero out pivot column
+      // no need to zero z28 because smstart already zeros out all SME/SVE registers!?!
+      "mov za1v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA1 pivot column
 
       #endif
 
       /* ******************** */
-      #if FUSE_LEVEL == 0 || FUSE_LEVEL == 2
-      #if SME_MATRIX_LOAD_STORE
+      #if SME_OUTER_PRODUCT
+      // Cast z31 and z30 to 16-bit integers
+      "sqxtnb z21.h, z31.s                                      \n" // [a, 0, b, 0, c, 0, d, 0, ...]
+      "sqxtnb z20.h, z30.s                                      \n"
+
+      "ptrue p2.h                                               \n"
+
+      "smopa	za1.s, p2/m, p2/m, z21.h, z20.h                   \n" // old pivot column x pivot row
+
+      #endif
+
+      /* ******************** */
+      #if SME_SAVE_ROWS_COLS
+      // Replaced masked rows/ columns with the saved values
+      "mov za1v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA1
+      "mov za1h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA1
+
+      #endif
+
+      /* ******************** */
+      #if SME_MATRIX_STORE
       // Store the result back into the matrix
 
       // Initialize registers
@@ -963,51 +793,41 @@ inline void  Simplex<Int>::SMEPivotHelper(float *matrix, int reserved_rows, int 
       "cmp w15, w1                                              \n" // Compare i with nrows
       "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
-      // Store i - i+3th rows of ZA into matrix
-      "st1w {za1h.s[w15, 0]}, p0, [x0, x8, lsl #2]              \n"
-      "add x8, x8, x2                                           \n" // Increment offset by number of columns
+      // move i-i+3 th rows of source matrix into z0-z3
+      "mov {z0.s-z3.s}, za1h.s[w15, 0:3]                        \n"
 
-      "st1w {za1h.s[w15, 1]}, p0, [x0, x8, lsl #2]              \n"
-      "add x8, x8, x2                                           \n" // Increment offset by number of columns
-
-      "st1w {za1h.s[w15, 2]}, p0, [x0, x8, lsl #2]              \n"
-      "add x8, x8, x2                                           \n" // Increment offset by number of columns
-
-
-      "st1w {za1h.s[w15, 3]}, p0, [x0, x8, lsl #2]              \n"
-      "add x8, x8, x2                                           \n" // Increment offset by number of columns
+      // Store the loaded values to the matrix
+      "st1w {z0.s-z3.s}, pn8, [x0, x8, lsl #2]                  \n"
 
       // Increment loop counter
-      "add w15, w15, #4                                        \n" // i+=4
-      
+      "add w15, w15, #4                                         \n" // i = i + 4
+      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
+
       // Loop back
       "b 1b                                                     \n"
 
       // Loop exit label
       "2:                                                       \n"
       #endif
-      #endif
 
       "smstop                                                   \n"
+      #endif
+      ""
   : 
   : [src] "r"(matrix),
     [nrows] "r"(reserved_rows),
     [ncols] "r"(reserved_cols),
     [prow] "r"(pivot_row), 
     [pcol] "r"(pivot_col),
-    [coeff1] "r"(matrix[pivot_row * reserved_cols]),
-    [coeff2] "r"(matrix[pivot_row * reserved_cols + pivot_col])
-  : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
+    [coeff] "r"(matrix[pivot_row * reserved_cols])
+  : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x8",
     "x12", "x13", "x14", "x15",
-    #if PARTIAL_SME_SWAP == 1 
-    "s16", "s17", 
-    #endif
-    "z0", "z4", "z8", "z12", 
+    "z0", "z4", "z8", "z12",
     "z29", "z30", "z31",
     "z1", "z2", "z3",
     "z20", "z21",
     "za",
-    "p0", "p1", "p2",
+    "p0", "p1", "p2", "pn8",
     "memory"
   );
 
@@ -2615,4 +2435,4 @@ void Simplex<Int>::print(raw_ostream &os) const {
 template <typename Int>
 void Simplex<Int>::dump() const { print(llvm::errs()); }
 
-#endif // MLIR_ANALYSIS_PRESBURGER_SIMPLEX_IMPL_H
+#endif // MLIR_ANALYSIS_PRESBURGER_SIMPLEX_IMPL_H1234qwer

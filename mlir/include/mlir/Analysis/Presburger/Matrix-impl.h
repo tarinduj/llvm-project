@@ -31,7 +31,7 @@ inline unsigned nextMultipleOfFour(unsigned n) {
 template <typename Int>
 Matrix<Int>::Matrix(unsigned rows, unsigned columns)
     : nRows(rows), nColumns(columns), 
-    nReservedColumns(nextPowOfTwo(nColumns)), nReservedRows(nextMultipleOfFour(nRows)), 
+    nReservedColumns(16), nReservedRows(nextMultipleOfFour(nRows)), 
     data(nReservedRows * nReservedColumns) {
 
   if (isMatrixized) {

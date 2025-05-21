@@ -113,7 +113,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 1000000;
+  const unsigned numRuns = 5;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
@@ -153,7 +153,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
 
     // printing progress
     // if (j % 1 == 0)
-      // std::cerr << op << ' ' << j << '/' << numCases << '\n';]
+      std::cerr << op << ' ' << j << '/' << numCases << '\n';
 
     if (maxWaterline) {
       // std::cout << "maxWaterline\n";
@@ -423,8 +423,11 @@ int main(int argc, char **argv) {
 
   std::string op = argv[1];
   std::string prec = argc == 2 ? "T" : argv[2];
+
   if (prec == "16")
     run<PresburgerSet<int16_t>, true>(op, "16", {});
-  else if (prec == "64")
-    run<PresburgerSet<int64_t>, true>(op, "64", {});
+  // else if (prec == "64")
+  //   run<PresburgerSet<int64_t>, true>(op, "64", {});
+  else if (prec == "32")
+    run<PresburgerSet<int32_t>, true>(op, "32", {});
 }

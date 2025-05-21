@@ -481,43 +481,19 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
-  // std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
-  // std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
+  std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
+  std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
 
-  // tableau.dump();
+  tableau.dump();
   
   swapRowWithCol(pivotRow, pivotCol);
-
-  // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
-
-  // collector.start();
-
-  // Matrix<float> floattableau = tableau.template castTo<float>();
-
-  // event_count c1 = collector.end();
-  // std::cout << "Cast to float: " << c1.cycles() << " cycles\n";
-
-  // if (std::fetestexcept(FE_ALL_EXCEPT)) {
-  //   std::cerr << "Floating point exception in castTo<float>!\n";
-  //   checkFloatingPointExceptions();
-
-  //   std::cout << "Int tableau: \n";
-  //   tableau.dump();
-
-    // std::cout << "Float tableau: \n";
-    // floattableau.dump();
-
-  //   abort();
-  // }
 
   int numRows = tableau.getNumRows();
   int numCols = tableau.getNumColumns();
   Int* dataptr = tableau.getDataPointer();
   int numReserveCols = tableau.getNReservedColumns();
 
-  // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
   if (isMatrixized && numCols + numRows > 25) {
-    // collector.start();
 
     #if SWAP
     // swap
@@ -536,26 +512,9 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     }
     #endif
 
-    // if (std::fetestexcept(FE_ALL_EXCEPT)) {
-    //   std::cerr << "Floating point exception in pivot!\n";
-    //   checkFloatingPointExceptions();
-    // }
-
-    // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
     SMEPivotHelper(dataptr, numRows, numReserveCols, pivotRow, pivotCol);
 
-    // if (std::fetestexcept(FE_ALL_EXCEPT)) {
-    //   std::cerr << "Floating point exception in pivot helper!\n";
-    //   checkFloatingPointExceptions();
-    // }
-    
-    // event_count c2 = collector.end();
-    // std::cout << "Pivot SME: " << c2.cycles() << " cycles\n";
-    // std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
-    // std::cout << "Instructions: " << c2.instructions() << "\n";
   } else {
-    // collector.start();
-
     std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
     if (tableau(pivotRow, 0) < 0) {
@@ -587,43 +546,6 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       tableau(row, pivotCol) *= tableau(pivotRow, pivotCol);
       // normalizeRowScalar(row);
     }
-
-    // event_count c2 = collector.end();
-    // std::cout << "Pivot Scalar: " << c2.cycles() << " cycles\n";
-    // std::cout << "Time: " << c2.elapsed_ns() << " ns\n";
-    // std::cout << "Instructions: " << c2.instructions() << "\n";
-
-  // if (std::fetestexcept(FE_ALL_EXCEPT)) {
-  //   std::cerr << "Floating point exception in pivot!\n";
-  //   checkFloatingPointExceptions();
-  // }
-
-  // std::feclearexcept(FE_ALL_EXCEPT); // Clear all exceptions
-    
-  // collector.start();
-
-  // tableau = floattableau.template castTo<Int>();
-
-  // event_count c3 = collector.end();
-  // std::cout << "Cast to Int: " << c3.cycles() << " cycles\n";
-
-  // if (std::fetestexcept(FE_ALL_EXCEPT)) {
-  //   std::cerr << "Floating point exception in castTo<float>!\n";
-  //   checkFloatingPointExceptions();
-
-  //   std::cout << "Int tableau: \n";
-  //   tableau.dump();
-
-    // std::cout << "Float tableau: \n";
-    // floattableau.dump();
-
-  //   abort();
-  // }
-
-  // collector.start();
-  // event_count c4 = collector.end();
-  // std::cout << "Cycle count for nothing: " << c4.cycles() << " cycles\n";
-  // std::cout << "****************************************\n";
   }
 }
 

@@ -481,10 +481,10 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
-  std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
-  std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
+  // std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
+  // std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
 
-  tableau.dump();
+  // tableau.dump();
   
   swapRowWithCol(pivotRow, pivotCol);
 
@@ -493,7 +493,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   Int* dataptr = tableau.getDataPointer();
   int numReserveCols = tableau.getNReservedColumns();
 
-  if (isMatrixized && numCols + numRows > 25) {
+  if (isMatrixized) {
 
     #if SWAP
     // swap
@@ -553,10 +553,11 @@ template <typename Int>
 __attribute__((always_inline))
 inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int reserved_cols, int pivot_row, int pivot_col) {
   
+  // std::cout << "SMEPivotHelper\n";
   __asm__ __volatile__(
       #if SME_START_STOP
       // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
-      "smstart                                                  \n" // Start SME
+      "smstart sm                                               \n" // Start SME
       
       #if SME_HELPERS
       "zero {za}                                                \n" // Zero ZA  
@@ -732,7 +733,7 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "2:                                                       \n"
       #endif
 
-      "smstop                                                   \n"
+      "smstop sm                                                \n"
       #endif
       ""
   : 

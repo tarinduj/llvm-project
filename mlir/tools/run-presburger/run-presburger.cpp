@@ -285,6 +285,11 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       Set setA = getSetFromInput<Set>();
       Set setB = getSetFromInput<Set>();
       for (unsigned i = 0; i < numRuns; ++i) {
+        
+        #ifdef ENABLE_SME
+          asm volatile("smstart za");
+        #endif
+        
         auto a = setA;
         auto b = setB;
         unsigned int dummy;
@@ -309,6 +314,11 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
           }
         }
       }
+      
+      #ifdef ENABLE_SME
+        asm volatile("smstop za");
+      #endif
+
     } else if (op == "coalesce") {
       Set setA = getSetFromInput<Set>();
       for (unsigned i = 0; i < numRuns; ++i) {
@@ -410,7 +420,7 @@ int main(int argc, char **argv) {
   //   return 1;
   // }
 
-  const char* filename = "/Users/ajayati/Documents/mac-arm-sme/fpl-sme/benchmark/fpl/subtract.txt";
+  const char* filename = "/Users/tarindujayatilaka/Documents/arm-sme/fpl-sme/benchmark/fpl/subtract.txt";
   std::ifstream infile(filename);
 
   if (!infile) {
@@ -418,8 +428,8 @@ int main(int argc, char **argv) {
       return 1;
   }
 
-    // Redirect std::cin to read from the file
-    std::cin.rdbuf(infile.rdbuf());
+  // Redirect std::cin to read from the file
+  std::cin.rdbuf(infile.rdbuf());
 
   std::string op = argv[1];
   std::string prec = argc == 2 ? "T" : argv[2];

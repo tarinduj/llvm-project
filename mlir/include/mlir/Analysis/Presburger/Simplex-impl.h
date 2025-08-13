@@ -21,8 +21,6 @@
 #define SWAP 1
 #define SME_START_STOP 1
 #define SME_HELPERS 1
-#define SME_MATRIX_LOAD 1
-#define SME_MATRIX_STORE 1
 #define SME_SAVE_ROWS_COLS 1
 #define SME_MULTIPLY_ROWS 1
 #define SME_OUTER_PRODUCT 1
@@ -145,7 +143,37 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 
   addZeroConstraint();
 
-  if constexpr (isVectorized) {
+  if constexpr (isMatrixized) {
+    tableau(nRow - 1, 1) = coeffs.back();
+    // Process each given variable coefficient.
+    for (unsigned i = 0, e = var.size(); i < e; ++i) {
+      unsigned pos = var[i].pos;
+      if (coeffs[i] == 0)
+        continue;
+
+      if (var[i].orientation == Orientation::Column) {
+        // If a variable is in column position at column col, then we just add the
+        // coefficient for that variable (scaled by the common row denominator) to
+        // the corresponding entry in the new row.
+        tableau(nRow - 1, pos) += coeffs[i] * tableau(nRow - 1, 0);
+        continue;
+      }
+
+      // If the variable is in row position, we need to add that row to the new
+      // row, scaled by the coefficient for the variable, accounting for the two
+      // rows potentially having different denominators. The new denominator is
+      // the lcm of the two.
+      Int lcmval = lcm(tableau(nRow - 1, 0), tableau(pos, 0));
+      Int nRowCoeff = lcmval / tableau(nRow - 1, 0);
+      Int idxRowCoeff = coeffs[i] * (lcmval / tableau(pos, 0));
+      tableau(nRow - 1, 0) = lcmval;
+      for (unsigned col = 1; col < nCol; ++col)
+        tableau(nRow - 1, col) =
+            nRowCoeff * tableau(nRow - 1, col) + idxRowCoeff * tableau(pos, col);
+    }
+
+    normalizeRowMatrix(nRow - 1);
+  } else if constexpr (isVectorized) {
     tableau(nRow - 1, 1) = coeffs.back();
     // Process each given variable coefficient.
     Vector &vec = tableau.getRowVector(nRow - 1);
@@ -212,7 +240,9 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 /// denominator and all the numerator coefficients.
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row) {
-  if constexpr (isVectorized) 
+  if constexpr (isMatrixized)
+    normalizeRowMatrix(row);
+  else if constexpr (isVectorized) 
     normalizeRow(row, tableau.getRowVector(row));
   else
     normalizeRowScalar(row);
@@ -234,6 +264,21 @@ void Simplex<Int>::normalizeRowScalar(unsigned row) {
   assert(tableau(row, 0) != 0);
 }
 
+template <typename Int>
+void Simplex<Int>::normalizeRowMatrix(unsigned row) {
+  Int gcd = 0;
+  for (unsigned col = 0; col < nCol; ++col) {
+    if (gcd == 1)
+      break;
+    gcd = llvm::greatestCommonDivisor(gcd, abs(tableau(row, col)));
+  }
+
+  if (gcd == 0 || gcd == 1)
+    return;
+  for (unsigned col = 0; col < nCol; ++col)
+    tableau(row, col) /= gcd;
+  assert(tableau(row, 0) != 0);
+}
 
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row, Vector &rowVec) {
@@ -481,7 +526,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
-  // std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
+  std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
   // std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
 
   // tableau.dump();
@@ -494,10 +539,11 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   int numReserveCols = tableau.getNReservedColumns();
 
   if (isMatrixized) {
+    std::cout << "SME Pivot\n";
 
     #if SWAP
     // swap
-    std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
+    swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
     if (tableau(pivotRow, 0) < 0) {
       // If the denominator is negative, we negate the row by simply negating
@@ -514,8 +560,10 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
     SMEPivotHelper(dataptr, numRows, numReserveCols, pivotRow, pivotCol);
 
+    std::cout << "SME Pivot Done\n";
+
   } else {
-    std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
+    swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
     if (tableau(pivotRow, 0) < 0) {
       // If the denominator is negative, we negate the row by simply negating
@@ -557,13 +605,9 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
   __asm__ __volatile__(
       #if SME_START_STOP
       // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
-      "smstart sm                                               \n" // Start SME
+      "smstart sm                                            \n" // Start SME
       
       #if SME_HELPERS
-      "zero {za}                                                \n" // Zero ZA  
-
-      "mov x0, %[src]                                           \n" // Source matrix pointer
-
       "mov w1, %w[nrows]                                        \n" // Number of rows
       "mov w2, %w[ncols]                                        \n" // Number of columns
 
@@ -584,36 +628,6 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "ptrue p0.s                                               \n" // Predicate p0.s is set to true
       "whilelt p1.s, xzr, x2                                    \n" // Predicate p1.s is set to true for ncols elements to prevent seg faults in load/store
       "ptrue pn8.s                                              \n" // Predicate pn8.s is set to true to load/store 4 rows at a time
-      #endif
-
-      #if SME_MATRIX_LOAD
-      // /* ******************** */
-      // Load the matrix into ZA0
-
-      // Initialize registers
-      "mov w15, #0                                              \n" // Loop counter i = 
-      "mov x8, #0                                               \n" // Offset in source matrix
-
-      // Loop label
-      "1:                                                       \n"
-      "cmp w15, w1                                              \n" // Compare i with nrows
-      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
-
-      // Load i-i+3 th rows of source matrix into z0-z3
-      "ld1w {z0.s-z3.s}, pn8/z, [x0, x8, lsl #2]                \n"
-
-      // Move the loaded values to ZA0
-      "mov za0h.s[w15, 0:3], {z0.s-z3.s}                        \n"
-
-      // Increment loop counter
-      "add w15, w15, #4                                         \n" // i = i + 4
-      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
-
-      // Loop back
-      "b 1b                                                     \n"
-
-      // Loop exit label
-      "2:                                                       \n"
       #endif
 
       /* ******************** */
@@ -701,36 +715,6 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "mov za1v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA1
       "mov za1h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA1
 
-      #endif
-
-      /* ******************** */
-      #if SME_MATRIX_STORE
-      // Store the result back into the matrix
-
-      // Initialize registers
-      "mov w15, #0                                              \n" // Loop counter i = 0
-      "mov x8, #0                                               \n" // Offset in source matrix
-
-      // Loop label
-      "1:                                                       \n"
-      "cmp w15, w1                                              \n" // Compare i with nrows
-      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
-
-      // move i-i+3 th rows of source matrix into z0-z3
-      "mov {z0.s-z3.s}, za1h.s[w15, 0:3]                        \n"
-
-      // Store the loaded values to the matrix
-      "st1w {z0.s-z3.s}, pn8, [x0, x8, lsl #2]                  \n"
-
-      // Increment loop counter
-      "add w15, w15, #4                                         \n" // i = i + 4
-      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
-
-      // Loop back
-      "b 1b                                                     \n"
-
-      // Loop exit label
-      "2:                                                       \n"
       #endif
 
       "smstop sm                                                \n"

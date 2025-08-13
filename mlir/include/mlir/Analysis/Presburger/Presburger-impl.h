@@ -2,6 +2,7 @@
 #include "ISLPrinter-impl.h"
 #include "LinearTransform-impl.h"
 #include "Matrix-impl.h"
+#include "SMEMatrix-impl.h"
 #include "ParamLexSimplex-impl.h"
 #include "PresburgerBasicSet-impl.h"
 #include "Printer-impl.h"

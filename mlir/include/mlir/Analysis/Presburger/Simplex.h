@@ -18,6 +18,7 @@
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/Presburger/Fraction.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
+#include "mlir/Analysis/Presburger/SMEMatrix.h"
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
@@ -422,6 +423,7 @@ protected:
   void normalizeRow(unsigned row, Vector &rowVec);
   void normalizeRow(unsigned row);
   void normalizeRowScalar(unsigned row);
+  void normalizeRowMatrix(unsigned row);
 
   /// Mark the column as zero.
   ///
@@ -497,7 +499,11 @@ protected:
   unsigned liveColBegin;
 
   /// The matrix representing the tableau.
-  Matrix<Int> tableau;
+  #ifdef ENABLE_SME
+    SMEMatrix<Int> tableau;
+  #else
+    Matrix<Int> tableau;
+  #endif
 
   /// This is true if the tableau has been detected to be empty, false
   /// otherwise.

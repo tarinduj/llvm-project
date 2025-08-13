@@ -288,6 +288,40 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
         
         #ifdef ENABLE_SME
           asm volatile("smstart za");
+
+          // __asm__ __volatile__(
+          //   "smstart sm                                               \n"
+          //   "ptrue p0.s                                               \n"
+          //   "cntw x9                                                   \n"
+          //   "mov x15, #0                                               \n"
+          //   "mov w11, #1                                               \n"
+          //   "1:                                                       \n"
+          //   "index z0.s, w11, #1                                       \n"
+          //   "mov za0h.s[w15, 0], p0/m, z0.s                           \n"
+          //   "add w11, w11, w9                                          \n"
+          //   "add x15, x15, #1                                          \n"
+          //   "cmp x15, x9                                               \n"
+          //   "b.lo 1b                                                   \n"
+          //   "smstop sm                                                \n"
+          // );
+
+          // SMEMatrix<int32_t> matrix(16,16);
+
+          // int32_t x = matrix(2, 2);
+          // int32_t x2 = matrix.at(2,2);
+
+          // std::cout << "x: " << x << " " << x2 << std::endl;
+
+          // matrix(2, 2) = 10;
+
+          // int32_t ix = matrix(2, 2);
+
+          // std::cout << "ix: " << ix << std::endl;
+
+          // matrix.dump();
+          // exit(0);
+
+
         #endif
         
         auto a = setA;

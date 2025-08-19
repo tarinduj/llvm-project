@@ -41,19 +41,6 @@ public:
     // This is called for assignments: matrix(r, c) = value
     ElementProxy &operator=(Int value) {
       // std::cout << "Assigning value" << std::endl;
-      uint64_t svcr = 0;
-  // Read Streaming Vector Control Register (SVCR).
-  // Requires FEAT_SME; on CPUs without SME this instruction is UNDEFINED,
-  // so keep it under appropriate compile-time guards.
-  asm volatile("mrs %0, svcr" : "=r"(svcr));
-  if ((svcr & (1ull << 1)) == 0) {
-    // ZA not enabled: you might want to enable it or bail out.
-    // Enabling ZA only (without streaming mode) would be: asm volatile("smstart za");
-    // Or log/throw:
-    std::cerr << "ZA is disabled (PSTATE.ZA=0)\n";
-  } else {
-    std::cout << "ZA is enabled (PSTATE.ZA=1)" << std::endl;
-    }
       __asm__ __volatile__(
         "smstart sm                                               \n"
         "mov w12, %w[row]                                         \n" // Move row to w12
@@ -89,11 +76,11 @@ public:
         "mov w12, %w[row]                                         \n" // Move row to w12
         "mov w13, %w[col]                                         \n" // Move col to w13
         "ptrue	p0.s                                              \n"
-        "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Load the value at (row, col) from ZA1 to za0
+        "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Load the value at (row, col) from ZA0 to za0
         "index z1.s, #0, #1                                       \n" // z1 = [0,1,2,...]
         "dup z2.s, w13                                            \n" // broadcast `col`
         "cmpeq p1.s, p0/z, z1.s, z2.s                             \n" // p1 true only at lane == col
-        "lastb %w[val], p1, z0.s                                  \n" // store the value at (row, col) from ZA1 to val
+        "lastb %w[val], p1, z0.s                                  \n" // store the value at (row, col) from ZA0 to val
         "smstop sm                                                \n"
         : [val] "=r"(val)
         : [row] "r"(row),
@@ -124,7 +111,7 @@ public:
     }
 
     // ADL-friendly swap for proxy temporaries
-    friend inline void swap(ElementProxy a, ElementProxy b) noexcept {
+    friend inline void matrixSwap(ElementProxy a, ElementProxy b) noexcept {
       Int tmp = static_cast<Int>(a);
       a = static_cast<Int>(b);
       b = tmp;
@@ -211,7 +198,7 @@ public:
   __attribute__((always_inline))
   Int operator()(unsigned row, unsigned column) const {
     // std::cout << "Int at operator() const" << std::endl;
-    return at(row, column);
+    return at(row, column);         // TODO: check if this is correct             
   }
 
   /// Swap the given columns.

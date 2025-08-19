@@ -113,7 +113,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 5;
+  // const unsigned numRuns = 1000000;
+  const unsigned numRuns = 1;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
@@ -285,6 +286,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       Set setA = getSetFromInput<Set>();
       Set setB = getSetFromInput<Set>();
       for (unsigned i = 0; i < numRuns; ++i) {
+        // std::cout << "Subtract Run: " << i << std::endl;
         
         #ifdef ENABLE_SME
           asm volatile("smstart za");

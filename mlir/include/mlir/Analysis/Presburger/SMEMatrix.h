@@ -76,7 +76,7 @@ public:
         "mov w12, %w[row]                                         \n" // Move row to w12
         "mov w13, %w[col]                                         \n" // Move col to w13
         "ptrue	p0.s                                              \n"
-        "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Load the value at (row, col) from ZA0 to za0
+        "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Load the row from ZA0 to z0
         "index z1.s, #0, #1                                       \n" // z1 = [0,1,2,...]
         "dup z2.s, w13                                            \n" // broadcast `col`
         "cmpeq p1.s, p0/z, z1.s, z2.s                             \n" // p1 true only at lane == col
@@ -169,7 +169,7 @@ public:
       "mov w12, %w[row]                                         \n" // Move row to w12
       "mov w13, %w[col]                                         \n" // Move col to w13
       "ptrue	p0.s                                              \n"
-      "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Load the value at (row, col) from ZA1 to za0
+      "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Move the row from ZA0 to z0
       "index z1.s, #0, #1                                       \n" // z1 = [0,1,2,...]
       "dup z2.s, w13                                            \n" // broadcast `col`
       "cmpeq p1.s, p0/z, z1.s, z2.s                             \n" // p1 true only at lane == col

@@ -583,20 +583,243 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
                                             Direction direction) const {
   Optional<unsigned> col;
 
-  for (unsigned j = liveColBegin; j < nCol; ++j) {
-    Int elem = tableau(row, j);
-    if (elem == 0)
-      continue;
+  if constexpr (isVectorized) {
+    std::array<int, 16> restricted_flags;
+    for (unsigned i = liveColBegin; i < nCol; ++i) {
+      restricted_flags[i] = unknownFromColumn(i).restricted;
+    }
 
-    if (unknownFromColumn(j).restricted &&
-        !signMatchesDirection(elem, direction))
-      continue;
-    if (!col || colUnknown[j] < colUnknown[*col])
-      col = j;
+    const int* col_unknown_data = colUnknown.data();
+
+    int best_col_idx = -1;
+    int MINCOLUNKNOWN = std::numeric_limits<int>::max();
+
+    // // --- End of C++ Setup Code ---
+
+    Int testArray[16] = {0};
+    for (int i = 0; i < 16; i++) {
+      testArray[i] = -1;
+    }
+    
+    std::cout << "######################### " << std::endl;
+    std::cout << "liveColBegin: " << liveColBegin << " nCol: " << nCol << std::endl;
+    // std::cout << "best_col_idx: " << best_col_idx << std::endl;
+    
+
+    if (direction == Direction::Up) {
+      // std::cout << "direction: Up" << std::endl;
+        __asm__ __volatile__(
+            "smstart sm                                               \n"
+
+            // 1. SETUP: Load pointers and bounds into registers.
+            "mov w12, %w[row]                                         \n" // Move row to w12
+            "mov x1, %[col_unknown_ptr]                               \n" // Pointer to colUnknown data
+            "mov x2, %[restricted_ptr]                                \n" // Pointer to restricted flags
+            "mov w3, %w[initial_min]                                  \n" // w9 now holds INT_MAX
+
+            // 2. DEFINE ACTIVE RANGE using the correct index pattern.
+            "ptrue p0.s                                               \n"
+            "index z1.s, #0, #1                                       \n" // z1 = {0, 1, 2, ...}
+            "dup z2.s, %w[liveColBegin]                               \n" // z2 = {liveColBegin, liveColBegin, ...}
+            "cmpge p1.s, p0/z, z1.s, z2.s                             \n" // p1 is true where index >= liveColBegin
+            "dup z3.s, %w[nCol]                                       \n" // z3 = {nCol, nCol, ...}
+            "cmplo p2.s, p0/z, z1.s, z3.s                             \n" // p2 is true where index < nCol
+            "and p3.b, p0/z, p1.b, p2.b                               \n" // p0 is the final range mask
+
+            // 3. PARALLEL LOAD: Load data into vector registers, zeroing inactive lanes.
+            "mov z0.s, p3/m, za0h.s[w12, 0]                           \n" // z0 = row from tableau
+            "ld1w z1.s, p3/z, [x1]                                    \n" // z1 = colUnknown values
+
+            // 4. FILTERING: Create the final candidate mask.
+            "cmpne p1.s, p3/z, z0.s, #0                               \n" // p1 = candidate_mask for non-zero elements
+            // p1 -> non-zero = 1, zero = 0
+            "ld1w z3.s, p3/z, [x2]                                    \n" // restricted flags
+            "cmpeq p2.s, p3/z, z3.s, #1                               \n" // p2 = mask for restricted columns (unknownFromColumn(j).restricted)
+            // p2 -> restricted = 1, unrestricted = 0
+            "cmple p4.s, p3/z, z0.s, #0                               \n" // p3 = mask for sign check (!signMatchesDirection(elem, direction)) (elem > 0 for Direction::Up so =< for !)
+            // match = 0, mismatch = 1
+            "and p2.b, p0/z, p2.b, p4.b                               \n" // Combine: invalid_mask (p2) = restricted (p2) AND wrong_sign (p3)
+            "bic p1.b, p0/z, p1.b, p2.b                               \n" // UPDATE CANDIDATE MASK: p1 = p1 AND NOT(p2) by clearing bits.
+
+            // 5. ISOLATE CANDIDATES: Replace non-candidate values with max_int.
+            "dup z2.s, w3                                             \n" // z2 = vector of INT_MAX
+            "sel z1.s, p1, z1.s, z2.s                                 \n" // z1 now holds only candidate colUnknown values and INT_MAX for invalid ones
+
+            // 6. HORIZONTAL REDUCTION (Value): Find the single minimum value.
+            "sminv s0, p0, z1.s                                       \n" // Find min, result is in SVE scalar register s0.
+
+            // 7. CHECK IF A VALID MINIMUM WAS FOUND (using a temporary GPR)
+            "fmov w4, s0                                              \n" // Move min value to temporary register w4.
+            "cmp w4, w3                                               \n" // Compare found minimum with INT_MAX.
+            "b.eq 1f                                                  \n" // If equal, no valid pivot was found, so branch to end.
+            
+            // 8. FIND INDEX OF THE MINIMUM
+            "dup z2.s, w4                                             \n" // Broadcast min value to vector
+            "cmpeq p1.s, p0/z, z1.s, z2.s                             \n" // Find where the minimum is located.
+            "index z0.s, #0, #1                                       \n"
+            "lastb %w[best_col_idx], p1, z0.s                         \n" // Extract the index.
+            
+            "1:                                                       \n" // Branch target label.
+            
+            "smstop sm                                               \n"
+            : [best_col_idx] "=r" (best_col_idx)
+            : [row] "r"(row),
+              [nCol] "r"(nCol),
+              [liveColBegin] "r"(liveColBegin),
+              [col_unknown_ptr] "r"(col_unknown_data),
+              [restricted_ptr] "r"(&restricted_flags),
+              [initial_min] "r"(MINCOLUNKNOWN)
+            : "x1", "x2", "x3",
+              "z0", "z1", "z2", "z3",
+              "p0", "p1", "p2", "p3",
+              "cc", "memory" // "cc" is added to clobbers because of the cmp instruction
+        );
+
+    } else {
+      std::cout << "direction: Down" << std::endl;
+      __asm__ __volatile__(
+        "smstart sm                                               \n"
+
+        // 1. SETUP: Load pointers and bounds into registers.
+        "mov w12, %w[row]                                         \n" // Move row to w12
+        "mov x1, %[col_unknown_ptr]                               \n" // Pointer to colUnknown data
+        "mov x2, %[restricted_ptr]                                \n" // Pointer to restricted flags
+        "mov w3, %w[initial_min]                                  \n" // w9 now holds INT_MAX
+
+        // 2. DEFINE ACTIVE RANGE using the correct index pattern.
+        "ptrue p0.s                                               \n"
+        "index z1.s, #0, #1                                       \n" // z1 = {0, 1, 2, ...}
+        "dup z2.s, %w[liveColBegin]                               \n" // z2 = {liveColBegin, liveColBegin, ...}
+        "cmpge p1.s, p0/z, z1.s, z2.s                             \n" // p1 is true where index >= liveColBegin
+        "dup z3.s, %w[nCol]                                       \n" // z3 = {nCol, nCol, ...}
+        "cmplo p2.s, p0/z, z1.s, z3.s                             \n" // p2 is true where index < nCol
+        "and p3.b, p0/z, p1.b, p2.b                               \n" // p0 is the final range mask
+
+        // 3. PARALLEL LOAD: Load data into vector registers, zeroing inactive lanes.
+        "mov z0.s, p3/m, za0h.s[w12, 0]                           \n" // z0 = row from tableau
+        "ld1w z1.s, p3/z, [x1]                                    \n" // z1 = colUnknown values
+
+        // 4. FILTERING: Create the final candidate mask.
+        "cmpne p1.s, p3/z, z0.s, #0                               \n" // p1 = candidate_mask for non-zero elements
+        // p1 -> non-zero = 1, zero = 0
+        "ld1w z3.s, p3/z, [x2]                                    \n" // restricted flags
+        "cmpeq p2.s, p3/z, z3.s, #1                               \n" // p2 = mask for restricted columns (unknownFromColumn(j).restricted)
+        // p2 -> restricted = 1, unrestricted = 0
+        "cmpge p4.s, p3/z, z0.s, #0                               \n" // p3 = mask for sign check (!signMatchesDirection(elem, direction)) (elem < 0 for Direction::Down so >= for !)
+        // match = 0, mismatch = 1
+        "and p2.b, p0/z, p2.b, p4.b                               \n" // Combine: invalid_mask (p2) = restricted (p2) AND wrong_sign (p3)
+        "bic p1.b, p0/z, p1.b, p2.b                               \n" // UPDATE CANDIDATE MASK: p1 = p1 AND NOT(p2) by clearing bits.
+
+        // // 5. ISOLATE CANDIDATES: Replace non-candidate values with max_int.
+        // "dup z2.s, w3                                             \n" // z2 = vector of INT_MAX
+        // "sel z1.s, p1, z1.s, z2.s                                 \n" // z1 now holds only candidate colUnknown values and INT_MAX for invalid ones
+
+        // // 6. HORIZONTAL REDUCTION (Value): Find the single minimum value.
+        // "sminv s0, p0, z1.s                                       \n" // Find min, result is in SVE scalar register s0.
+
+        // // 7. CHECK IF A VALID MINIMUM WAS FOUND (using a temporary GPR)
+        // "fmov w4, s0                                              \n" // Move min value to temporary register w4.
+        // "cmp w4, w3                                               \n" // Compare found minimum with INT_MAX.
+        // "b.eq 1f                                                  \n" // If equal, no valid pivot was found, so branch to end.
+        
+        // // 8. FIND INDEX OF THE MINIMUM
+        // "dup z2.s, w4                                             \n" // Broadcast min value to vector
+        // "cmpeq p1.s, p0/z, z1.s, z2.s                             \n" // Find where the minimum is located.
+        // "index z0.s, #0, #1                                       \n"
+        // "lastb %w[best_col_idx], p1, z0.s                         \n" // Extract the index.
+        
+        // "1:                                                       \n" // Branch target label.
+        
+        // "smstop sm                                               \n"
+        : 
+        : [row] "r"(row),
+          [nCol] "r"(nCol),
+          [liveColBegin] "r"(liveColBegin),
+          [col_unknown_ptr] "r"(col_unknown_data),
+          [restricted_ptr] "r"(&restricted_flags),
+          [initial_min] "r"(MINCOLUNKNOWN)
+        : "x1", "x2", "x3",
+          "z0", "z1", "z2", "z3",
+          "p0", "p1", "p2", "p3",
+          "cc", "memory" // "cc" is added to clobbers because of the cmp instruction
+      );
+    // move z1 to coeffArray
+    __asm__ __volatile__(
+      "mov x12, %[testArray]                                    \n"
+      "ptrue p0.s                                               \n"
+      "st1w z1.s, p1, [x12]                                     \n"
+      "smstop sm                                                \n"
+    :
+    : [testArray] "r"(testArray)
+    : "z1"
+    );
+
+    std::cout << "row: " << row << std::endl;
+    std::cout << "liveColBegin: " << liveColBegin << " nCol: " << nCol << std::endl;
+    std::cout << "colUnknown: ";
+    for (int i = 0; i < 16; i++) {
+      std::cout << colUnknown[i] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "restricted_flags: ";
+    for (int i = 0; i < 16; i++) {
+      std::cout << restricted_flags[i] << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "testArray: ";
+    for (int i = 0; i < 16; i++) {
+      std::cout << testArray[i] << " ";
+    }
+    std::cout << std::endl;
+
+    exit(0);
+    }
+
+    std::cout << "best_col_idx: " << best_col_idx << std::endl;
+
+    tableau.dump();
+
+    if (best_col_idx == -1) {
+      return {};
+    }
+
+    col = best_col_idx;
+
+    std::cout << "best_col_idx: " << best_col_idx << std::endl;
+
+  } else {
+    // Original scalar version as fallback
+    for (unsigned j = liveColBegin; j < nCol; ++j) {
+      Int elem = tableau(row, j);
+      if (elem == 0)
+        continue;
+
+      if (unknownFromColumn(j).restricted &&
+          !signMatchesDirection(elem, direction))
+        continue;
+      if (!col || colUnknown[j] < colUnknown[*col])
+        col = j;
+    }
+
+    std::cout << "######################### " << std::endl;
+    std::cout << "col: ";
+    if (col.hasValue()) {
+        std::cout << col.getValue();
+    } else {
+        std::cout << "-1";
+    }
+    std::cout << std::endl;
+
+    tableau.dump();
+
+    if (direction == Direction::Down) {
+      exit(0);
+    }
+
+    if (!col)
+      return {};
   }
-
-  if (!col)
-    return {};
 
   Direction newDirection =
       tableau(row, *col) < 0 ? flippedDirection<Int>(direction) : direction;

@@ -147,17 +147,23 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 
 
   // std::cout << "Matrix Add Row\n";
+
+  // for (unsigned i = 0, e = var.size(); i < e; ++i) {
+  //   if (var[i].orientation == Orientation::Column) {
+  //     std::cout << "Column: " << var[i].pos << " Coeff: " << coeffs[i] << std::endl;
+  //   } else {
+  //     std::cout << "Row: " << var[i].pos << " Coeff: " << coeffs[i] << std::endl;
+  //   }
+  // }
+
+  // std::cout << "coeffs.back(): " << coeffs.back() << std::endl;
+  // std::cout << "nRow: " << nRow-1 << std::endl;
+
   if constexpr (isMatrixized) {
     
     // Int coeffArray[16] = {0};
 
-    // for (unsigned i = 0, e = var.size(); i < e; ++i) {
-    //   if (var[i].orientation == Orientation::Column) {
-    //     std::cout << "Column: " << var[i].pos << " Coeff: " << coeffs[i] << std::endl;
-    //   } else {
-    //     std::cout << "Row: " << var[i].pos << " Coeff: " << coeffs[i] << std::endl;
-    //   }
-    // }
+    
     
     // Keep the row in Z20
     asm volatile("smstart sm");
@@ -295,13 +301,13 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
     // normalizeRowMatrix(nRow - 1);
     asm volatile("smstop sm");
 
-    // std::cout << "coeffs.back(): " << coeffs.back() << std::endl;
+    
     // std::cout << "new row: ";
     // for (int i = 0; i < 16; i++) {
     //   std::cout << coeffArray[i] << " ";
     // }
     // std::cout << std::endl;
-    // tableau.dump();
+    
 
   } else if constexpr (isVectorized) {
     tableau(nRow - 1, 1) = coeffs.back();
@@ -363,6 +369,11 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 
     normalizeRowScalar(nRow - 1);
   }
+
+  // tableau.dump();
+  // if (nRow - 1== 3) {
+  //   exit(0);
+  // }
   return con.size() - 1;
 }
 
@@ -583,7 +594,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
                                             Direction direction) const {
   Optional<unsigned> col;
 
-  if constexpr (isVectorized) {
+  if constexpr (isMatrixized) {
     std::array<int, 16> restricted_flags;
     for (unsigned i = liveColBegin; i < nCol; ++i) {
       restricted_flags[i] = unknownFromColumn(i).restricted;
@@ -591,23 +602,34 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
 
     const int* col_unknown_data = colUnknown.data();
 
-    int best_col_idx = -1;
+    int best_col_idx;
     int MINCOLUNKNOWN = std::numeric_limits<int>::max();
 
     // // --- End of C++ Setup Code ---
 
-    Int testArray[16] = {0};
-    for (int i = 0; i < 16; i++) {
-      testArray[i] = -1;
-    }
+    // Int testArray[16] = {0};
+    // for (int i = 0; i < 16; i++) {
+    //   testArray[i] = -1;
+    // }
     
-    std::cout << "######################### " << std::endl;
-    std::cout << "liveColBegin: " << liveColBegin << " nCol: " << nCol << std::endl;
+    // std::cout << "######################### " << std::endl;
     // std::cout << "best_col_idx: " << best_col_idx << std::endl;
+    // std::cout << "row: " << row << std::endl;
+    // std::cout << "liveColBegin: " << liveColBegin << " nCol: " << nCol << std::endl;
+    // std::cout << "colUnknown: ";
+    // for (int i = 0; i < colUnknown.size(); i++) {
+    //   std::cout << "colUnknown[" << i << "]: " << colUnknown[i] << " ";
+    // }
+    // std::cout << std::endl;
+    // std::cout << "restricted_flags: ";
+    // for (int i = 0; i < 16; i++) {
+    //   std::cout << restricted_flags[i] << " ";
+    // }
+    // std::cout << std::endl;
+
     
 
     if (direction == Direction::Up) {
-      // std::cout << "direction: Up" << std::endl;
         __asm__ __volatile__(
             "smstart sm                                               \n"
 
@@ -628,7 +650,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
 
             // 3. PARALLEL LOAD: Load data into vector registers, zeroing inactive lanes.
             "mov z0.s, p3/m, za0h.s[w12, 0]                           \n" // z0 = row from tableau
-            "ld1w z1.s, p3/z, [x1]                                    \n" // z1 = colUnknown values
+            // "ld1w z1.s, p3/z, [x1]                                    \n" // z1 = colUnknown values
 
             // 4. FILTERING: Create the final candidate mask.
             "cmpne p1.s, p3/z, z0.s, #0                               \n" // p1 = candidate_mask for non-zero elements
@@ -648,6 +670,9 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
             // 6. HORIZONTAL REDUCTION (Value): Find the single minimum value.
             "sminv s0, p0, z1.s                                       \n" // Find min, result is in SVE scalar register s0.
 
+            // Initialize the output register to its default "not found" value (-1).
+            "mov %w[best_col_idx], #-1                                \n"
+
             // 7. CHECK IF A VALID MINIMUM WAS FOUND (using a temporary GPR)
             "fmov w4, s0                                              \n" // Move min value to temporary register w4.
             "cmp w4, w3                                               \n" // Compare found minimum with INT_MAX.
@@ -661,7 +686,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
             
             "1:                                                       \n" // Branch target label.
             
-            "smstop sm                                               \n"
+            // "smstop sm                                                \n"
             : [best_col_idx] "=r" (best_col_idx)
             : [row] "r"(row),
               [nCol] "r"(nCol),
@@ -676,7 +701,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
         );
 
     } else {
-      std::cout << "direction: Down" << std::endl;
+      // std::cout << "direction: Down" << std::endl;
       __asm__ __volatile__(
         "smstart sm                                               \n"
 
@@ -710,28 +735,31 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
         "and p2.b, p0/z, p2.b, p4.b                               \n" // Combine: invalid_mask (p2) = restricted (p2) AND wrong_sign (p3)
         "bic p1.b, p0/z, p1.b, p2.b                               \n" // UPDATE CANDIDATE MASK: p1 = p1 AND NOT(p2) by clearing bits.
 
-        // // 5. ISOLATE CANDIDATES: Replace non-candidate values with max_int.
-        // "dup z2.s, w3                                             \n" // z2 = vector of INT_MAX
-        // "sel z1.s, p1, z1.s, z2.s                                 \n" // z1 now holds only candidate colUnknown values and INT_MAX for invalid ones
+        // 5. ISOLATE CANDIDATES: Replace non-candidate values with max_int.
+        "dup z2.s, w3                                             \n" // z2 = vector of INT_MAX
+        "sel z1.s, p1, z1.s, z2.s                                 \n" // z1 now holds only candidate colUnknown values and INT_MAX for invalid ones
 
-        // // 6. HORIZONTAL REDUCTION (Value): Find the single minimum value.
-        // "sminv s0, p0, z1.s                                       \n" // Find min, result is in SVE scalar register s0.
+        // 6. HORIZONTAL REDUCTION (Value): Find the single minimum value.
+        "sminv s0, p0, z1.s                                       \n" // Find min, result is in SVE scalar register s0.
 
-        // // 7. CHECK IF A VALID MINIMUM WAS FOUND (using a temporary GPR)
-        // "fmov w4, s0                                              \n" // Move min value to temporary register w4.
-        // "cmp w4, w3                                               \n" // Compare found minimum with INT_MAX.
-        // "b.eq 1f                                                  \n" // If equal, no valid pivot was found, so branch to end.
+        // Initialize the output register to its default "not found" value (-1).
+        "mov %w[best_col_idx], #-1                                \n"
+
+        // 7. CHECK IF A VALID MINIMUM WAS FOUND (using a temporary GPR)
+        "fmov w4, s0                                              \n" // Move min value to temporary register w4.
+        "cmp w4, w3                                               \n" // Compare found minimum with INT_MAX.
+        "b.eq 9f                                                  \n" // If equal, no valid pivot was found, so branch to end.
         
-        // // 8. FIND INDEX OF THE MINIMUM
-        // "dup z2.s, w4                                             \n" // Broadcast min value to vector
-        // "cmpeq p1.s, p0/z, z1.s, z2.s                             \n" // Find where the minimum is located.
-        // "index z0.s, #0, #1                                       \n"
-        // "lastb %w[best_col_idx], p1, z0.s                         \n" // Extract the index.
+        // 8. FIND INDEX OF THE MINIMUM
+        "dup z2.s, w4                                             \n" // Broadcast min value to vector
+        "cmpeq p1.s, p0/z, z1.s, z2.s                             \n" // Find where the minimum is located.
+        "index z0.s, #0, #1                                       \n"
+        "lastb %w[best_col_idx], p1, z0.s                         \n" // Extract the index.
         
-        // "1:                                                       \n" // Branch target label.
+        "9:                                                       \n" // Branch target label.
         
-        // "smstop sm                                               \n"
-        : 
+        // "smstop sm                                                \n"
+        : [best_col_idx] "=r" (best_col_idx)
         : [row] "r"(row),
           [nCol] "r"(nCol),
           [liveColBegin] "r"(liveColBegin),
@@ -743,50 +771,42 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
           "p0", "p1", "p2", "p3",
           "cc", "memory" // "cc" is added to clobbers because of the cmp instruction
       );
+    }
+
     // move z1 to coeffArray
-    __asm__ __volatile__(
-      "mov x12, %[testArray]                                    \n"
-      "ptrue p0.s                                               \n"
-      "st1w z1.s, p1, [x12]                                     \n"
-      "smstop sm                                                \n"
-    :
-    : [testArray] "r"(testArray)
-    : "z1"
-    );
+    // __asm__ __volatile__(
+    //   "mov x12, %[testArray]                                    \n"
+    //   "ptrue p0.s                                               \n"
+    //   "st1w z1.s, p0, [x12]                                     \n"
+    //   "smstop sm                                                \n"
+    // :
+    // : [testArray] "r"(testArray)
+    // : "z1"
+    // );
 
-    std::cout << "row: " << row << std::endl;
-    std::cout << "liveColBegin: " << liveColBegin << " nCol: " << nCol << std::endl;
-    std::cout << "colUnknown: ";
-    for (int i = 0; i < 16; i++) {
-      std::cout << colUnknown[i] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "restricted_flags: ";
-    for (int i = 0; i < 16; i++) {
-      std::cout << restricted_flags[i] << " ";
-    }
-    std::cout << std::endl;
 
-    std::cout << "testArray: ";
-    for (int i = 0; i < 16; i++) {
-      std::cout << testArray[i] << " ";
-    }
-    std::cout << std::endl;
+    // std::cout << "testArray: ";
+    // for (int i = 0; i < 16; i++) {
+    //   std::cout << testArray[i] << " ";
+    // }
+    // std::cout << std::endl;
 
-    exit(0);
-    }
+    // exit(0);
 
-    std::cout << "best_col_idx: " << best_col_idx << std::endl;
+    // std::cout << "col: " << best_col_idx << std::endl;
+    // std::cout << std::endl;
 
-    tableau.dump();
+    // tableau.dump();
+
+    // if (direction == Direction::Down) {
+    //   exit(0);
+    // }
 
     if (best_col_idx == -1) {
       return {};
     }
 
     col = best_col_idx;
-
-    std::cout << "best_col_idx: " << best_col_idx << std::endl;
 
   } else {
     // Original scalar version as fallback
@@ -802,20 +822,20 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
         col = j;
     }
 
-    std::cout << "######################### " << std::endl;
-    std::cout << "col: ";
-    if (col.hasValue()) {
-        std::cout << col.getValue();
-    } else {
-        std::cout << "-1";
-    }
-    std::cout << std::endl;
+    // std::cout << "######################### " << std::endl;
+    // std::cout << "col: ";
+    // if (col.hasValue()) {
+    //     std::cout << col.getValue();
+    // } else {
+    //     std::cout << "-1";
+    // }
+    // std::cout << std::endl;
 
-    tableau.dump();
+    // tableau.dump();
 
-    if (direction == Direction::Down) {
-      exit(0);
-    }
+    // if (direction == Direction::Down) {
+    //   exit(0);
+    // }
 
     if (!col)
       return {};
@@ -879,6 +899,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
+  // std::cout << "######################### " << std::endl;
   // std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
   // std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
 
@@ -887,9 +908,6 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   swapRowWithCol(pivotRow, pivotCol);
 
   int numRows = tableau.getNumRows();
-  int numCols = tableau.getNumColumns();
-  Int* dataptr = tableau.getDataPointer();
-  int numReserveCols = tableau.getNReservedColumns();
 
   if constexpr (isMatrixized) {
     #if SWAP
@@ -907,9 +925,13 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
           tableau(pivotRow, col) = -tableau(pivotRow, col);
       }
     }
+
+    // std::cout << "After swap\n";
+    // tableau.dump();
+    // std::cout << "After SME Pivot\n";
     #endif
 
-    SMEPivotHelper(dataptr, numRows, numReserveCols, pivotRow, pivotCol);
+    SMEPivotHelper(numRows, pivotRow, pivotCol);
 
   } else {
     std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
@@ -926,6 +948,10 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       }
     }
     // normalizeRowScalar(pivotRow);
+
+    // std::cout << "After swap\n";
+    // tableau.dump();
+    // std::cout << "Scalar Pivot\n";
 
     for (unsigned row = 0; row < nRow; ++row) {
       if (row == pivotRow)
@@ -944,28 +970,27 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       // normalizeRowScalar(row);
     }
   }
+
+  // tableau.dump();
 }
 
 template <typename Int>
 __attribute__((always_inline))
-inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int reserved_cols, int pivot_row, int pivot_col) {
+inline void  Simplex<Int>::SMEPivotHelper(int reserved_rows, int pivot_row, int pivot_col) {
   
   // std::cout << "SMEPivotHelper\n";
   __asm__ __volatile__(
       #if SME_START_STOP
       // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
-      "smstart sm                                            \n" // Start SME
+      "smstart sm                                               \n" // Start SME
       
       #if SME_HELPERS
       "mov w1, %w[nrows]                                        \n" // Number of rows
-      "mov w2, %w[ncols]                                        \n" // Number of columns
 
       "mov w3, %w[prow]                                         \n" // Move pivot_row to w3
       "mov w4, %w[pcol]                                         \n" // Move pivot_col to w4
 
       "mov x5, #4                                               \n" // Move 4 to x5 for unroll factor
-
-      "mov w6, %w[coeff]                                        \n" // Coefficient
 
       // ZA tiles can only be indexed through w12-w15
       // "mov x12, #0                                              \n" // Zeroth column index
@@ -975,9 +1000,7 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
 
       // predicates
       "ptrue p0.s                                               \n" // Predicate p0.s is set to true
-      "whilelt p1.s, xzr, x2                                    \n" // Predicate p1.s is set to true for ncols elements to prevent seg faults in load/store
-      "ptrue pn8.s                                              \n" // Predicate pn8.s is set to true to load/store 4 rows at a time
-      #endif
+       #endif
 
       /* ******************** */
       #if SME_SAVE_ROWS_COLS
@@ -985,6 +1008,10 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "mov z30.s, p0/m, za0h.s[w13, 0]                          \n" // Move pivot row from ZA0 to z30
       "mov z31.s, p0/m, za0v.s[w14, 0]                          \n" // Move pivot column from ZA0 to z31
       // these are needed for outer product
+
+      // get the coeff
+      "ptrue p1.s, VL1                                          \n" // p1 = { T, F, F, F, ... }
+      "lastb w6, p1, z30.s                                      \n" // w6 = coeff (tableau(pivot_row, 0))
   
       /* SME Registers:
       za0 - original matrix
@@ -1042,6 +1069,7 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
 
       // zero out pivot column
       // no need to zero z28 because smstart already zeros out all SME/SVE registers!?!
+      "dup z28.s, #0                                            \n" // z28.s = [0, 0, 0, ...]
       "mov za0v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA0 pivot column
 
       #endif
@@ -1070,20 +1098,18 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       #endif
       ""
   : 
-  : [src] "r"(matrix),
+  :
     [nrows] "r"(reserved_rows),
-    [ncols] "r"(reserved_cols),
     [prow] "r"(pivot_row), 
-    [pcol] "r"(pivot_col),
-    [coeff] "r"(matrix[pivot_row * reserved_cols])
+    [pcol] "r"(pivot_col)
   : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x8",
     "x12", "x13", "x14", "x15",
     "z0", "z4", "z8", "z12",
     "z29", "z30", "z31",
     "z1", "z2", "z3",
-    "z20", "z21",
+    "z20", "z21", "z28",
     "za",
-    "p0", "p1", "p2", "pn8",
+    "p0", "p1", "p2",
     "memory"
   );
 

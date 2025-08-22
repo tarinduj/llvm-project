@@ -612,7 +612,6 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
     //   testArray[i] = -1;
     // }
     
-    // std::cout << "######################### " << std::endl;
     // std::cout << "best_col_idx: " << best_col_idx << std::endl;
     // std::cout << "row: " << row << std::endl;
     // std::cout << "liveColBegin: " << liveColBegin << " nCol: " << nCol << std::endl;
@@ -686,7 +685,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
             
             "1:                                                       \n" // Branch target label.
             
-            // "smstop sm                                                \n"
+            "smstop sm                                                \n"
             : [best_col_idx] "=r" (best_col_idx)
             : [row] "r"(row),
               [nCol] "r"(nCol),
@@ -758,7 +757,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
         
         "9:                                                       \n" // Branch target label.
         
-        // "smstop sm                                                \n"
+        "smstop sm                                                \n"
         : [best_col_idx] "=r" (best_col_idx)
         : [row] "r"(row),
           [nCol] "r"(nCol),
@@ -910,26 +909,26 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   int numRows = tableau.getNumRows();
 
   if constexpr (isMatrixized) {
-    #if SWAP
-    // swap
-    matrixSwap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
-    // We need to negate the whole pivot row except for the pivot column.
-    if (tableau(pivotRow, 0) < 0) {
-      // If the denominator is negative, we negate the row by simply negating
-      // the denominator.
-      tableau(pivotRow, 0) = -tableau(pivotRow, 0);
-      tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
-    } else {
-      for (unsigned col = 1; col < nCol; ++col) {
-        if (col != pivotCol)
-          tableau(pivotRow, col) = -tableau(pivotRow, col);
-      }
-    }
+    // #if SWAP
+    // // swap
+    // matrixSwap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
+    // // We need to negate the whole pivot row except for the pivot column.
+    // if (tableau(pivotRow, 0) < 0) {
+    //   // If the denominator is negative, we negate the row by simply negating
+    //   // the denominator.
+    //   tableau(pivotRow, 0) = -tableau(pivotRow, 0);
+    //   tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
+    // } else {
+    //   for (unsigned col = 1; col < nCol; ++col) {
+    //     if (col != pivotCol)
+    //       tableau(pivotRow, col) = -tableau(pivotRow, col);
+    //   }
+    // }
 
-    // std::cout << "After swap\n";
-    // tableau.dump();
-    // std::cout << "After SME Pivot\n";
-    #endif
+    // // std::cout << "After swap\n";
+    // // tableau.dump();
+    // // std::cout << "After SME Pivot\n";
+    // #endif
 
     SMEPivotHelper(numRows, pivotRow, pivotCol);
 
@@ -985,38 +984,61 @@ inline void  Simplex<Int>::SMEPivotHelper(int reserved_rows, int pivot_row, int 
       "smstart sm                                               \n" // Start SME
       
       #if SME_HELPERS
-      "mov w1, %w[nrows]                                        \n" // Number of rows
-
-      "mov w3, %w[prow]                                         \n" // Move pivot_row to w3
-      "mov w4, %w[pcol]                                         \n" // Move pivot_col to w4
-
-      "mov x5, #4                                               \n" // Move 4 to x5 for unroll factor
+      "mov w0, %w[nrows]                                        \n" // Number of rows
 
       // ZA tiles can only be indexed through w12-w15
-      // "mov x12, #0                                              \n" // Zeroth column index
       "mov w13, %w[prow]                                        \n" // Move pivot_row to w13
       "mov w14, %w[pcol]                                        \n" // Move pivot_col to w14
       // w15 will be used o iterate through the tile
 
       // predicates
       "ptrue p0.s                                               \n" // Predicate p0.s is set to true
-       #endif
+      #endif
+
+      /* ******************** */
+      #if SWAP
+      "mov z30.s, p0/m, za0h.s[w13, 0]                          \n" // Move pivot row from ZA0 to z30
+
+      // get tableau(pivot_row, 0)
+      "ptrue p1.s, VL1                                          \n" // p1 = { T, F, F, F, ... }
+      "lastb w1, p1, z30.s                                      \n" // w1 = tableau(pivot_row, 0)
+
+      // get tableau(pivot_row, pivot_col)
+      "index z0.s, #0, #1                                       \n" // z0 = [0, 1, 2, ...]
+      "dup z1.s, w14                                            \n" // broadcast pivot_col
+      "cmpeq p2.s, p0/z, z0.s, z1.s                             \n" // p2 true only at lane == pivot_col
+      "lastb w2, p2, z30.s                                      \n" // w2 = tableau(pivot_row, pivot_col)
+
+      "neg w1, w1                                               \n" // negate w1
+      "neg w2, w2                                               \n" // negate w2
+
+      "mov z30.s, p1/m, w2                                      \n" // tableau(pivot_row, 0) = -tableau(pivot_row, pivot_col)
+      "mov z30.s, p2/m, w1                                      \n" // tableau(pivot_row, pivot_col) = -tableau(pivot_row, 0)
+
+      "cmp w2, #0                                               \n" // Compare new tableau(pivot_row, 0) with 0
+      "b.ge 1f                                                  \n" // If >= 0, skip negation
+      
+      "neg z30.s, p0/m, z30.s                                   \n" // Negate z30.s
+      "neg w2, w2                                               \n" // Negate w2
+
+      "1:                                                       \n"
+
+      // z30 is the pivot row
+      // w2 is the coeff (tableau(pivot_row, 0))
+
+      #endif
 
       /* ******************** */
       #if SME_SAVE_ROWS_COLS
       // Save the pivot row and column
-      "mov z30.s, p0/m, za0h.s[w13, 0]                          \n" // Move pivot row from ZA0 to z30
       "mov z31.s, p0/m, za0v.s[w14, 0]                          \n" // Move pivot column from ZA0 to z31
       // these are needed for outer product
 
-      // get the coeff
-      "ptrue p1.s, VL1                                          \n" // p1 = { T, F, F, F, ... }
-      "lastb w6, p1, z30.s                                      \n" // w6 = coeff (tableau(pivot_row, 0))
-  
       /* SME Registers:
       za0 - original matrix
       z30 - pivot row
       z31 - pivot column
+      w2 - coeff (tableau(pivot_row, 0))
       */
       #endif
 
@@ -1032,7 +1054,7 @@ inline void  Simplex<Int>::SMEPivotHelper(int reserved_rows, int pivot_row, int 
 
       // Loop label (0 -> nrows)
       "1:                                                       \n"
-      "cmp w15, w1                                              \n" // Compare i with nrows
+      "cmp w15, w0                                              \n" // Compare i with nrows
       "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
       // move matrix rows to z0, z1, z2, z3
@@ -1102,12 +1124,9 @@ inline void  Simplex<Int>::SMEPivotHelper(int reserved_rows, int pivot_row, int 
     [nrows] "r"(reserved_rows),
     [prow] "r"(pivot_row), 
     [pcol] "r"(pivot_col)
-  : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x8",
-    "x12", "x13", "x14", "x15",
-    "z0", "z4", "z8", "z12",
-    "z29", "z30", "z31",
-    "z1", "z2", "z3",
-    "z20", "z21", "z28",
+  : "w0", "w1", "w2", "w3", "w6", 
+    "w12", "w13", "w14", "w15",
+    "z0", "z1", "z2", "z3", "z20", "z21", "z28", "z29", "z30", "z31",
     "za",
     "p0", "p1", "p2",
     "memory"

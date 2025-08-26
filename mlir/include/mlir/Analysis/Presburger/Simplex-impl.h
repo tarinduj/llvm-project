@@ -979,158 +979,158 @@ inline void  Simplex<Int>::SMEPivotHelper(int reserved_rows, int pivot_row, int 
   
   // std::cout << "SMEPivotHelper\n";
   __asm__ __volatile__(
-      #if SME_START_STOP
-      // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
-      "smstart sm                                               \n" // Start SME
-      
-      #if SME_HELPERS
-      "mov w0, %w[nrows]                                        \n" // Number of rows
+    #if SME_START_STOP
+    // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
+    "smstart sm                                               \n" // Start SME
+    
+    #if SME_HELPERS
+    "mov w0, %w[nrows]                                        \n" // Number of rows
 
-      // ZA tiles can only be indexed through w12-w15
-      "mov w13, %w[prow]                                        \n" // Move pivot_row to w13
-      "mov w14, %w[pcol]                                        \n" // Move pivot_col to w14
-      // w15 will be used o iterate through the tile
+    // ZA tiles can only be indexed through w12-w15
+    "mov w13, %w[prow]                                        \n" // Move pivot_row to w13
+    "mov w14, %w[pcol]                                        \n" // Move pivot_col to w14
+    // w15 will be used o iterate through the tile
 
-      // predicates
-      "ptrue p0.s                                               \n" // Predicate p0.s is set to true
-      #endif
+    // predicates
+    "ptrue p0.s                                               \n" // Predicate p0.s is set to true
+    #endif
 
-      /* ******************** */
-      #if SWAP
-      "mov z30.s, p0/m, za0h.s[w13, 0]                          \n" // Move pivot row from ZA0 to z30
+    /* ******************** */
+    #if SWAP
+    "mov z30.s, p0/m, za0h.s[w13, 0]                          \n" // Move pivot row from ZA0 to z30
 
-      // get tableau(pivot_row, 0)
-      "ptrue p1.s, VL1                                          \n" // p1 = { T, F, F, F, ... }
-      "lastb w1, p1, z30.s                                      \n" // w1 = tableau(pivot_row, 0)
+    // get tableau(pivot_row, 0)
+    "ptrue p1.s, VL1                                          \n" // p1 = { T, F, F, F, ... }
+    "lastb w1, p1, z30.s                                      \n" // w1 = tableau(pivot_row, 0)
 
-      // get tableau(pivot_row, pivot_col)
-      "index z0.s, #0, #1                                       \n" // z0 = [0, 1, 2, ...]
-      "dup z1.s, w14                                            \n" // broadcast pivot_col
-      "cmpeq p2.s, p0/z, z0.s, z1.s                             \n" // p2 true only at lane == pivot_col
-      "lastb w2, p2, z30.s                                      \n" // w2 = tableau(pivot_row, pivot_col)
+    // get tableau(pivot_row, pivot_col)
+    "index z0.s, #0, #1                                       \n" // z0 = [0, 1, 2, ...]
+    "dup z1.s, w14                                            \n" // broadcast pivot_col
+    "cmpeq p2.s, p0/z, z0.s, z1.s                             \n" // p2 true only at lane == pivot_col
+    "lastb w2, p2, z30.s                                      \n" // w2 = tableau(pivot_row, pivot_col)
 
-      "neg w1, w1                                               \n" // negate w1
-      "neg w2, w2                                               \n" // negate w2
+    "neg w1, w1                                               \n" // negate w1
+    "neg w2, w2                                               \n" // negate w2
 
-      "mov z30.s, p1/m, w2                                      \n" // tableau(pivot_row, 0) = -tableau(pivot_row, pivot_col)
-      "mov z30.s, p2/m, w1                                      \n" // tableau(pivot_row, pivot_col) = -tableau(pivot_row, 0)
+    "mov z30.s, p1/m, w2                                      \n" // tableau(pivot_row, 0) = -tableau(pivot_row, pivot_col)
+    "mov z30.s, p2/m, w1                                      \n" // tableau(pivot_row, pivot_col) = -tableau(pivot_row, 0)
 
-      "cmp w2, #0                                               \n" // Compare new tableau(pivot_row, 0) with 0
-      "b.ge 1f                                                  \n" // If >= 0, skip negation
-      
-      "neg z30.s, p0/m, z30.s                                   \n" // Negate z30.s
-      "neg w2, w2                                               \n" // Negate w2
+    "cmp w2, #0                                               \n" // Compare new tableau(pivot_row, 0) with 0
+    "b.ge 1f                                                  \n" // If >= 0, skip negation
+    
+    "neg z30.s, p0/m, z30.s                                   \n" // Negate z30.s
+    "neg w2, w2                                               \n" // Negate w2
 
-      "1:                                                       \n"
+    "1:                                                       \n"
 
-      // z30 is the pivot row
-      // w2 is the coeff (tableau(pivot_row, 0))
+    // z30 is the pivot row
+    // w2 is the coeff (tableau(pivot_row, 0))
 
-      #endif
+    #endif
 
-      /* ******************** */
-      #if SME_SAVE_ROWS_COLS
-      // Save the pivot row and column
-      "mov z31.s, p0/m, za0v.s[w14, 0]                          \n" // Move pivot column from ZA0 to z31
-      // these are needed for outer product
+    /* ******************** */
+    #if SME_SAVE_ROWS_COLS
+    // Save the pivot row and column
+    "mov z31.s, p0/m, za0v.s[w14, 0]                          \n" // Move pivot column from ZA0 to z31
+    // these are needed for outer product
 
-      /* SME Registers:
-      za0 - original matrix
-      z30 - pivot row
-      z31 - pivot column
-      w2 - coeff (tableau(pivot_row, 0))
-      */
-      #endif
+    /* SME Registers:
+    za0 - original matrix
+    z30 - pivot row
+    z31 - pivot column
+    w2 - coeff (tableau(pivot_row, 0))
+    */
+    #endif
 
-      /* ******************** */
-      #if SME_MULTIPLY_ROWS
-      // Multiply rows with coefficients
-      
-      // Broadcast coeff
-      "dup z20.s, w6                                            \n" // z20.s = [coeff, coeff, coeff, ...]
+    /* ******************** */
+    #if SME_MULTIPLY_ROWS
+    // Multiply rows with coefficients
+    
+    // Broadcast coeff
+    "dup z20.s, w2                                            \n" // z20.s = [coeff, coeff, coeff, ...]
 
-      // Initialize registers
-      "mov w15, #0                                              \n" // Loop counter i = 0
+    // Initialize registers
+    "mov w15, #0                                              \n" // Loop counter i = 0
 
-      // Loop label (0 -> nrows)
-      "1:                                                       \n"
-      "cmp w15, w0                                              \n" // Compare i with nrows
-      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
+    // Loop label (0 -> nrows)
+    "1:                                                       \n"
+    "cmp w15, w0                                              \n" // Compare i with nrows
+    "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
-      // move matrix rows to z0, z1, z2, z3
-      "mov {z0.s, z1.s, z2.s, z3.s}, za0h.s[w15, 0:3]           \n"
+    // move matrix rows to z0, z1, z2, z3
+    "mov {z0.s, z1.s, z2.s, z3.s}, za0h.s[w15, 0:3]           \n"
 
-      // Multiply matrix rows with coeff
-      "mul z0.s, p0/m, z0.s, z20.s                             \n"
-      "mul z1.s, p0/m, z1.s, z20.s                             \n"
-      "mul z2.s, p0/m, z2.s, z20.s                             \n"
-      "mul z3.s, p0/m, z3.s, z20.s                             \n"
+    // Multiply matrix rows with coeff
+    "mul z0.s, p0/m, z0.s, z20.s                             \n"
+    "mul z1.s, p0/m, z1.s, z20.s                             \n"
+    "mul z2.s, p0/m, z2.s, z20.s                             \n"
+    "mul z3.s, p0/m, z3.s, z20.s                             \n"
 
-      // NOTE: Has somnething like this in 2024-06 version; But M4 was realeased in 2024-05.
-      // "fmul {z0.s-z3.s}, {z4.s-z8.s}, {z4.s-z8.s} \n"
+    // NOTE: Has somnething like this in 2024-06 version; But M4 was realeased in 2024-05.
+    // "fmul {z0.s-z3.s}, {z4.s-z8.s}, {z4.s-z8.s} \n"
 
-      // Move the multiplied values to ZA0
-      "mov za0h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
+    // Move the multiplied values to ZA0
+    "mov za0h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
 
-      // Increment loop counter
-      "add w15, w15, #4                                         \n" // i++
+    // Increment loop counter
+    "add w15, w15, #4                                         \n" // i++
 
-      // Loop back
-      "b 1b                                                     \n"
+    // Loop back
+    "b 1b                                                     \n"
 
-      // Loop exit label
-      "2:                                                       \n"
+    // Loop exit label
+    "2:                                                       \n"
 
-      #endif
+    #endif
 
-      /* ******************** */
-      #if SME_SAVE_ROWS_COLS
-      "mov w12, #0                                              \n" // Move 0 to w12 for zeroth column index
-      // save the zeroth column
-      "mov z29.s, p0/m, za0v.s[W12, 0]                          \n" // Move zeroth column from ZA0 to z29
+    /* ******************** */
+    #if SME_SAVE_ROWS_COLS
+    "mov w12, #0                                              \n" // Move 0 to w12 for zeroth column index
+    // save the zeroth column
+    "mov z29.s, p0/m, za0v.s[W12, 0]                          \n" // Move zeroth column from ZA0 to z29
 
-      // zero out pivot column
-      // no need to zero z28 because smstart already zeros out all SME/SVE registers!?!
-      "dup z28.s, #0                                            \n" // z28.s = [0, 0, 0, ...]
-      "mov za0v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA0 pivot column
+    // zero out pivot column
+    // no need to zero z28 because smstart already zeros out all SME/SVE registers!?!
+    "dup z28.s, #0                                            \n" // z28.s = [0, 0, 0, ...]
+    "mov za0v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA0 pivot column
 
-      #endif
+    #endif
 
-      /* ******************** */
-      #if SME_OUTER_PRODUCT
-      // Cast z31 and z30 to 16-bit integers
-      "sqxtnb z21.h, z31.s                                      \n" // [a, 0, b, 0, c, 0, d, 0, ...]
-      "sqxtnb z20.h, z30.s                                      \n"
+    /* ******************** */
+    #if SME_OUTER_PRODUCT
+    // Cast z31 and z30 to 16-bit integers
+    "sqxtnb z21.h, z31.s                                      \n" // [a, 0, b, 0, c, 0, d, 0, ...]
+    "sqxtnb z20.h, z30.s                                      \n"
 
-      "ptrue p2.h                                               \n"
+    "ptrue p2.h                                               \n"
 
-      "smopa	za0.s, p2/m, p2/m, z21.h, z20.h                   \n" // old pivot column x pivot row
+    "smopa	za0.s, p2/m, p2/m, z21.h, z20.h                   \n" // old pivot column x pivot row
 
-      #endif
+    #endif
 
-      /* ******************** */
-      #if SME_SAVE_ROWS_COLS
-      // Replaced masked rows/ columns with the saved values
-      "mov za0v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA0
-      "mov za0h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA0
+    /* ******************** */
+    #if SME_SAVE_ROWS_COLS
+    // Replaced masked rows/ columns with the saved values
+    "mov za0v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA0
+    "mov za0h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA0
 
-      #endif
+    #endif
 
-      "smstop sm                                                \n"
-      #endif
-      ""
+    "smstop sm                                                \n"
+    #endif
+    ""
   : 
   :
     [nrows] "r"(reserved_rows),
     [prow] "r"(pivot_row), 
     [pcol] "r"(pivot_col)
-  : "w0", "w1", "w2", "w3", "w6", 
+  : "w0", "w1", "w2",
     "w12", "w13", "w14", "w15",
     "z0", "z1", "z2", "z3", "z20", "z21", "z28", "z29", "z30", "z31",
     "za",
     "p0", "p1", "p2",
     "memory"
-  );
+);
 
 }
 /// Perform pivots until the unknown has a non-negative sample value or until

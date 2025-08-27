@@ -990,36 +990,98 @@ template <typename Int>
 Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
                                          Direction direction,
                                          unsigned col) const {
-  Optional<unsigned> retRow;
-  Int retElem, retConst;
-  for (unsigned row = nRedundant; row < nRow; ++row) {
-    if (skipRow && row == *skipRow)
-      continue;
-    Int elem = tableau(row, col);
-    if (elem == 0)
-      continue;
-    if (!unknownFromRow(row).restricted)
-      continue;
-    if (signMatchesDirection(elem, direction))
-      continue;
-    Int constTerm = tableau(row, 1);
+  if constexpr (isMatrixized) {
+    Optional<unsigned> retRow;
+    Int retElem, retConst;
+    Int col_array[16];
+    Int const_array[16];
 
-    if (!retRow) {
-      retRow = row;
-      retElem = elem;
-      retConst = constTerm;
-      continue;
+    __asm__ __volatile__(
+      "smstart sm                                               \n"
+      "mov w12, %w[col]                                         \n" // Move col to w12
+      "mov w13, #1                                              \n" // Move 1 to w13
+      "mov x1, %[col_array]                                     \n" // Move col_array to x1
+      "mov x2, %[const_array]                                   \n" // Move const_array to x1
+      "ptrue	p0.s                                              \n"
+      "mov z0.s, p0/m, za0v.s[w12, 0]                           \n" // Move the col from ZA0 to z0
+      "mov z1.s, p0/m, za0v.s[w13, 0]                           \n" // Move the const from ZA0 to z1
+      "st1w z0.s, p0, [x1]                                      \n" // Store the col from ZA0 to col_array
+      "st1w z1.s, p0, [x2]                                      \n" // Store the const from ZA0 to const_array
+      "smstop sm                                                \n"
+      : 
+      : [col] "r"(col),
+        [col_array] "r"(col_array),
+        [const_array] "r"(const_array)
+      : "x1", "x12",
+        "z0",
+        "za",
+        "p0",
+        "memory"
+    );
+
+    for (unsigned row = nRedundant; row < nRow; ++row) {
+      if (skipRow && row == *skipRow)
+        continue;
+      Int elem = col_array[row];
+      if (elem == 0)
+        continue;
+      if (!unknownFromRow(row).restricted)
+        continue;
+      if (signMatchesDirection(elem, direction))
+        continue;
+      Int constTerm = const_array[row];
+
+      if (!retRow) {
+        retRow = row;
+        retElem = elem;
+        retConst = constTerm;
+        continue;
+      }
+
+      Int diff = retConst * elem - constTerm * retElem;
+      if ((diff == 0 && rowUnknown[row] < rowUnknown[*retRow]) ||
+          (diff != 0 && !signMatchesDirection(diff, direction))) {
+        retRow = row;
+        retElem = elem;
+        retConst = constTerm;
+      }
     }
 
-    Int diff = retConst * elem - constTerm * retElem;
-    if ((diff == 0 && rowUnknown[row] < rowUnknown[*retRow]) ||
-        (diff != 0 && !signMatchesDirection(diff, direction))) {
-      retRow = row;
-      retElem = elem;
-      retConst = constTerm;
+    return retRow;
+
+  } else {
+    Optional<unsigned> retRow;
+    Int retElem, retConst;
+    for (unsigned row = nRedundant; row < nRow; ++row) {
+      if (skipRow && row == *skipRow)
+        continue;
+      Int elem = tableau(row, col);
+      if (elem == 0)
+        continue;
+      if (!unknownFromRow(row).restricted)
+        continue;
+      if (signMatchesDirection(elem, direction))
+        continue;
+      Int constTerm = tableau(row, 1);
+
+      if (!retRow) {
+        retRow = row;
+        retElem = elem;
+        retConst = constTerm;
+        continue;
+      }
+
+      Int diff = retConst * elem - constTerm * retElem;
+      if ((diff == 0 && rowUnknown[row] < rowUnknown[*retRow]) ||
+          (diff != 0 && !signMatchesDirection(diff, direction))) {
+        retRow = row;
+        retElem = elem;
+        retConst = constTerm;
+      }
     }
+
+    return retRow;
   }
-  return retRow;
 }
 
 template <typename Int>

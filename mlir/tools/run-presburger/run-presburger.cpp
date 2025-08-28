@@ -16,6 +16,14 @@ event_collector rpcollector;
 using namespace mlir;
 using namespace mlir::presburger;
 
+#ifdef DUMP_MATRIX_STATS
+extern int MAXNROWS;
+extern int MAXNCOLS;
+extern int TOTALNROWS;
+extern int TOTALNCOLS;
+extern int NUMPIVOTS;
+#endif
+
 // unsigned TransprecSet::waterline = 0;
 
 template <typename Int>
@@ -130,6 +138,15 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   std::ofstream("data/runtime" + suffix + "_" + op + ".txt", std::ios::trunc).close();
   std::ofstream("data/cycles" + suffix + "_" + op + ".txt", std::ios::trunc).close();
   std::ofstream("data/instructions" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+
+  #ifdef DUMP_MATRIX_STATS
+  std::ofstream("data/matrix_max_rows" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  std::ofstream("data/matrix_max_cols" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  std::ofstream("data/matrix_total_rows" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  std::ofstream("data/matrix_total_cols" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  std::ofstream("data/matrix_num_pivots" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  #endif
+  
   if (printAuxInfo) {
     std::ofstream("data/outputs" + suffix + "_" + op + ".txt", std::ios::trunc).close();
   }
@@ -155,6 +172,19 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     std::cerr << "Could not open instructions" + suffix + "_" + op + ".txt!\n";
     std::abort();
   }
+
+  #ifdef DUMP_MATRIX_STATS
+  llvm::raw_fd_ostream fmatrix_max_rows("data/matrix_max_rows" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  llvm::raw_fd_ostream fmatrix_max_cols("data/matrix_max_cols" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  llvm::raw_fd_ostream fmatrix_total_rows("data/matrix_total_rows" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  llvm::raw_fd_ostream fmatrix_total_cols("data/matrix_total_cols" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  llvm::raw_fd_ostream fmatrix_num_pivots("data/matrix_num_pivots" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  if (EC) {
+    std::cerr << "Could not open matrix files!\n";
+    std::abort();
+  }
+  #endif
+
   
   llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
   if (printAuxInfo) {
@@ -309,7 +339,14 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       Set setA = getSetFromInput<Set>();
       Set setB = getSetFromInput<Set>();
       for (unsigned i = 0; i < numRuns; ++i) {
-        // std::cout << "Subtract Run: " << i << std::endl;
+        #ifdef DUMP_MATRIX_STATS  
+          MAXNROWS = 0;
+          MAXNCOLS = 0;
+          TOTALNROWS = 0; 
+          TOTALNCOLS = 0;
+          NUMPIVOTS = 0;
+        #endif
+
         
         #ifdef ENABLE_SME
           asm volatile("smstart za");
@@ -365,6 +402,15 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';
+
+          #ifdef DUMP_MATRIX_STATS
+            fmatrix_max_rows << MAXNROWS << '\n';
+            fmatrix_max_cols << MAXNCOLS << '\n';
+            fmatrix_total_rows << TOTALNROWS << '\n';
+            fmatrix_total_cols << TOTALNCOLS << '\n';
+            fmatrix_num_pivots << NUMPIVOTS << '\n';
+          #endif
+
           if constexpr (printAuxInfo) {
             // fwaterline << Set::waterline << '\n';
             // dumpStats(fstat, a);

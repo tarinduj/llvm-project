@@ -26,6 +26,14 @@
 #define SME_OUTER_PRODUCT 1
 /* SME Pivot Controls */
 
+#ifdef DUMP_MATRIX_STATS
+static int MAXNROWS = 0;
+static int MAXNCOLS = 0;
+static int TOTALNROWS = 0;
+static int TOTALNCOLS = 0;
+static int NUMPIVOTS = 0;
+#endif
+
 using namespace mlir;
 using namespace analysis::presburger;
 
@@ -707,6 +715,14 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
 
 #ifdef PRINT_PIVOTS
   numPivots++;
+#endif
+
+#ifdef DUMP_MATRIX_STATS
+  if (nRow > MAXNROWS) MAXNROWS = nRow;
+  if (nCol > MAXNCOLS) MAXNCOLS = nCol;
+  TOTALNROWS += nRow;
+  TOTALNCOLS += nCol;
+  NUMPIVOTS++;
 #endif
 
   // std::cout << "######################### " << std::endl;

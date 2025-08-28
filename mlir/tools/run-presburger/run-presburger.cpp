@@ -126,13 +126,36 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     #endif  
   }
     
+  // Clear all data files at the beginning of the run
+  std::ofstream("data/runtime" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  std::ofstream("data/cycles" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  std::ofstream("data/instructions" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  if (printAuxInfo) {
+    std::ofstream("data/outputs" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  }
+  
   std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
-  std::ofstream fruntime("data/runtime" + suffix + "_" + op + ".txt");
-  std::ofstream fcycles("data/cycles" + suffix + "_" + op + ".txt");
-  std::ofstream finstructions("data/instructions" + suffix + "_" + op + ".txt");
-
-  // td::ofstream fwaterline, fstat;
+  
+  // Use LLVM raw_fd_ostream for all output files for consistency
   std::error_code EC;
+  llvm::raw_fd_ostream fruntime("data/runtime" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  if (EC) {
+    std::cerr << "Could not open runtime" + suffix + "_" + op + ".txt!\n";
+    std::abort();
+  }
+  
+  llvm::raw_fd_ostream fcycles("data/cycles" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  if (EC) {
+    std::cerr << "Could not open cycles" + suffix + "_" + op + ".txt!\n";
+    std::abort();
+  }
+  
+  llvm::raw_fd_ostream finstructions("data/instructions" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
+  if (EC) {
+    std::cerr << "Could not open instructions" + suffix + "_" + op + ".txt!\n";
+    std::abort();
+  }
+  
   llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
   if (printAuxInfo) {
     // fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
@@ -456,16 +479,20 @@ int main(int argc, char **argv) {
   //   return 1;
   // }
 
-  const char* filename = "/Users/tarindujayatilaka/Documents/arm-sme/fpl-sme/benchmark/fpl/subtract.txt";
-  std::ifstream infile(filename);
+  // Uncomment block this when using Apple Instruments
 
-  if (!infile) {
-      std::cerr << "Error opening file: " << filename << std::endl;
-      return 1;
-  }
+  // const char* filename = "/Users/tarindujayatilaka/Documents/arm-sme/fpl-sme/benchmark/fpl/subtract.txt";
+  // std::ifstream infile(filename);
 
-  // Redirect std::cin to read from the file
-  std::cin.rdbuf(infile.rdbuf());
+  // if (!infile) {
+  //     std::cerr << "Error opening file: " << filename << std::endl;
+  //     return 1;
+  // }
+
+  // // Redirect std::cin to read from the file
+  // std::cin.rdbuf(infile.rdbuf());
+
+  // End of Apple Instruments
 
   std::string op = argv[1];
   std::string prec = argc == 2 ? "T" : argv[2];

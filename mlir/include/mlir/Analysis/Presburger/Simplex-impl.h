@@ -720,30 +720,12 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   int numRows = tableau.getNumRows();
 
   if constexpr (isMatrixized) {
-    // #if SWAP
-    // // swap
-    // matrixSwap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
-    // // We need to negate the whole pivot row except for the pivot column.
-    // if (tableau(pivotRow, 0) < 0) {
-    //   // If the denominator is negative, we negate the row by simply negating
-    //   // the denominator.
-    //   tableau(pivotRow, 0) = -tableau(pivotRow, 0);
-    //   tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
-    // } else {
-    //   for (unsigned col = 1; col < nCol; ++col) {
-    //     if (col != pivotCol)
-    //       tableau(pivotRow, col) = -tableau(pivotRow, col);
-    //   }
-    // }
-
-    // // std::cout << "After swap\n";
-    // // tableau.dump();
-    // // std::cout << "After SME Pivot\n";
-    // #endif
+    // std::cout << "SME Pivot\n";
 
     SMEPivotHelper(numRows, pivotRow, pivotCol);
 
   } else {
+    // std::cout << "Scalar Pivot\n";
     std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
     if (tableau(pivotRow, 0) < 0) {

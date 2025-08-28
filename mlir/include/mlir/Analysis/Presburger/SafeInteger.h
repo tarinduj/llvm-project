@@ -34,6 +34,7 @@ inline void throwOverflowIf(bool cond) {
 }
 
 #define ENABLE_SME
+#define DUMP_MATRIX_STATS
 
 // #if __AVX512BW__ && __AVX512F__
 // #define ENABLE_VECTORIZATION

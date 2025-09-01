@@ -121,8 +121,8 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  const unsigned numRuns = 10;
-  // const unsigned numRuns = 1000000;
+  // const unsigned numRuns = 10;
+  const unsigned numRuns = 1000000;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
@@ -147,9 +147,9 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   std::ofstream("data/matrix_num_pivots" + suffix + "_" + op + ".txt", std::ios::trunc).close();
   #endif
   
-  if (printAuxInfo) {
-    std::ofstream("data/outputs" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-  }
+  // if (printAuxInfo) {
+  //   std::ofstream("data/outputs" + suffix + "_" + op + ".txt", std::ios::trunc).close();
+  // }
   
   std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
   
@@ -527,16 +527,16 @@ int main(int argc, char **argv) {
 
   // Uncomment block this when using Apple Instruments
 
-  // const char* filename = "/Users/tarindujayatilaka/Documents/arm-sme/fpl-sme/benchmark/fpl/subtract.txt";
-  // std::ifstream infile(filename);
+  const char* filename = "/Users/tarindujayatilaka/Documents/arm-sme/fpl-sme/benchmark/fpl/subtract.txt";
+  std::ifstream infile(filename);
 
-  // if (!infile) {
-  //     std::cerr << "Error opening file: " << filename << std::endl;
-  //     return 1;
-  // }
+  if (!infile) {
+      std::cerr << "Error opening file: " << filename << std::endl;
+      return 1;
+  }
 
-  // // Redirect std::cin to read from the file
-  // std::cin.rdbuf(infile.rdbuf());
+  // Redirect std::cin to read from the file
+  std::cin.rdbuf(infile.rdbuf());
 
   // End of Apple Instruments
 

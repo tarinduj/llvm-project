@@ -603,43 +603,40 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
   Optional<unsigned> col;
 
   if constexpr (isMatrixized) {
+    Int row_array[16];
 
-  Int row_array[16] = {0};
-
-  __asm__ __volatile__(
-    "smstart sm                                               \n"
-    "mov w12, %w[row]                                         \n" // Move row to w12
-    "mov x13, %[row_array]                                    \n" // Move row_array to x1
-    "ptrue	p0.s                                              \n"
-    "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Move the row from ZA0 to z0
-    "st1w z0.s, p0, [x13]                                     \n" // Store the row from ZA0 to row_array
-    "smstop sm                                                \n"
-    : 
-    : [row] "r"(row),
-      [row_array] "r"(row_array)
-    : "x1", "x12",
-      "z0",
-      "za",
-      "p0",
-      "memory"
+    __asm__ __volatile__(
+      "smstart sm                                               \n"
+      "mov w12, %w[row]                                         \n" // Move row to w12
+      "mov x13, %[row_array]                                    \n" // Move row_array to x13
+      "ptrue	p0.s                                              \n"
+      "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Move the row from ZA0 to z0
+      "st1w z0.s, p0, [x13]                                     \n" // Store the row from ZA0 to row_array
+      "smstop sm                                                \n"
+      : 
+      : [row] "r"(row),
+        [row_array] "r"(row_array)
+      : "x12", "x13",
+        "z0",
+        "za",
+        "p0",
+        "memory"
     );
 
+    for (unsigned j = liveColBegin; j < nCol; ++j) {
+      Int elem = row_array[j];
+      if (elem == 0)
+        continue;
 
+      if (unknownFromColumn(j).restricted &&
+          !signMatchesDirection(elem, direction))
+        continue;
+      if (!col || colUnknown[j] < colUnknown[*col])
+        col = j;
+    }
 
-  for (unsigned j = liveColBegin; j < nCol; ++j) {
-    Int elem = row_array[j];
-    if (elem == 0)
-      continue;
-
-    if (unknownFromColumn(j).restricted &&
-        !signMatchesDirection(elem, direction))
-      continue;
-    if (!col || colUnknown[j] < colUnknown[*col])
-      col = j;
-  }
-
-  if (!col)
-    return {};
+    if (!col)
+      return {};
 
   } else {
     // Original scalar version as fallback
@@ -999,7 +996,7 @@ Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
       "mov w12, %w[col]                                         \n" // Move col to w12
       "mov w13, #1                                              \n" // Move 1 to w13
       "mov x1, %[col_array]                                     \n" // Move col_array to x1
-      "mov x2, %[const_array]                                   \n" // Move const_array to x1
+      "mov x2, %[const_array]                                   \n" // Move const_array to x2
       "ptrue	p0.s                                              \n"
       "mov z0.s, p0/m, za0v.s[w12, 0]                           \n" // Move the col from ZA0 to z0
       "mov z1.s, p0/m, za0v.s[w13, 0]                           \n" // Move the const from ZA0 to z1
@@ -1010,8 +1007,8 @@ Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
       : [col] "r"(col),
         [col_array] "r"(col_array),
         [const_array] "r"(const_array)
-      : "x1", "x12",
-        "z0",
+      : "x1", "x12", "x2", "x13",
+        "z0", "z1",
         "za",
         "p0",
         "memory"

@@ -51,7 +51,8 @@ Simplex<Int>::Simplex(unsigned nVar)
   colUnknown.push_back(nullIndex8);
   colUnknown.push_back(nullIndex8);
   for (unsigned i = 0; i < nVar; ++i) {
-    var.emplace_back(Orientation::Column, /*restricted=*/false, /*pos=*/nCol);
+    var.emplace_back(Orientation::Column, /*pos=*/nCol);
+    varRestricted.push_back(false);
     colUnknown.push_back(i);
     nCol++;
   }
@@ -112,12 +113,37 @@ typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromRow(unsigned row) {
   return unknownFromIndex(rowUnknown[row]);
 }
 
+// Helper functions to access restricted status
+template <typename Int>
+bool Simplex<Int>::isRestricted(int index) const {
+  return index >= 0 ? varRestricted[index] : conRestricted[~index];
+}
+
+template <typename Int>
+bool Simplex<Int>::isRestricted(const Unknown &u) const {
+  return isRestricted(indexFromUnknown(u));
+}
+
+template <typename Int>
+void Simplex<Int>::setRestricted(int index, bool restricted) {
+  if (index >= 0)
+    varRestricted[index] = restricted;
+  else
+    conRestricted[~index] = restricted;
+}
+
+template <typename Int>
+void Simplex<Int>::setRestricted(const Unknown &u, bool restricted) {
+  setRestricted(indexFromUnknown(u), restricted);
+}
+
 template <typename Int>
 void Simplex<Int>::addZeroConstraint() {
   ++nRow;
   tableau.resize(nRow, nCol);
   rowUnknown.push_back(~con.size());
-  con.emplace_back(Orientation::Row, false, nRow - 1);
+  con.emplace_back(Orientation::Row, nRow - 1);
+  conRestricted.push_back(false);
 
   if constexpr (!isMatrixized) {
     tableau(nRow - 1, 0) = 1;
@@ -629,7 +655,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
       if (elem == 0)
         continue;
 
-      if (unknownFromColumn(j).restricted &&
+      if (isRestricted(unknownFromColumn(j)) &&
           !signMatchesDirection(elem, direction))
         continue;
       if (!col || colUnknown[j] < colUnknown[*col])
@@ -646,7 +672,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
       if (elem == 0)
         continue;
 
-      if (unknownFromColumn(j).restricted &&
+      if (isRestricted(unknownFromColumn(j)) &&
           !signMatchesDirection(elem, direction))
         continue;
       if (!col || colUnknown[j] < colUnknown[*col])
@@ -1021,7 +1047,7 @@ Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
       Int elem = col_array[row];
       if (elem == 0)
         continue;
-      if (!unknownFromRow(row).restricted)
+      if (!isRestricted(unknownFromRow(row)))
         continue;
       if (signMatchesDirection(elem, direction))
         continue;
@@ -1054,7 +1080,7 @@ Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
       Int elem = tableau(row, col);
       if (elem == 0)
         continue;
-      if (!unknownFromRow(row).restricted)
+      if (!isRestricted(unknownFromRow(row)))
         continue;
       if (signMatchesDirection(elem, direction))
         continue;
@@ -1189,7 +1215,7 @@ void Simplex<Int>::addInequality(ArrayRef<Int> coeffs) {
   // std::cout << "Add Inequality\n";
   unsigned conIndex = addRow(coeffs);
   Unknown &u = con[conIndex];
-  u.restricted = true;
+  setRestricted(u, true);
   LogicalResult result = restoreRow(u);
   if (failed(result))
     markEmpty();
@@ -1257,7 +1283,8 @@ void Simplex<Int>::addVariable() {
   undoLog.emplace_back(UndoLogEntry::RemoveLastVariable, Optional<int>());
   nCol++;
   tableau.resize(nRow, nCol);
-  var.emplace_back(Orientation::Column, /*restricted=*/false, /*pos=*/nCol - 1);
+  var.emplace_back(Orientation::Column, /*pos=*/nCol - 1);
+  varRestricted.push_back(false);
   colUnknown.push_back(var.size() - 1);
 }
 
@@ -1329,6 +1356,7 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
     nRow--;
     rowUnknown.pop_back();
     con.pop_back();
+    conRestricted.pop_back();
   } else if (entry == UndoLogEntry::UnmarkEmpty) {
     empty = false;
   } else if (entry == UndoLogEntry::UnmarkRedundant) {
@@ -1356,6 +1384,7 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
     swapColumns(var.back().pos, nCol - 1);
     tableau.resize(nRow, nCol - 1);
     var.pop_back();
+    varRestricted.pop_back();
     colUnknown.pop_back();
     nCol--;
   } else if (entry == UndoLogEntry::RestoreBasis) {
@@ -1490,6 +1519,17 @@ Simplex<Int> Simplex<Int>::makeProduct(const Simplex &a, const Simplex &b) {
   };
   result.con = concat(a.con, b.con);
   result.var = concat(a.var, b.var);
+  
+  // Concatenate the restricted vectors
+  auto concatBool = [](ArrayRef<bool> v, ArrayRef<bool> w) {
+    SmallVector<bool, 8> result;
+    result.reserve(v.size() + w.size());
+    result.insert(result.end(), v.begin(), v.end());
+    result.insert(result.end(), w.begin(), w.end());
+    return result;
+  };
+  result.conRestricted = concatBool(a.conRestricted, b.conRestricted);
+  result.varRestricted = concatBool(a.varRestricted, b.varRestricted);
 
   auto indexFromBIndex = [&](int index) {
     return index >= 0 ? a.numVariables() + index
@@ -2189,7 +2229,7 @@ inline bool Simplex<Int>::minIsObviouslyUnbounded(Unknown &unknown) const {
     return false;
 
   for (size_t i = nRedundant; i < nRow; i++) {
-    if (unknownFromRow(i).restricted && tableau(i, unknown.pos) > 0)
+    if (isRestricted(unknownFromRow(i)) && tableau(i, unknown.pos) > 0)
       return false;
   }
   return true;
@@ -2210,7 +2250,7 @@ inline bool Simplex<Int>::maxIsObviouslyUnbounded(Unknown &unknown) const {
     return false;
 
   for (unsigned row = nRedundant; row < nRow; row++) {
-    if (tableau(row, unknown.pos) < 0 && unknownFromRow(row).restricted)
+    if (tableau(row, unknown.pos) < 0 && isRestricted(unknownFromRow(row)))
       return false;
   }
   return true;
@@ -2376,6 +2416,7 @@ inline void Simplex<Int>::dropRow(unsigned row) {
   nRow--;
   rowUnknown.pop_back();
   con.pop_back();
+  conRestricted.pop_back();
 }
 
 template <typename Int>
@@ -2402,7 +2443,7 @@ inline int Simplex<Int>::indexFromUnknown(const Unknown &u) const {
 template <typename Int>
 inline void Simplex<Int>::closeRow(unsigned row, bool tempRow) {
   Unknown *u = &unknownFromRow(row);
-  assert(u->restricted && "expected restricted variable\n");
+  assert(isRestricted(*u) && "expected restricted variable\n");
 
   if (!u->zero && !tempRow) {
     // pushUndoEntryIfNeeded(UndoOp::UNMARK_ZERO, *u);
@@ -2460,12 +2501,13 @@ template <typename Int>
 inline void Simplex<Int>::cutToHyperplane(int conIndex) {
   if (con[conIndex].zero)
     return;
-  assert(!con[conIndex].redundant && con[conIndex].restricted &&
+  assert(!con[conIndex].redundant && isRestricted(con[conIndex]) &&
          "expecting non-redundant non-negative variable");
 
   extendConstraints(1);
   rowUnknown.push_back(~con.size());
-  con.emplace_back(Orientation::Row, false, nRow);
+  con.emplace_back(Orientation::Row, nRow);
+  conRestricted.push_back(false);
   Unknown &unknown = con[conIndex];
   Unknown &tempVar = con.back();
 
@@ -2490,7 +2532,7 @@ inline void Simplex<Int>::cutToHyperplane(int conIndex) {
     markEmpty();
     return;
   }
-  tempVar.restricted = true;
+  setRestricted(tempVar, true);
   assert(sgn <= 0 && "signOfMax is positive for the negated constraint");
 
   assert(tempVar.orientation == Orientation::Row &&
@@ -2535,11 +2577,11 @@ void Simplex<Int>::detectImplicitEqualities() {
   for (size_t row = nRedundant; row < nRow; row++) {
     Unknown &unknown = unknownFromRow(row);
     unknown.marked =
-        (unknown.restricted && !rowIsObviouslyNotZero(unknown.pos));
+        (isRestricted(unknown) && !rowIsObviouslyNotZero(unknown.pos));
   }
   for (size_t col = liveColBegin; col < nCol; col++) {
     Unknown &unknown = unknownFromColumn(col);
-    unknown.marked = unknown.restricted;
+    unknown.marked = isRestricted(unknown);
   }
 
   for (int i = con.size() - 1; i >= 0; i--) {

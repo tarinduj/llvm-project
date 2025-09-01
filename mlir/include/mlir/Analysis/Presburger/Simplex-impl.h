@@ -40,6 +40,7 @@ using namespace analysis::presburger;
 template <typename Int>
 using Direction = typename Simplex<Int>::Direction;
 const int nullIndex = std::numeric_limits<int>::max();
+const int8_t nullIndex8 = std::numeric_limits<int8_t>::max();
 
 /// Construct a Simplex object with `nVar` variables.
 template <typename Int>
@@ -47,8 +48,8 @@ Simplex<Int>::Simplex(unsigned nVar)
     : nRow(0), nCol(2), nRedundant(0), liveColBegin(2), tableau(0, 2 + nVar),
       empty(false), numPivots(0)
       {
-  colUnknown.push_back(nullIndex);
-  colUnknown.push_back(nullIndex);
+  colUnknown.push_back(nullIndex8);
+  colUnknown.push_back(nullIndex8);
   for (unsigned i = 0; i < nVar; ++i) {
     var.emplace_back(Orientation::Column, /*restricted=*/false, /*pos=*/nCol);
     colUnknown.push_back(i);
@@ -77,7 +78,7 @@ Simplex<Int>::Simplex(const PresburgerBasicSet<Int> &bs) : Simplex(bs.getNumTota
 
 template <typename Int>
 const typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromIndex(int index) const {
-  assert(index != nullIndex && "nullIndex passed to unknownFromIndex");
+  assert(index != nullIndex8 && "nullIndex passed to unknownFromIndex");
   return index >= 0 ? var[index] : con[~index];
 }
 
@@ -95,7 +96,7 @@ const typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromRow(unsigned row)
 
 template <typename Int>
 typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromIndex(int index) {
-  assert(index != nullIndex && "nullIndex passed to unknownFromIndex");
+  assert(index != nullIndex8 && "nullIndex passed to unknownFromIndex");
   return index >= 0 ? var[index] : con[~index];
 }
 
@@ -1273,7 +1274,7 @@ template <typename Int>
 unsigned Simplex<Int>::getSnapshotBasis() {
   SmallVector<int, 8> basis;
   for (int index : colUnknown) {
-    if (index != nullIndex)
+    if (index != nullIndex8)
       basis.push_back(index);
   }
   savedBases.push_back(std::move(basis));
@@ -1368,7 +1369,7 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
       if (u.orientation == Orientation::Column)
         continue;
       for (unsigned col = 0; col < nCol; col++) {
-        if (colUnknown[col] == nullIndex)
+        if (colUnknown[col] == nullIndex8)
           continue;
         if (std::count(basis.begin(), basis.end(), colUnknown[col]) != 0)
           continue;
@@ -1495,7 +1496,7 @@ Simplex<Int> Simplex<Int>::makeProduct(const Simplex &a, const Simplex &b) {
                       : ~(a.numConstraints() + ~index);
   };
 
-  result.colUnknown.assign(2, nullIndex);
+  result.colUnknown.assign(2, nullIndex8);
   for (unsigned i = 2; i < a.liveColBegin; ++i)
     result.colUnknown.push_back(a.colUnknown[i]);
   for (unsigned i = 2; i < b.liveColBegin; ++i) {

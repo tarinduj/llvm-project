@@ -520,7 +520,7 @@ protected:
   ///
   /// colUnknown is padded with two null indexes at the front since the first
   /// two columns don't correspond to any unknowns.
-  SmallVector<int, 8> rowUnknown, colUnknown;
+  SmallVector<int8_t, 8> rowUnknown, colUnknown;
 
   /// These hold information about each unknown.
   SmallVector<Unknown, 8> con, var;

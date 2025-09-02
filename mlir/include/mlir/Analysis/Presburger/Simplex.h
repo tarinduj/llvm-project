@@ -523,13 +523,13 @@ protected:
   ///
   /// colUnknown is padded with two null indexes at the front since the first
   /// two columns don't correspond to any unknowns.
-  SmallVector<int8_t, 8> rowUnknown, colUnknown;
+  SmallVector<int32_t, 8> rowUnknown, colUnknown;
 
   /// These hold information about each unknown.
   SmallVector<Unknown, 8> con, var;
   
   /// These hold the restricted status for each constraint and variable.
-  SmallVector<bool, 8> conRestricted, varRestricted;
+  SmallVector<int32_t, 8> conRestricted, varRestricted;
 
   unsigned numPivots;
 

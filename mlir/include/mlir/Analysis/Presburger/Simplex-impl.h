@@ -40,7 +40,8 @@ using namespace analysis::presburger;
 template <typename Int>
 using Direction = typename Simplex<Int>::Direction;
 const int nullIndex = std::numeric_limits<int>::max();
-const int8_t nullIndex8 = std::numeric_limits<int8_t>::max();
+const int32_t nullIndex32 = std::numeric_limits<int32_t>::max();
+
 
 /// Construct a Simplex object with `nVar` variables.
 template <typename Int>
@@ -48,13 +49,49 @@ Simplex<Int>::Simplex(unsigned nVar)
     : nRow(0), nCol(2), nRedundant(0), liveColBegin(2), tableau(0, 2 + nVar),
       empty(false), numPivots(0)
       {
-  colUnknown.push_back(nullIndex8);
-  colUnknown.push_back(nullIndex8);
+  colUnknown.push_back(nullIndex32);
+  colUnknown.push_back(nullIndex32);
   for (unsigned i = 0; i < nVar; ++i) {
     var.emplace_back(Orientation::Column, /*pos=*/nCol);
-    varRestricted.push_back(false);
+    varRestricted.push_back(0); // false
     colUnknown.push_back(i);
     nCol++;
+  }
+}
+
+template <typename Int>
+bool Simplex<Int>::isRestricted(int index) const {
+  if (index >= 0) {
+    return varRestricted[index] != 0;
+  } else {
+    return conRestricted[~index] != 0;
+  }
+}
+
+template <typename Int>
+bool Simplex<Int>::isRestricted(const Unknown &u) const {
+  if (u.orientation == Orientation::Column) {
+    return varRestricted[colUnknown[u.pos]] != 0;
+  } else {
+    return conRestricted[~rowUnknown[u.pos]] != 0;
+  }
+}
+
+template <typename Int>
+void Simplex<Int>::setRestricted(int index, bool restricted) {
+  if (index >= 0) {
+    varRestricted[index] = restricted ? 1 : 0;
+  } else {
+    conRestricted[~index] = restricted ? 1 : 0;
+  }
+}
+
+template <typename Int>
+void Simplex<Int>::setRestricted(const Unknown &u, bool restricted) {
+  if (u.orientation == Orientation::Column) {
+    varRestricted[colUnknown[u.pos]] = restricted ? 1 : 0;
+  } else {
+    conRestricted[~rowUnknown[u.pos]] = restricted ? 1 : 0;
   }
 }
 
@@ -79,7 +116,7 @@ Simplex<Int>::Simplex(const PresburgerBasicSet<Int> &bs) : Simplex(bs.getNumTota
 
 template <typename Int>
 const typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromIndex(int index) const {
-  assert(index != nullIndex8 && "nullIndex passed to unknownFromIndex");
+  assert(index != nullIndex32 && "nullIndex passed to unknownFromIndex");
   return index >= 0 ? var[index] : con[~index];
 }
 
@@ -97,7 +134,7 @@ const typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromRow(unsigned row)
 
 template <typename Int>
 typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromIndex(int index) {
-  assert(index != nullIndex8 && "nullIndex passed to unknownFromIndex");
+  assert(index != nullIndex32 && "nullIndex passed to unknownFromIndex");
   return index >= 0 ? var[index] : con[~index];
 }
 
@@ -113,29 +150,6 @@ typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromRow(unsigned row) {
   return unknownFromIndex(rowUnknown[row]);
 }
 
-// Helper functions to access restricted status
-template <typename Int>
-bool Simplex<Int>::isRestricted(int index) const {
-  return index >= 0 ? varRestricted[index] : conRestricted[~index];
-}
-
-template <typename Int>
-bool Simplex<Int>::isRestricted(const Unknown &u) const {
-  return isRestricted(indexFromUnknown(u));
-}
-
-template <typename Int>
-void Simplex<Int>::setRestricted(int index, bool restricted) {
-  if (index >= 0)
-    varRestricted[index] = restricted;
-  else
-    conRestricted[~index] = restricted;
-}
-
-template <typename Int>
-void Simplex<Int>::setRestricted(const Unknown &u, bool restricted) {
-  setRestricted(indexFromUnknown(u), restricted);
-}
 
 template <typename Int>
 void Simplex<Int>::addZeroConstraint() {
@@ -143,7 +157,7 @@ void Simplex<Int>::addZeroConstraint() {
   tableau.resize(nRow, nCol);
   rowUnknown.push_back(~con.size());
   con.emplace_back(Orientation::Row, nRow - 1);
-  conRestricted.push_back(false);
+  conRestricted.push_back(0); // false
 
   if constexpr (!isMatrixized) {
     tableau(nRow - 1, 0) = 1;
@@ -631,61 +645,66 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
 
   if constexpr (isMatrixized) {
     // Get pointers to varRestricted and conRestricted 
-    const bool* varRestricted_ptr = varRestricted.data();
-    const bool* conRestricted_ptr = conRestricted.data();
+    const int32_t* varRestricted_ptr = varRestricted.data();
+    const int32_t* conRestricted_ptr = conRestricted.data();
 
     // Get pointer to liveColBegin-th element of colUnknown
-    const int8_t* colUnknown_ptr = colUnknown.data();
+    const int32_t* colUnknown_ptr = colUnknown.data();
 
-    int8_t restricted_flags[16];
-    int8_t* restricted_flags_ptr = restricted_flags;
+    // int8_t restricted_flags[16];
+    // int8_t* restricted_flags_ptr = restricted_flags;
 
-    __asm__ __volatile__ (
+    // __asm__ __volatile__ (
       
-      "smstart sm                                               \n"
-      // Set up an all-true predicate for nCol lanes.
-      "ptrue p0.b, vl16                                         \n"
+    //   "smstart sm                                               \n"
+    //   // Set up an all-true predicate for nCol lanes.
+    //   "ptrue p0.b, vl16                                         \n"
 
-      // Load the integer indices from A into a vector register.
-      "ld1b z0.b, p0/z, [%[colUnknown_ptr]]                     \n"
-      // Load the boolean values (as bytes) from Bpos into a vector register.
-      "ld1b z1.b, p0/z, [%[varRestricted_ptr]]                  \n"
-      // Load the boolean values (as bytes) from Bneg into another vector register.
-      "ld1b z2.b, p0/z, [%[conRestricted_ptr]]                  \n"
+    //   // Load the integer indices from A into a vector register.
+    //   "ld1b z0.b, p0/z, [%[colUnknown_ptr]]                     \n"
+    //   // Load the boolean values (as bytes) from Bpos into a vector register.
+    //   "ld1b z1.b, p0/z, [%[varRestricted_ptr]]                  \n"
+    //   // Load the boolean values (as bytes) from Bneg into another vector register.
+    //   "ld1b z2.b, p0/z, [%[conRestricted_ptr]]                  \n"
   
-      // --- Index Manipulation ---
-      // Create a predicate p2 that is true where an index is negative.
-      "cmplt p1.b, p0/z, z0.b, #0                               \n"
-      // Take the absolute value of all indices.
-      "abs z3.b, p0/m, z0.b                                     \n"
-      // **FIX 1**: Use the %w modifier to ensure a 32-bit GPR is the source.
-      "dup z4.b, %w[sizeSVE]                                    \n"
-      // Where an original index was negative (p2 is true), add the offset.
-      "add z3.b, p1/m, z3.b, z4.b                               \n"
+    //   // --- Index Manipulation ---
+    //   // Create a predicate p2 that is true where an index is negative.
+    //   "cmplt p1.b, p0/z, z0.b, #0                               \n"
+    //   // Take the absolute value of all indices.
+    //   "abs z3.b, p0/m, z0.b                                     \n"
+    //   // **FIX 1**: Use the %w modifier to ensure a 32-bit GPR is the source.
+    //   "dup z4.b, %w[sizeSVE]                                    \n"
+    //   // Where an original index was negative (p2 is true), add the offset.
+    //   "add z3.b, p1/m, z3.b, z4.b                               \n"
 
 
-      // --- The Shuffle (Gather) ---
-      // Perform the table lookup. {z1.b, z2.b} is the combined Bpos/Bneg table.
-      // z3.b contains the final byte indices. Result goes to z5.b.
-      "tbl z5.b, {z1.b, z2.b}, z3.b                             \n"
+    //   // --- The Shuffle (Gather) ---
+    //   // Perform the table lookup. {z1.b, z2.b} is the combined Bpos/Bneg table.
+    //   // z3.b contains the final byte indices. Result goes to z5.b.
+    //   "tbl z5.b, {z1.b, z2.b}, z3.b                             \n"
 
-      // // Store the final boolean result vector into C.
-      "st1b z5.b, p0, [%[restricted_flags_ptr]]                \n"
+    //   // // Store the final boolean result vector into C.
+    //   "st1b z5.b, p0, [%[restricted_flags_ptr]]                \n"
 
-      "smstop sm                                                \n"
-      : // No output operands
-      : // Input operands
-      [colUnknown_ptr] "r" (colUnknown_ptr),
-      [varRestricted_ptr] "r" (varRestricted_ptr),
-      [conRestricted_ptr] "r" (conRestricted_ptr),
-      [restricted_flags_ptr] "r" (restricted_flags_ptr),
-      [sizeSVE] "r" (64-1)
-      : // Clobbers (registers we modified)
-      "x0", "x1", "x2", "x3", "x4",
-      "p0", "p1", "p2",
-      "z0", "z1", "z2", "z3", "z4", "z5",
-      "memory"
-    );
+    //   "smstop sm                                                \n"
+    //   : // No output operands
+    //   : // Input operands
+    //   [colUnknown_ptr] "r" (colUnknown_ptr),
+    //   [varRestricted_ptr] "r" (varRestricted_ptr),
+    //   [conRestricted_ptr] "r" (conRestricted_ptr),
+    //   [restricted_flags_ptr] "r" (restricted_flags_ptr),
+    //   [sizeSVE] "r" (64-1)
+    //   : // Clobbers (registers we modified)
+    //   "x0", "x1", "x2", "x3", "x4",
+    //   "p0", "p1", "p2",
+    //   "z0", "z1", "z2", "z3", "z4", "z5",
+    //   "memory"
+    // );
+
+    std::array<int, 16> restricted_flags;
+    for (unsigned i = liveColBegin; i < nCol; ++i) {
+      restricted_flags[i] = isRestricted(unknownFromColumn(i));
+    }
 
     for (unsigned j = liveColBegin; j < nCol; ++j) {
       Int elem = tableau(row, j);
@@ -1323,7 +1342,7 @@ void Simplex<Int>::addVariable() {
   nCol++;
   tableau.resize(nRow, nCol);
   var.emplace_back(Orientation::Column, /*pos=*/nCol - 1);
-  varRestricted.push_back(false);
+  varRestricted.push_back(0); // false
   colUnknown.push_back(var.size() - 1);
 }
 
@@ -1340,7 +1359,7 @@ template <typename Int>
 unsigned Simplex<Int>::getSnapshotBasis() {
   SmallVector<int, 8> basis;
   for (int index : colUnknown) {
-    if (index != nullIndex8)
+    if (index != nullIndex32)
       basis.push_back(index);
   }
   savedBases.push_back(std::move(basis));
@@ -1437,7 +1456,7 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
       if (u.orientation == Orientation::Column)
         continue;
       for (unsigned col = 0; col < nCol; col++) {
-        if (colUnknown[col] == nullIndex8)
+        if (colUnknown[col] == nullIndex32)
           continue;
         if (std::count(basis.begin(), basis.end(), colUnknown[col]) != 0)
           continue;
@@ -1560,22 +1579,22 @@ Simplex<Int> Simplex<Int>::makeProduct(const Simplex &a, const Simplex &b) {
   result.var = concat(a.var, b.var);
   
   // Concatenate the restricted vectors
-  auto concatBool = [](ArrayRef<bool> v, ArrayRef<bool> w) {
-    SmallVector<bool, 8> result;
+  auto concatInt32 = [](ArrayRef<int32_t> v, ArrayRef<int32_t> w) {
+    SmallVector<int32_t, 8> result;
     result.reserve(v.size() + w.size());
     result.insert(result.end(), v.begin(), v.end());
     result.insert(result.end(), w.begin(), w.end());
     return result;
   };
-  result.conRestricted = concatBool(a.conRestricted, b.conRestricted);
-  result.varRestricted = concatBool(a.varRestricted, b.varRestricted);
+  result.conRestricted = concatInt32(a.conRestricted, b.conRestricted);
+  result.varRestricted = concatInt32(a.varRestricted, b.varRestricted);
 
   auto indexFromBIndex = [&](int index) {
     return index >= 0 ? a.numVariables() + index
                       : ~(a.numConstraints() + ~index);
   };
 
-  result.colUnknown.assign(2, nullIndex8);
+  result.colUnknown.assign(2, nullIndex32);
   for (unsigned i = 2; i < a.liveColBegin; ++i)
     result.colUnknown.push_back(a.colUnknown[i]);
   for (unsigned i = 2; i < b.liveColBegin; ++i) {
@@ -2546,7 +2565,7 @@ inline void Simplex<Int>::cutToHyperplane(int conIndex) {
   extendConstraints(1);
   rowUnknown.push_back(~con.size());
   con.emplace_back(Orientation::Row, nRow);
-  conRestricted.push_back(false);
+  conRestricted.push_back(0); // false
   Unknown &unknown = con[conIndex];
   Unknown &tempVar = con.back();
 

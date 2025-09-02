@@ -644,67 +644,61 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
   Optional<unsigned> col;
 
   if constexpr (isMatrixized) {
-    // Get pointers to varRestricted and conRestricted 
+    // Get pointers to varRestricted and conRestricted
     const int32_t* varRestricted_ptr = varRestricted.data();
     const int32_t* conRestricted_ptr = conRestricted.data();
 
     // Get pointer to liveColBegin-th element of colUnknown
     const int32_t* colUnknown_ptr = colUnknown.data();
 
-    // int8_t restricted_flags[16];
-    // int8_t* restricted_flags_ptr = restricted_flags;
+    int32_t restricted_flags[16];
+    int32_t* restricted_flags_ptr = restricted_flags;
 
-    // __asm__ __volatile__ (
+    __asm__ __volatile__ (
       
-    //   "smstart sm                                               \n"
-    //   // Set up an all-true predicate for nCol lanes.
-    //   "ptrue p0.b, vl16                                         \n"
+      "smstart sm                                               \n"
+      // Set up an all-true predicate for nCol lanes.
+      "ptrue p0.s                                               \n"
 
-    //   // Load the integer indices from A into a vector register.
-    //   "ld1b z0.b, p0/z, [%[colUnknown_ptr]]                     \n"
-    //   // Load the boolean values (as bytes) from Bpos into a vector register.
-    //   "ld1b z1.b, p0/z, [%[varRestricted_ptr]]                  \n"
-    //   // Load the boolean values (as bytes) from Bneg into another vector register.
-    //   "ld1b z2.b, p0/z, [%[conRestricted_ptr]]                  \n"
-  
-    //   // --- Index Manipulation ---
-    //   // Create a predicate p2 that is true where an index is negative.
-    //   "cmplt p1.b, p0/z, z0.b, #0                               \n"
-    //   // Take the absolute value of all indices.
-    //   "abs z3.b, p0/m, z0.b                                     \n"
-    //   // **FIX 1**: Use the %w modifier to ensure a 32-bit GPR is the source.
-    //   "dup z4.b, %w[sizeSVE]                                    \n"
-    //   // Where an original index was negative (p2 is true), add the offset.
-    //   "add z3.b, p1/m, z3.b, z4.b                               \n"
+      // Load the integer indices from A into a vector register.
+      "ld1w z0.s, p0/z, [%[colUnknown_ptr]]                     \n"
+      // Load the boolean values (as bytes) from Bpos into a vector register.
+      "ld1w z1.s, p0/z, [%[varRestricted_ptr]]                  \n"
+      // Load the boolean values (as bytes) from Bneg into another vector register.
+      "ld1w z2.s, p0/z, [%[conRestricted_ptr]]                  \n"
 
+      // --- Index Manipulation ---
+      // Create a predicate p2 that is true where an index is negative.
+      "cmplt p1.s, p0/z, z0.s, #0                               \n"
+      // Take the absolute value of all indices.
+      "abs z3.s, p0/m, z0.s                                     \n"
+      // **FIX 1**: Use the %w modifier to ensure a 32-bit GPR is the source.
+      "dup z4.s, %w[sizeSVE]                                    \n"
+      // Where an original index was negative (p2 is true), add the offset.
+      "add z3.s, p1/m, z3.s, z4.s                               \n"
 
-    //   // --- The Shuffle (Gather) ---
-    //   // Perform the table lookup. {z1.b, z2.b} is the combined Bpos/Bneg table.
-    //   // z3.b contains the final byte indices. Result goes to z5.b.
-    //   "tbl z5.b, {z1.b, z2.b}, z3.b                             \n"
+      // --- The Shuffle (Gather) ---
+      // Perform the table lookup. {z1.b, z2.b} is the combined Bpos/Bneg table.
+      // z3.b contains the final byte indices. Result goes to z5.b.
+      "tbl z5.s, {z1.s, z2.s}, z3.s                             \n"
 
-    //   // // Store the final boolean result vector into C.
-    //   "st1b z5.b, p0, [%[restricted_flags_ptr]]                \n"
+      // Store the final boolean result vector into C.
+      "st1w z5.s, p0, [%[restricted_flags_ptr]]                \n"
 
-    //   "smstop sm                                                \n"
-    //   : // No output operands
-    //   : // Input operands
-    //   [colUnknown_ptr] "r" (colUnknown_ptr),
-    //   [varRestricted_ptr] "r" (varRestricted_ptr),
-    //   [conRestricted_ptr] "r" (conRestricted_ptr),
-    //   [restricted_flags_ptr] "r" (restricted_flags_ptr),
-    //   [sizeSVE] "r" (64-1)
-    //   : // Clobbers (registers we modified)
-    //   "x0", "x1", "x2", "x3", "x4",
-    //   "p0", "p1", "p2",
-    //   "z0", "z1", "z2", "z3", "z4", "z5",
-    //   "memory"
-    // );
-
-    std::array<int, 16> restricted_flags;
-    for (unsigned i = liveColBegin; i < nCol; ++i) {
-      restricted_flags[i] = isRestricted(unknownFromColumn(i));
-    }
+      "smstop sm                                                \n"
+      : // No output operands
+      : // Input operands
+      [colUnknown_ptr] "r" (colUnknown_ptr),
+      [varRestricted_ptr] "r" (varRestricted_ptr),
+      [conRestricted_ptr] "r" (conRestricted_ptr),
+      [restricted_flags_ptr] "r" (restricted_flags_ptr),
+      [sizeSVE] "r" (16-1)
+      : // Clobbers (registers we modified)
+      "x0", "x1", "x2", "x3", "x4", "x5",
+      "p0", "p1", "p2",
+      "z0", "z1", "z2", "z3", "z4", "z5",
+      "memory"
+    );
 
     for (unsigned j = liveColBegin; j < nCol; ++j) {
       Int elem = tableau(row, j);

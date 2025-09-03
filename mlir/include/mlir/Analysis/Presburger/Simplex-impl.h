@@ -644,78 +644,159 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
   Optional<unsigned> col;
 
   if constexpr (isMatrixized) {
-    // Get pointers to varRestricted and conRestricted
+    // Pointers to the source data are still needed.
     const int32_t* varRestricted_ptr = varRestricted.data();
     const int32_t* conRestricted_ptr = conRestricted.data();
-
-    // Get pointer to liveColBegin-th element of colUnknown
     const int32_t* colUnknown_ptr = colUnknown.data();
 
-    int32_t restricted_flags[16];
-    int32_t* restricted_flags_ptr = restricted_flags;
+    // The intermediate array and its pointer are now removed.
+    // int32_t restricted_flags[16];
+    // int32_t* restricted_flags_ptr = restricted_flags;
 
-    __asm__ __volatile__ (
-      
-      "smstart sm                                               \n"
-      // Set up an all-true predicate for nCol lanes.
-      "ptrue p0.s                                               \n"
+    int best_col_idx;
+    int MINCOLUNKNOWN = std::numeric_limits<int>::max();
 
-      // Load the integer indices from A into a vector register.
-      "ld1w z0.s, p0/z, [%[colUnknown_ptr]]                     \n"
-      // Load the boolean values (as bytes) from Bpos into a vector register.
-      "ld1w z1.s, p0/z, [%[varRestricted_ptr]]                  \n"
-      // Load the boolean values (as bytes) from Bneg into another vector register.
-      "ld1w z2.s, p0/z, [%[conRestricted_ptr]]                  \n"
+    // The logic is now inside a single conditional block.
+    if (direction == Direction::Up) {
+      __asm__ __volatile__(
+        "smstart sm                                               \n"
 
-      // --- Index Manipulation ---
-      // Create a predicate p2 that is true where an index is negative.
-      "cmplt p1.s, p0/z, z0.s, #0                               \n"
-      // Take the absolute value of all indices.
-      "abs z3.s, p0/m, z0.s                                     \n"
-      // **FIX 1**: Use the %w modifier to ensure a 32-bit GPR is the source.
-      "dup z4.s, %w[sizeSVE]                                    \n"
-      // Where an original index was negative (p2 is true), add the offset.
-      "add z3.s, p1/m, z3.s, z4.s                               \n"
+        // --- Kernel 1 Logic: Gather restricted flags directly into z5 ---
+        "ptrue p0.s                                               \n"
+        "ld1w z0.s, p0/z, [%[colUnknown_ptr]]                     \n" // Load indices from colUnknown
+        "ld1w z1.s, p0/z, [%[varRestricted_ptr]]                  \n" // Load varRestricted flags
+        "ld1w z2.s, p0/z, [%[conRestricted_ptr]]                  \n" // Load conRestricted flags
+        "cmplt p1.s, p0/z, z0.s, #0                               \n" // Create predicate for negative indices
+        "abs z3.s, p0/m, z0.s                                     \n" // Get absolute value of indices
+        "dup z4.s, %w[sizeSVE]                                    \n" // Load SVE size offset
+        "add z3.s, p1/m, z3.s, z4.s                               \n" // Apply offset to indices from negative part
+        "tbl z5.s, {z1.s, z2.s}, z3.s                             \n" // Gather flags into z5. This is our in-register result.
 
-      // --- The Shuffle (Gather) ---
-      // Perform the table lookup. {z1.b, z2.b} is the combined Bpos/Bneg table.
-      // z3.b contains the final byte indices. Result goes to z5.b.
-      "tbl z5.s, {z1.s, z2.s}, z3.s                             \n"
+        // --- Kernel 2 Logic: Find pivot, using z5 instead of loading from memory ---
+        // 1. SETUP
+        "mov w12, %w[row]                                         \n"
+        "mov w3, %w[initial_min]                                  \n"
 
-      // Store the final boolean result vector into C.
-      "st1w z5.s, p0, [%[restricted_flags_ptr]]                \n"
+        // 2. DEFINE ACTIVE RANGE
+        "index z1.s, #0, #1                                       \n" // z1 = {0, 1, 2, ...}
+        "dup z2.s, %w[liveColBegin]                               \n"
+        "cmpge p1.s, p0/z, z1.s, z2.s                             \n"
+        "dup z3.s, %w[nCol]                                       \n"
+        "cmplo p2.s, p0/z, z1.s, z3.s                             \n"
+        "and p3.b, p0/z, p1.b, p2.b                               \n" // p3 is the final range mask
 
-      "smstop sm                                                \n"
-      : // No output operands
-      : // Input operands
-      [colUnknown_ptr] "r" (colUnknown_ptr),
-      [varRestricted_ptr] "r" (varRestricted_ptr),
-      [conRestricted_ptr] "r" (conRestricted_ptr),
-      [restricted_flags_ptr] "r" (restricted_flags_ptr),
-      [sizeSVE] "r" (16-1)
-      : // Clobbers (registers we modified)
-      "x0", "x1", "x2", "x3", "x4", "x5",
-      "p0", "p1", "p2",
-      "z0", "z1", "z2", "z3", "z4", "z5",
-      "memory"
-    );
+        // 3. PARALLEL LOAD
+        "mov z0.s, p3/m, za0h.s[w12, 0]                           \n" // z0 = row from tableau
 
-    for (unsigned j = liveColBegin; j < nCol; ++j) {
-      Int elem = tableau(row, j);
-      if (elem == 0)
-        continue;
+        // 4. FILTERING
+        "cmpne p1.s, p3/z, z0.s, #0                               \n" // p1 = non-zero elements
+        // The following line now uses z5 directly, instead of loading from a pointer.
+        "cmpeq p2.s, p3/z, z5.s, #1                               \n" // p2 = restricted columns from z5
+        "cmple p4.s, p3/z, z0.s, #0                               \n" // p4 = sign check for Direction::Up
+        "and p2.b, p0/z, p2.b, p4.b                               \n" // Combine invalid masks
+        "bic p1.b, p0/z, p1.b, p2.b                               \n" // Final candidate mask in p1
 
-      // std::cout << "restricted_flags[j]: " << static_cast<int>(restricted_flags[j]) << 
-      // " isRestricted: " << isRestricted(unknownFromColumn(j)) << std::endl;
-      if (restricted_flags[j] &&
-          !signMatchesDirection(elem, direction))
-        continue;
-      if (!col || colUnknown[j] < colUnknown[*col])
-        col = j;
+        // 5. ISOLATE CANDIDATES
+        "dup z2.s, w3                                             \n"
+        "sel z1.s, p1, z1.s, z2.s                                 \n"
+
+        // 6. HORIZONTAL REDUCTION
+        "sminv s0, p0, z1.s                                       \n"
+
+        // 7. CHECK IF VALID MINIMUM FOUND
+        "mov %w[best_col_idx], #-1                                \n"
+        "fmov w4, s0                                              \n"
+        "cmp w4, w3                                               \n"
+        "b.eq 1f                                                  \n"
+        
+        // 8. FIND INDEX OF THE MINIMUM
+        "dup z2.s, w4                                             \n"
+        "cmpeq p1.s, p0/z, z1.s, z2.s                             \n"
+        "index z0.s, #0, #1                                       \n"
+        "lastb %w[best_col_idx], p1, z0.s                         \n"
+        
+        "1:                                                       \n"
+        "smstop sm                                                \n"
+        : [best_col_idx] "=r" (best_col_idx)
+        : [colUnknown_ptr] "r" (colUnknown_ptr),
+          [varRestricted_ptr] "r" (varRestricted_ptr),
+          [conRestricted_ptr] "r" (conRestricted_ptr),
+          [sizeSVE] "r" (16-1),
+          [row] "r"(row),
+          [nCol] "r"(nCol),
+          [liveColBegin] "r"(liveColBegin),
+          [initial_min] "r"(MINCOLUNKNOWN)
+        : "x1", "x2", "x3", "x4", "x5",
+          "z0", "z1", "z2", "z3", "z4", "z5",
+          "p0", "p1", "p2", "p3", "p4",
+          "cc", "memory"
+      );
+    } else { // Direction::Down
+      __asm__ __volatile__(
+        "smstart sm                                               \n"
+
+        // --- Kernel 1 Logic: Gather restricted flags directly into z5 ---
+        "ptrue p0.s                                               \n"
+        "ld1w z0.s, p0/z, [%[colUnknown_ptr]]                     \n" // Load indices
+        "ld1w z1.s, p0/z, [%[varRestricted_ptr]]                  \n" // Load varRestricted
+        "ld1w z2.s, p0/z, [%[conRestricted_ptr]]                  \n" // Load conRestricted
+        "cmplt p1.s, p0/z, z0.s, #0                               \n"
+        "abs z3.s, p0/m, z0.s                                     \n"
+        "dup z4.s, %w[sizeSVE]                                    \n"
+        "add z3.s, p1/m, z3.s, z4.s                               \n"
+        "tbl z5.s, {z1.s, z2.s}, z3.s                             \n" // Gather flags into z5
+
+        // --- Kernel 2 Logic: Find pivot, using z5 ---
+        "mov w12, %w[row]                                         \n"
+        "mov w3, %w[initial_min]                                  \n"
+        "index z1.s, #0, #1                                       \n"
+        "dup z2.s, %w[liveColBegin]                               \n"
+        "cmpge p1.s, p0/z, z1.s, z2.s                             \n"
+        "dup z3.s, %w[nCol]                                       \n"
+        "cmplo p2.s, p0/z, z1.s, z3.s                             \n"
+        "and p3.b, p0/z, p1.b, p2.b                               \n"
+        "mov z0.s, p3/m, za0h.s[w12, 0]                           \n"
+        "cmpne p1.s, p3/z, z0.s, #0                               \n"
+        "cmpeq p2.s, p3/z, z5.s, #1                               \n" // Use z5
+        // The only change for the "Down" direction is this comparison operator.
+        "cmpge p4.s, p3/z, z0.s, #0                               \n" // p4 = sign check for Direction::Down
+        "and p2.b, p0/z, p2.b, p4.b                               \n"
+        "bic p1.b, p0/z, p1.b, p2.b                               \n"
+        "dup z2.s, w3                                             \n"
+        "sel z1.s, p1, z1.s, z2.s                                 \n"
+        "sminv s0, p0, z1.s                                       \n"
+        "mov %w[best_col_idx], #-1                                \n"
+        "fmov w4, s0                                              \n"
+        "cmp w4, w3                                               \n"
+        "b.eq 9f                                                  \n"
+        "dup z2.s, w4                                             \n"
+        "cmpeq p1.s, p0/z, z1.s, z2.s                             \n"
+        "index z0.s, #0, #1                                       \n"
+        "lastb %w[best_col_idx], p1, z0.s                         \n"
+        
+        "9:                                                       \n"
+        "smstop sm                                                \n"
+        : [best_col_idx] "=r" (best_col_idx)
+        : [colUnknown_ptr] "r" (colUnknown_ptr),
+          [varRestricted_ptr] "r" (varRestricted_ptr),
+          [conRestricted_ptr] "r" (conRestricted_ptr),
+          [sizeSVE] "r" (16-1),
+          [row] "r"(row),
+          [nCol] "r"(nCol),
+          [liveColBegin] "r"(liveColBegin),
+          [initial_min] "r"(MINCOLUNKNOWN)
+        : "x1", "x2", "x3", "x4", "x5",
+          "z0", "z1", "z2", "z3", "z4", "z5",
+          "p0", "p1", "p2", "p3", "p4",
+          "cc", "memory"
+      );
     }
 
-    if (!col)
+    if (best_col_idx == -1) {
       return {};
+    }
+
+    col = best_col_idx;
 
   } else {
     // Original scalar version as fallback

@@ -40,8 +40,6 @@ using namespace analysis::presburger;
 template <typename Int>
 using Direction = typename Simplex<Int>::Direction;
 const int nullIndex = std::numeric_limits<int>::max();
-const int32_t nullIndex32 = std::numeric_limits<int32_t>::max();
-
 
 /// Construct a Simplex object with `nVar` variables.
 template <typename Int>
@@ -49,49 +47,12 @@ Simplex<Int>::Simplex(unsigned nVar)
     : nRow(0), nCol(2), nRedundant(0), liveColBegin(2), tableau(0, 2 + nVar),
       empty(false), numPivots(0)
       {
-  colUnknown.push_back(nullIndex32);
-  colUnknown.push_back(nullIndex32);
+  colUnknown.push_back(nullIndex);
+  colUnknown.push_back(nullIndex);
   for (unsigned i = 0; i < nVar; ++i) {
-    var.emplace_back(Orientation::Column, /*pos=*/nCol);
-    varRestricted.push_back(0); // false
+    var.emplace_back(Orientation::Column, /*restricted=*/false, /*pos=*/nCol);
     colUnknown.push_back(i);
     nCol++;
-  }
-}
-
-template <typename Int>
-bool Simplex<Int>::isRestricted(int index) const {
-  if (index >= 0) {
-    return varRestricted[index] != 0;
-  } else {
-    return conRestricted[~index] != 0;
-  }
-}
-
-template <typename Int>
-bool Simplex<Int>::isRestricted(const Unknown &u) const {
-  if (u.orientation == Orientation::Column) {
-    return varRestricted[colUnknown[u.pos]] != 0;
-  } else {
-    return conRestricted[~rowUnknown[u.pos]] != 0;
-  }
-}
-
-template <typename Int>
-void Simplex<Int>::setRestricted(int index, bool restricted) {
-  if (index >= 0) {
-    varRestricted[index] = restricted ? 1 : 0;
-  } else {
-    conRestricted[~index] = restricted ? 1 : 0;
-  }
-}
-
-template <typename Int>
-void Simplex<Int>::setRestricted(const Unknown &u, bool restricted) {
-  if (u.orientation == Orientation::Column) {
-    varRestricted[colUnknown[u.pos]] = restricted ? 1 : 0;
-  } else {
-    conRestricted[~rowUnknown[u.pos]] = restricted ? 1 : 0;
   }
 }
 
@@ -116,7 +77,7 @@ Simplex<Int>::Simplex(const PresburgerBasicSet<Int> &bs) : Simplex(bs.getNumTota
 
 template <typename Int>
 const typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromIndex(int index) const {
-  assert(index != nullIndex32 && "nullIndex passed to unknownFromIndex");
+  assert(index != nullIndex && "nullIndex passed to unknownFromIndex");
   return index >= 0 ? var[index] : con[~index];
 }
 
@@ -134,7 +95,7 @@ const typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromRow(unsigned row)
 
 template <typename Int>
 typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromIndex(int index) {
-  assert(index != nullIndex32 && "nullIndex passed to unknownFromIndex");
+  assert(index != nullIndex && "nullIndex passed to unknownFromIndex");
   return index >= 0 ? var[index] : con[~index];
 }
 
@@ -150,14 +111,12 @@ typename Simplex<Int>::Unknown &Simplex<Int>::unknownFromRow(unsigned row) {
   return unknownFromIndex(rowUnknown[row]);
 }
 
-
 template <typename Int>
 void Simplex<Int>::addZeroConstraint() {
   ++nRow;
   tableau.resize(nRow, nCol);
   rowUnknown.push_back(~con.size());
-  con.emplace_back(Orientation::Row, nRow - 1);
-  conRestricted.push_back(0); // false
+  con.emplace_back(Orientation::Row, false, nRow - 1);
 
   if constexpr (!isMatrixized) {
     tableau(nRow - 1, 0) = 1;
@@ -644,159 +603,40 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
   Optional<unsigned> col;
 
   if constexpr (isMatrixized) {
-    // Pointers to the source data are still needed.
-    const int32_t* varRestricted_ptr = varRestricted.data();
-    const int32_t* conRestricted_ptr = conRestricted.data();
-    const int32_t* colUnknown_ptr = colUnknown.data();
+    Int row_array[16];
 
-    // The intermediate array and its pointer are now removed.
-    // int32_t restricted_flags[16];
-    // int32_t* restricted_flags_ptr = restricted_flags;
+    __asm__ __volatile__(
+      "smstart sm                                               \n"
+      "mov w12, %w[row]                                         \n" // Move row to w12
+      "mov x13, %[row_array]                                    \n" // Move row_array to x13
+      "ptrue	p0.s                                              \n"
+      "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Move the row from ZA0 to z0
+      "st1w z0.s, p0, [x13]                                     \n" // Store the row from ZA0 to row_array
+      "smstop sm                                                \n"
+      : 
+      : [row] "r"(row),
+        [row_array] "r"(row_array)
+      : "x12", "x13",
+        "z0",
+        "za",
+        "p0",
+        "memory"
+    );
 
-    int best_col_idx;
-    int MINCOLUNKNOWN = std::numeric_limits<int>::max();
+    for (unsigned j = liveColBegin; j < nCol; ++j) {
+      Int elem = row_array[j];
+      if (elem == 0)
+        continue;
 
-    // The logic is now inside a single conditional block.
-    if (direction == Direction::Up) {
-      __asm__ __volatile__(
-        "smstart sm                                               \n"
-
-        // --- Kernel 1 Logic: Gather restricted flags directly into z5 ---
-        "ptrue p0.s                                               \n"
-        "ld1w z0.s, p0/z, [%[colUnknown_ptr]]                     \n" // Load indices from colUnknown
-        "ld1w z1.s, p0/z, [%[varRestricted_ptr]]                  \n" // Load varRestricted flags
-        "ld1w z2.s, p0/z, [%[conRestricted_ptr]]                  \n" // Load conRestricted flags
-        "cmplt p1.s, p0/z, z0.s, #0                               \n" // Create predicate for negative indices
-        "abs z3.s, p0/m, z0.s                                     \n" // Get absolute value of indices
-        "dup z4.s, %w[sizeSVE]                                    \n" // Load SVE size offset
-        "add z3.s, p1/m, z3.s, z4.s                               \n" // Apply offset to indices from negative part
-        "tbl z5.s, {z1.s, z2.s}, z3.s                             \n" // Gather flags into z5. This is our in-register result.
-
-        // --- Kernel 2 Logic: Find pivot, using z5 instead of loading from memory ---
-        // 1. SETUP
-        "mov w12, %w[row]                                         \n"
-        "mov w3, %w[initial_min]                                  \n"
-
-        // 2. DEFINE ACTIVE RANGE
-        "index z1.s, #0, #1                                       \n" // z1 = {0, 1, 2, ...}
-        "dup z2.s, %w[liveColBegin]                               \n"
-        "cmpge p1.s, p0/z, z1.s, z2.s                             \n"
-        "dup z3.s, %w[nCol]                                       \n"
-        "cmplo p2.s, p0/z, z1.s, z3.s                             \n"
-        "and p3.b, p0/z, p1.b, p2.b                               \n" // p3 is the final range mask
-
-        // 3. PARALLEL LOAD
-        "mov z0.s, p3/m, za0h.s[w12, 0]                           \n" // z0 = row from tableau
-
-        // 4. FILTERING
-        "cmpne p1.s, p3/z, z0.s, #0                               \n" // p1 = non-zero elements
-        // The following line now uses z5 directly, instead of loading from a pointer.
-        "cmpeq p2.s, p3/z, z5.s, #1                               \n" // p2 = restricted columns from z5
-        "cmple p4.s, p3/z, z0.s, #0                               \n" // p4 = sign check for Direction::Up
-        "and p2.b, p0/z, p2.b, p4.b                               \n" // Combine invalid masks
-        "bic p1.b, p0/z, p1.b, p2.b                               \n" // Final candidate mask in p1
-
-        // 5. ISOLATE CANDIDATES
-        "dup z2.s, w3                                             \n"
-        "sel z1.s, p1, z1.s, z2.s                                 \n"
-
-        // 6. HORIZONTAL REDUCTION
-        "sminv s0, p0, z1.s                                       \n"
-
-        // 7. CHECK IF VALID MINIMUM FOUND
-        "mov %w[best_col_idx], #-1                                \n"
-        "fmov w4, s0                                              \n"
-        "cmp w4, w3                                               \n"
-        "b.eq 1f                                                  \n"
-        
-        // 8. FIND INDEX OF THE MINIMUM
-        "dup z2.s, w4                                             \n"
-        "cmpeq p1.s, p0/z, z1.s, z2.s                             \n"
-        "index z0.s, #0, #1                                       \n"
-        "lastb %w[best_col_idx], p1, z0.s                         \n"
-        
-        "1:                                                       \n"
-        "smstop sm                                                \n"
-        : [best_col_idx] "=r" (best_col_idx)
-        : [colUnknown_ptr] "r" (colUnknown_ptr),
-          [varRestricted_ptr] "r" (varRestricted_ptr),
-          [conRestricted_ptr] "r" (conRestricted_ptr),
-          [sizeSVE] "r" (16-1),
-          [row] "r"(row),
-          [nCol] "r"(nCol),
-          [liveColBegin] "r"(liveColBegin),
-          [initial_min] "r"(MINCOLUNKNOWN)
-        : "x1", "x2", "x3", "x4", "x5",
-          "z0", "z1", "z2", "z3", "z4", "z5",
-          "p0", "p1", "p2", "p3", "p4",
-          "cc", "memory"
-      );
-    } else { // Direction::Down
-      __asm__ __volatile__(
-        "smstart sm                                               \n"
-
-        // --- Kernel 1 Logic: Gather restricted flags directly into z5 ---
-        "ptrue p0.s                                               \n"
-        "ld1w z0.s, p0/z, [%[colUnknown_ptr]]                     \n" // Load indices
-        "ld1w z1.s, p0/z, [%[varRestricted_ptr]]                  \n" // Load varRestricted
-        "ld1w z2.s, p0/z, [%[conRestricted_ptr]]                  \n" // Load conRestricted
-        "cmplt p1.s, p0/z, z0.s, #0                               \n"
-        "abs z3.s, p0/m, z0.s                                     \n"
-        "dup z4.s, %w[sizeSVE]                                    \n"
-        "add z3.s, p1/m, z3.s, z4.s                               \n"
-        "tbl z5.s, {z1.s, z2.s}, z3.s                             \n" // Gather flags into z5
-
-        // --- Kernel 2 Logic: Find pivot, using z5 ---
-        "mov w12, %w[row]                                         \n"
-        "mov w3, %w[initial_min]                                  \n"
-        "index z1.s, #0, #1                                       \n"
-        "dup z2.s, %w[liveColBegin]                               \n"
-        "cmpge p1.s, p0/z, z1.s, z2.s                             \n"
-        "dup z3.s, %w[nCol]                                       \n"
-        "cmplo p2.s, p0/z, z1.s, z3.s                             \n"
-        "and p3.b, p0/z, p1.b, p2.b                               \n"
-        "mov z0.s, p3/m, za0h.s[w12, 0]                           \n"
-        "cmpne p1.s, p3/z, z0.s, #0                               \n"
-        "cmpeq p2.s, p3/z, z5.s, #1                               \n" // Use z5
-        // The only change for the "Down" direction is this comparison operator.
-        "cmpge p4.s, p3/z, z0.s, #0                               \n" // p4 = sign check for Direction::Down
-        "and p2.b, p0/z, p2.b, p4.b                               \n"
-        "bic p1.b, p0/z, p1.b, p2.b                               \n"
-        "dup z2.s, w3                                             \n"
-        "sel z1.s, p1, z1.s, z2.s                                 \n"
-        "sminv s0, p0, z1.s                                       \n"
-        "mov %w[best_col_idx], #-1                                \n"
-        "fmov w4, s0                                              \n"
-        "cmp w4, w3                                               \n"
-        "b.eq 9f                                                  \n"
-        "dup z2.s, w4                                             \n"
-        "cmpeq p1.s, p0/z, z1.s, z2.s                             \n"
-        "index z0.s, #0, #1                                       \n"
-        "lastb %w[best_col_idx], p1, z0.s                         \n"
-        
-        "9:                                                       \n"
-        "smstop sm                                                \n"
-        : [best_col_idx] "=r" (best_col_idx)
-        : [colUnknown_ptr] "r" (colUnknown_ptr),
-          [varRestricted_ptr] "r" (varRestricted_ptr),
-          [conRestricted_ptr] "r" (conRestricted_ptr),
-          [sizeSVE] "r" (16-1),
-          [row] "r"(row),
-          [nCol] "r"(nCol),
-          [liveColBegin] "r"(liveColBegin),
-          [initial_min] "r"(MINCOLUNKNOWN)
-        : "x1", "x2", "x3", "x4", "x5",
-          "z0", "z1", "z2", "z3", "z4", "z5",
-          "p0", "p1", "p2", "p3", "p4",
-          "cc", "memory"
-      );
+      if (unknownFromColumn(j).restricted &&
+          !signMatchesDirection(elem, direction))
+        continue;
+      if (!col || colUnknown[j] < colUnknown[*col])
+        col = j;
     }
 
-    if (best_col_idx == -1) {
+    if (!col)
       return {};
-    }
-
-    col = best_col_idx;
 
   } else {
     // Original scalar version as fallback
@@ -805,7 +645,7 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
       if (elem == 0)
         continue;
 
-      if (isRestricted(unknownFromColumn(j)) &&
+      if (unknownFromColumn(j).restricted &&
           !signMatchesDirection(elem, direction))
         continue;
       if (!col || colUnknown[j] < colUnknown[*col])
@@ -1180,7 +1020,7 @@ Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
       Int elem = col_array[row];
       if (elem == 0)
         continue;
-      if (!isRestricted(unknownFromRow(row)))
+      if (!unknownFromRow(row).restricted)
         continue;
       if (signMatchesDirection(elem, direction))
         continue;
@@ -1213,7 +1053,7 @@ Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
       Int elem = tableau(row, col);
       if (elem == 0)
         continue;
-      if (!isRestricted(unknownFromRow(row)))
+      if (!unknownFromRow(row).restricted)
         continue;
       if (signMatchesDirection(elem, direction))
         continue;
@@ -1348,7 +1188,7 @@ void Simplex<Int>::addInequality(ArrayRef<Int> coeffs) {
   // std::cout << "Add Inequality\n";
   unsigned conIndex = addRow(coeffs);
   Unknown &u = con[conIndex];
-  setRestricted(u, true);
+  u.restricted = true;
   LogicalResult result = restoreRow(u);
   if (failed(result))
     markEmpty();
@@ -1416,8 +1256,7 @@ void Simplex<Int>::addVariable() {
   undoLog.emplace_back(UndoLogEntry::RemoveLastVariable, Optional<int>());
   nCol++;
   tableau.resize(nRow, nCol);
-  var.emplace_back(Orientation::Column, /*pos=*/nCol - 1);
-  varRestricted.push_back(0); // false
+  var.emplace_back(Orientation::Column, /*restricted=*/false, /*pos=*/nCol - 1);
   colUnknown.push_back(var.size() - 1);
 }
 
@@ -1434,7 +1273,7 @@ template <typename Int>
 unsigned Simplex<Int>::getSnapshotBasis() {
   SmallVector<int, 8> basis;
   for (int index : colUnknown) {
-    if (index != nullIndex32)
+    if (index != nullIndex)
       basis.push_back(index);
   }
   savedBases.push_back(std::move(basis));
@@ -1489,7 +1328,6 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
     nRow--;
     rowUnknown.pop_back();
     con.pop_back();
-    conRestricted.pop_back();
   } else if (entry == UndoLogEntry::UnmarkEmpty) {
     empty = false;
   } else if (entry == UndoLogEntry::UnmarkRedundant) {
@@ -1517,7 +1355,6 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
     swapColumns(var.back().pos, nCol - 1);
     tableau.resize(nRow, nCol - 1);
     var.pop_back();
-    varRestricted.pop_back();
     colUnknown.pop_back();
     nCol--;
   } else if (entry == UndoLogEntry::RestoreBasis) {
@@ -1531,7 +1368,7 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
       if (u.orientation == Orientation::Column)
         continue;
       for (unsigned col = 0; col < nCol; col++) {
-        if (colUnknown[col] == nullIndex32)
+        if (colUnknown[col] == nullIndex)
           continue;
         if (std::count(basis.begin(), basis.end(), colUnknown[col]) != 0)
           continue;
@@ -1652,24 +1489,13 @@ Simplex<Int> Simplex<Int>::makeProduct(const Simplex &a, const Simplex &b) {
   };
   result.con = concat(a.con, b.con);
   result.var = concat(a.var, b.var);
-  
-  // Concatenate the restricted vectors
-  auto concatInt32 = [](ArrayRef<int32_t> v, ArrayRef<int32_t> w) {
-    SmallVector<int32_t, 8> result;
-    result.reserve(v.size() + w.size());
-    result.insert(result.end(), v.begin(), v.end());
-    result.insert(result.end(), w.begin(), w.end());
-    return result;
-  };
-  result.conRestricted = concatInt32(a.conRestricted, b.conRestricted);
-  result.varRestricted = concatInt32(a.varRestricted, b.varRestricted);
 
   auto indexFromBIndex = [&](int index) {
     return index >= 0 ? a.numVariables() + index
                       : ~(a.numConstraints() + ~index);
   };
 
-  result.colUnknown.assign(2, nullIndex32);
+  result.colUnknown.assign(2, nullIndex);
   for (unsigned i = 2; i < a.liveColBegin; ++i)
     result.colUnknown.push_back(a.colUnknown[i]);
   for (unsigned i = 2; i < b.liveColBegin; ++i) {
@@ -2362,7 +2188,7 @@ inline bool Simplex<Int>::minIsObviouslyUnbounded(Unknown &unknown) const {
     return false;
 
   for (size_t i = nRedundant; i < nRow; i++) {
-    if (isRestricted(unknownFromRow(i)) && tableau(i, unknown.pos) > 0)
+    if (unknownFromRow(i).restricted && tableau(i, unknown.pos) > 0)
       return false;
   }
   return true;
@@ -2383,7 +2209,7 @@ inline bool Simplex<Int>::maxIsObviouslyUnbounded(Unknown &unknown) const {
     return false;
 
   for (unsigned row = nRedundant; row < nRow; row++) {
-    if (tableau(row, unknown.pos) < 0 && isRestricted(unknownFromRow(row)))
+    if (tableau(row, unknown.pos) < 0 && unknownFromRow(row).restricted)
       return false;
   }
   return true;
@@ -2549,7 +2375,6 @@ inline void Simplex<Int>::dropRow(unsigned row) {
   nRow--;
   rowUnknown.pop_back();
   con.pop_back();
-  conRestricted.pop_back();
 }
 
 template <typename Int>
@@ -2576,7 +2401,7 @@ inline int Simplex<Int>::indexFromUnknown(const Unknown &u) const {
 template <typename Int>
 inline void Simplex<Int>::closeRow(unsigned row, bool tempRow) {
   Unknown *u = &unknownFromRow(row);
-  assert(isRestricted(*u) && "expected restricted variable\n");
+  assert(u->restricted && "expected restricted variable\n");
 
   if (!u->zero && !tempRow) {
     // pushUndoEntryIfNeeded(UndoOp::UNMARK_ZERO, *u);
@@ -2634,13 +2459,12 @@ template <typename Int>
 inline void Simplex<Int>::cutToHyperplane(int conIndex) {
   if (con[conIndex].zero)
     return;
-  assert(!con[conIndex].redundant && isRestricted(con[conIndex]) &&
+  assert(!con[conIndex].redundant && con[conIndex].restricted &&
          "expecting non-redundant non-negative variable");
 
   extendConstraints(1);
   rowUnknown.push_back(~con.size());
-  con.emplace_back(Orientation::Row, nRow);
-  conRestricted.push_back(0); // false
+  con.emplace_back(Orientation::Row, false, nRow);
   Unknown &unknown = con[conIndex];
   Unknown &tempVar = con.back();
 
@@ -2665,7 +2489,7 @@ inline void Simplex<Int>::cutToHyperplane(int conIndex) {
     markEmpty();
     return;
   }
-  setRestricted(tempVar, true);
+  tempVar.restricted = true;
   assert(sgn <= 0 && "signOfMax is positive for the negated constraint");
 
   assert(tempVar.orientation == Orientation::Row &&
@@ -2710,11 +2534,11 @@ void Simplex<Int>::detectImplicitEqualities() {
   for (size_t row = nRedundant; row < nRow; row++) {
     Unknown &unknown = unknownFromRow(row);
     unknown.marked =
-        (isRestricted(unknown) && !rowIsObviouslyNotZero(unknown.pos));
+        (unknown.restricted && !rowIsObviouslyNotZero(unknown.pos));
   }
   for (size_t col = liveColBegin; col < nCol; col++) {
     Unknown &unknown = unknownFromColumn(col);
-    unknown.marked = isRestricted(unknown);
+    unknown.marked = unknown.restricted;
   }
 
   for (int i = con.size() - 1; i >= 0; i--) {

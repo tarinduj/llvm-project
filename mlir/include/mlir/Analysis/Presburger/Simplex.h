@@ -288,11 +288,12 @@ protected:
   /// always be non-negative and if it cannot be made non-negative without
   /// violating other constraints, the tableau is empty.
   struct Unknown {
-    Unknown(Orientation oOrientation, unsigned oPos)
-        : pos(oPos), orientation(oOrientation),
+    Unknown(Orientation oOrientation, bool oRestricted, unsigned oPos)
+        : pos(oPos), orientation(oOrientation), restricted(oRestricted),
           redundant(false), marked(false), zero(false) {}
     unsigned pos;
     Orientation orientation;
+    bool restricted : 1;
     bool redundant;
     bool marked;
     bool zero;
@@ -300,6 +301,8 @@ protected:
     void print(raw_ostream &os) const {
       os << (orientation == Orientation::Row ? "r" : "c");
       os << pos;
+      if (restricted)
+        os << " [>=0]";
     }
   };
 
@@ -364,12 +367,6 @@ protected:
   Unknown &unknownFromColumn(unsigned col);
   /// Returns the unknown associated with row.
   Unknown &unknownFromRow(unsigned row);
-
-  /// Helper functions to access restricted status
-  bool isRestricted(int index) const;
-  bool isRestricted(const Unknown &u) const;
-  void setRestricted(int index, bool restricted);
-  void setRestricted(const Unknown &u, bool restricted);
 
   /// Check if there is obviously no lower bound on \p unknown.
   ///
@@ -523,13 +520,10 @@ protected:
   ///
   /// colUnknown is padded with two null indexes at the front since the first
   /// two columns don't correspond to any unknowns.
-  SmallVector<int32_t, 8> rowUnknown, colUnknown;
+  SmallVector<int, 8> rowUnknown, colUnknown;
 
   /// These hold information about each unknown.
   SmallVector<Unknown, 8> con, var;
-  
-  /// These hold the restricted status for each constraint and variable.
-  SmallVector<int32_t, 8> conRestricted, varRestricted;
 
   unsigned numPivots;
 

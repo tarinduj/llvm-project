@@ -67,7 +67,7 @@ void ParamLexSimplex<Int>::addInequality(ArrayRef<Int> coeffs) {
   assert(newCoeffs.size() == var.size() + 1);
   unsigned conIndex = addRow(newCoeffs);
   Unknown &u = con[conIndex];
-  this->setRestricted(u, true);
+  u.restricted = true;
   // restoreConsistency();
 }
 
@@ -280,7 +280,7 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
     return;
 
   for (unsigned row = 0; row < nRow; ++row) {
-    if (!this->isRestricted(unknownFromRow(row)))
+    if (!unknownFromRow(row).restricted)
       continue;
 
     if (tableau(row, 2) > 0) // nonNegative
@@ -447,7 +447,7 @@ void ParamLexSimplex<Int>::findParamLexminRecursively(Simplex<Int> &domainSimple
     addDivisionVariable(domainDivCoeffs, denom);
 
     addZeroConstraint();
-    this->setRestricted(con.back(), true);
+    con.back().restricted = true;
     tableau(nRow - 1, 0) = denom;
     tableau(nRow - 1, 1) = -mod(Int(-tableau(row, 1)), denom);
     tableau(nRow - 1, 2) = 0;

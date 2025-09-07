@@ -16,14 +16,6 @@ event_collector rpcollector;
 using namespace mlir;
 using namespace mlir::presburger;
 
-#ifdef DUMP_MATRIX_STATS
-extern int MAXNROWS;
-extern int MAXNCOLS;
-extern int TOTALNROWS;
-extern int TOTALNCOLS;
-extern int NUMPIVOTS;
-#endif
-
 // unsigned TransprecSet::waterline = 0;
 
 template <typename Int>
@@ -121,8 +113,7 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
   if (printAuxInfo)
     assert(!maxWaterline && "NYI");
 
-  // const unsigned numRuns = 10;
-  const unsigned numRuns = 1000000;
+  const unsigned numRuns = 5;
   unsigned numCases;
   std::cin >> numCases;
   consumeNewline();
@@ -134,58 +125,13 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
     #endif  
   }
     
-  // Clear all data files at the beginning of the run
-  std::ofstream("data/runtime" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-  std::ofstream("data/cycles" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-  std::ofstream("data/instructions" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-
-  #ifdef DUMP_MATRIX_STATS
-  std::ofstream("data/matrix_max_rows" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-  std::ofstream("data/matrix_max_cols" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-  std::ofstream("data/matrix_total_rows" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-  std::ofstream("data/matrix_total_cols" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-  std::ofstream("data/matrix_num_pivots" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-  #endif
-  
-  // if (printAuxInfo) {
-  //   std::ofstream("data/outputs" + suffix + "_" + op + ".txt", std::ios::trunc).close();
-  // }
-  
   std::ifstream fwaterlineIn("data/waterline_fpl_" + op + ".txt");
-  
-  // Use LLVM raw_fd_ostream for all output files for consistency
+  std::ofstream fruntime("data/runtime" + suffix + "_" + op + ".txt");
+  std::ofstream fcycles("data/cycles" + suffix + "_" + op + ".txt");
+  std::ofstream finstructions("data/instructions" + suffix + "_" + op + ".txt");
+
+  // td::ofstream fwaterline, fstat;
   std::error_code EC;
-  llvm::raw_fd_ostream fruntime("data/runtime" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
-  if (EC) {
-    std::cerr << "Could not open runtime" + suffix + "_" + op + ".txt!\n";
-    std::abort();
-  }
-  
-  llvm::raw_fd_ostream fcycles("data/cycles" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
-  if (EC) {
-    std::cerr << "Could not open cycles" + suffix + "_" + op + ".txt!\n";
-    std::abort();
-  }
-  
-  llvm::raw_fd_ostream finstructions("data/instructions" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
-  if (EC) {
-    std::cerr << "Could not open instructions" + suffix + "_" + op + ".txt!\n";
-    std::abort();
-  }
-
-  #ifdef DUMP_MATRIX_STATS
-  llvm::raw_fd_ostream fmatrix_max_rows("data/matrix_max_rows" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
-  llvm::raw_fd_ostream fmatrix_max_cols("data/matrix_max_cols" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
-  llvm::raw_fd_ostream fmatrix_total_rows("data/matrix_total_rows" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
-  llvm::raw_fd_ostream fmatrix_total_cols("data/matrix_total_cols" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
-  llvm::raw_fd_ostream fmatrix_num_pivots("data/matrix_num_pivots" + suffix + "_" + op + ".txt", EC, llvm::sys::fs::OpenFlags::OF_Append);
-  if (EC) {
-    std::cerr << "Could not open matrix files!\n";
-    std::abort();
-  }
-  #endif
-
-  
   llvm::raw_fd_ostream fout(printAuxInfo ? "data/outputs" + suffix + "_" + op + ".txt" : "data/empty_file_used_for_a_hack", EC, llvm::sys::fs::OpenFlags::OF_Append);
   if (printAuxInfo) {
     // fwaterline = std::ofstream("data/waterline_fpl_" + op + ".txt", std::ios_base::app);
@@ -339,51 +285,9 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
       Set setA = getSetFromInput<Set>();
       Set setB = getSetFromInput<Set>();
       for (unsigned i = 0; i < numRuns; ++i) {
-        #ifdef DUMP_MATRIX_STATS  
-          MAXNROWS = 0;
-          MAXNCOLS = 0;
-          TOTALNROWS = 0; 
-          TOTALNCOLS = 0;
-          NUMPIVOTS = 0;
-        #endif
-
         
         #ifdef ENABLE_SME
           asm volatile("smstart za");
-
-          // __asm__ __volatile__(
-          //   "smstart sm                                               \n"
-          //   "ptrue p0.s                                               \n"
-          //   "cntw x9                                                   \n"
-          //   "mov x15, #0                                               \n"
-          //   "mov w11, #1                                               \n"
-          //   "1:                                                       \n"
-          //   "index z0.s, w11, #1                                       \n"
-          //   "mov za0h.s[w15, 0], p0/m, z0.s                           \n"
-          //   "add w11, w11, w9                                          \n"
-          //   "add x15, x15, #1                                          \n"
-          //   "cmp x15, x9                                               \n"
-          //   "b.lo 1b                                                   \n"
-          //   "smstop sm                                                \n"
-          // );
-
-          // SMEMatrix<int32_t> matrix(16,16);
-
-          // int32_t x = matrix(2, 2);
-          // int32_t x2 = matrix.at(2,2);
-
-          // std::cout << "x: " << x << " " << x2 << std::endl;
-
-          // matrix(2, 2) = 10;
-
-          // int32_t ix = matrix(2, 2);
-
-          // std::cout << "ix: " << ix << std::endl;
-
-          // matrix.dump();
-          // exit(0);
-
-
         #endif
         
         auto a = setA;
@@ -402,15 +306,6 @@ void run(std::string op, std::string suffix, llvm::Optional<unsigned> maxWaterli
           fruntime << times[numRuns/2] << '\n';
           fcycles << cycles[numRuns/2] << '\n';
           finstructions << instructions[numRuns/2] << '\n';
-
-          #ifdef DUMP_MATRIX_STATS
-            fmatrix_max_rows << MAXNROWS << '\n';
-            fmatrix_max_cols << MAXNCOLS << '\n';
-            fmatrix_total_rows << TOTALNROWS << '\n';
-            fmatrix_total_cols << TOTALNCOLS << '\n';
-            fmatrix_num_pivots << NUMPIVOTS << '\n';
-          #endif
-
           if constexpr (printAuxInfo) {
             // fwaterline << Set::waterline << '\n';
             // dumpStats(fstat, a);
@@ -525,8 +420,6 @@ int main(int argc, char **argv) {
   //   return 1;
   // }
 
-  // Uncomment block this when using Apple Instruments
-
   const char* filename = "/Users/tarindujayatilaka/Documents/arm-sme/fpl-sme/benchmark/fpl/subtract.txt";
   std::ifstream infile(filename);
 
@@ -537,8 +430,6 @@ int main(int argc, char **argv) {
 
   // Redirect std::cin to read from the file
   std::cin.rdbuf(infile.rdbuf());
-
-  // End of Apple Instruments
 
   std::string op = argv[1];
   std::string prec = argc == 2 ? "T" : argv[2];

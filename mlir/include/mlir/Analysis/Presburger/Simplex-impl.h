@@ -21,18 +21,12 @@
 #define SWAP 1
 #define SME_START_STOP 1
 #define SME_HELPERS 1
+#define SME_MATRIX_LOAD 1
+#define SME_MATRIX_STORE 1
 #define SME_SAVE_ROWS_COLS 1
 #define SME_MULTIPLY_ROWS 1
 #define SME_OUTER_PRODUCT 1
 /* SME Pivot Controls */
-
-#ifdef DUMP_MATRIX_STATS
-static int MAXNROWS = 0;
-static int MAXNCOLS = 0;
-static int TOTALNROWS = 0;
-static int TOTALNCOLS = 0;
-static int NUMPIVOTS = 0;
-#endif
 
 using namespace mlir;
 using namespace analysis::presburger;
@@ -118,9 +112,7 @@ void Simplex<Int>::addZeroConstraint() {
   rowUnknown.push_back(~con.size());
   con.emplace_back(Orientation::Row, false, nRow - 1);
 
-  if constexpr (!isMatrixized) {
-    tableau(nRow - 1, 0) = 1;
-  }
+  tableau(nRow - 1, 0) = 1;
 
   // Push to undo log along with the index of the new constraint.
   undoLog.emplace_back(UndoLogEntry::RemoveLastConstraint, Optional<int>());
@@ -153,171 +145,7 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 
   addZeroConstraint();
 
-
-  // std::cout << "Matrix Add Row\n";
-
-  // for (unsigned i = 0, e = var.size(); i < e; ++i) {
-  //   if (var[i].orientation == Orientation::Column) {
-  //     std::cout << "Column: " << var[i].pos << " Coeff: " << coeffs[i] << std::endl;
-  //   } else {
-  //     std::cout << "Row: " << var[i].pos << " Coeff: " << coeffs[i] << std::endl;
-  //   }
-  // }
-
-  // std::cout << "coeffs.back(): " << coeffs.back() << std::endl;
-  // std::cout << "nRow: " << nRow-1 << std::endl;
-
-  if constexpr (isMatrixized) {
-    
-    // Int coeffArray[16] = {0};
-
-    
-    
-    // Keep the row in Z20
-    asm volatile("smstart sm");
-    
-    // tableau(nRow - 1, 0) = 1;
-    // tableau(nRow - 1, 1) = coeffs.back();
-    __asm__ __volatile__(
-      "mov w14, %w[value]                                       \n" // Move val to w14
-
-      "ptrue p0.s, VL2                                          \n" // p0 = { T, T, F, F, ... }
-      "mov z20.s, p0/m, w14                                     \n" // write coeffs.back() to z20[0,1]
-
-      "ptrue p0.s, VL1                                          \n" // p0 = { T, F, F, F, ... }
-      "mov z20.s, p0/m, #1                                      \n" // write 1 to z20[0]
-      : 
-      : [value] "r"(coeffs.back())
-      : "x14", "z20", "p0"
-    );
-
-    // Process each given variable coefficient.
-    for (unsigned i = 0, e = var.size(); i < e; ++i) {
-      unsigned pos = var[i].pos;
-      if (coeffs[i] == 0)
-        continue;
-
-      if (var[i].orientation == Orientation::Column) {
-        // If a variable is in column position at column col, then we just add the
-        // coefficient for that variable (scaled by the common row denominator) to
-        // the corresponding entry in the new row.
-        // tableau(nRow - 1, pos) += coeffs[i] * tableau(nRow - 1, 0);
-        __asm__ __volatile__(
-          "mov w13, %w[col]                                         \n" // Move col to w13
-          "mov w14, %w[coeff]                                       \n" // Move coeff to w14
-
-          "dup z1.s, z20.s[0]                                       \n" // broadcast the zeroth element of z20; tableau(nRow - 1, 0)
-          "dup z2.s, w14                                            \n" // broadcast the coefficient; coeffs[i]
-          "mul z0.s, z1.s, z2.s                                     \n" // z0 = z1 * z2; z0 = tableau(nRow - 1, 0) * coeffs[i]
-
-          "ptrue p0.s                                               \n"
-          "index z1.s, #0, #1                                       \n" // z1 = [0,1,2,...]
-          "dup z2.s, w13                                            \n" // broadcast `col`
-          "cmpeq p1.s, p0/z, z1.s, z2.s                             \n" // p1 true only at lane == col
-          "add z20.s, p1/m, z20.s, z0.s                             \n" // add z0.s into z20 at col lane encoded in p1
-          : 
-          : [col] "r"(pos),
-            [coeff] "r"(coeffs[i])
-          : "x12", "x13", "x14",
-            "z0", "z1", "z2", "z20",
-            "p0", "p1"
-        );
-        continue;
-      }
-
-      // If the variable is in row position, we need to add that row to the new
-      // row, scaled by the coefficient for the variable, accounting for the two
-      // rows potentially having different denominators. The new denominator is
-      // the lcm of the two.
-
-      Int newRowDenom;
-      Int posDenom;
-      __asm__ __volatile__(
-        "mov w13, %w[pos]                                         \n" // Move col to w13
-        "ptrue p0.s                                               \n"
-        "mov z0.s, p0/m, za0h.s[w13, 0]                           \n" // Load the row at pos from ZA0 to za0
-        "ptrue p1.s, VL1                                          \n" // p1 = { T, F, F, F, ... }
-        "lastb %w[posDenom], p1, z0.s                             \n" // store the value at (pos, 0) from ZA0 to posDenom
-        "lastb %w[newRowDenom], p1, z20.s                         \n" // store the value at 0 from Z20 to newRowDenom
-        : [newRowDenom] "=r"(newRowDenom),
-          [posDenom] "=r"(posDenom)
-        : [pos] "r"(pos)
-        : "x13",
-          "z0", "z20",
-          "za",
-          "p0", "p1",
-          "memory"
-      );
-
-      Int lcm = std::lcm(newRowDenom, posDenom);
-
-      Int nRowCoeff = lcm / newRowDenom;
-      Int idxRowCoeff = coeffs[i] * (lcm / posDenom);
-
-      // vec = add<isChecked>(mul<isChecked>(vec, BaseInt(nRowCoeff)), mul<isChecked>(BaseInt(idxRowCoeff), varRowVec));
-      // z0 = varRowVec, z20 = vec
-      // tableau(nRow - 1, 0) = lcm;
-      __asm__ __volatile__(
-        "mov w13, %w[nRowCoeff]                                    \n" 
-        "mov w14, %w[idxRowCoeff]                                  \n"
-        "mov w15, %w[lcm]                                          \n"
-        "ptrue p0.s                                                \n"
-
-        "dup z13.s, w13                                            \n" // z13 = [nRowCoeff, nRowCoeff, nRowCoeff, nRowCoeff, ...]
-        "mul z20.s, p0/m, z20.s, z13.s                             \n" // z20 = vec * nRowCoeff
-
-        "dup z14.s, w14                                            \n" // z14 = [idxRowCoeff, idxRowCoeff, idxRowCoeff, idxRowCoeff, ...]
-        "mul z0.s, p0/m, z0.s, z14.s                               \n" // z0 = varRowVec * idxRowCoeff
-
-        "add z20.s, z20.s, z0.s                                    \n" // z20 = z20 + z0
-
-        "ptrue p1.s, VL1                                          \n" // p1 = { T, F, F, F, ... }
-        "mov z20.s, p1/m, w15                                     \n" // write lcm to z20[0]
-        : 
-        : [nRowCoeff] "r"(nRowCoeff),
-          [idxRowCoeff] "r"(idxRowCoeff),
-          [lcm] "r"(lcm)
-        : "x13", "x14", "x15",
-          "z0", "z13", "z14", "z20",
-          "p0", "p1"
-      );
-      
-      
-      
-    }
-
-    // move z20 to ZA0
-    __asm__ __volatile__(
-      "mov w12, %w[row]                                         \n" // Move row to w12
-      "ptrue p0.s                                               \n" // p0 = { T, T, T, T, ... }
-      "mov za0h.s[w12, 0], p0/m, z20.s                          \n" // write z0.s into ZA0 row-slice at row
-      : 
-      : [row] "r"(nRow - 1)
-      : "x12", "z20", "za", "p0"
-    );
-
-    // // move z20 to coeffArray
-    // __asm__ __volatile__(
-    //   "mov x12, %[coeffArray]                                   \n"
-    //   "ptrue p0.s                                              \n"
-    //   "st1w z20.s, p0, [x12]                                 \n"
-    // :
-    // : [coeffArray] "r"(coeffArray)
-    // : "z20"
-    // );
-
-    // normalizeRowMatrix(nRow - 1);
-    asm volatile("smstop sm");
-
-    
-    // std::cout << "new row: ";
-    // for (int i = 0; i < 16; i++) {
-    //   std::cout << coeffArray[i] << " ";
-    // }
-    // std::cout << std::endl;
-    
-
-  } else if constexpr (isVectorized) {
+  if constexpr (isVectorized) {
     tableau(nRow - 1, 1) = coeffs.back();
     // Process each given variable coefficient.
     Vector &vec = tableau.getRowVector(nRow - 1);
@@ -377,11 +205,6 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 
     normalizeRowScalar(nRow - 1);
   }
-
-  // tableau.dump();
-  // if (nRow - 1== 3) {
-  //   exit(0);
-  // }
   return con.size() - 1;
 }
 
@@ -389,9 +212,7 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 /// denominator and all the numerator coefficients.
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row) {
-  if constexpr (isMatrixized)
-    normalizeRowMatrix(row);
-  else if constexpr (isVectorized) 
+  if constexpr (isVectorized) 
     normalizeRow(row, tableau.getRowVector(row));
   else
     normalizeRowScalar(row);
@@ -413,21 +234,6 @@ void Simplex<Int>::normalizeRowScalar(unsigned row) {
   assert(tableau(row, 0) != 0);
 }
 
-template <typename Int>
-void Simplex<Int>::normalizeRowMatrix(unsigned row) {
-  Int gcd = 0;
-  for (unsigned col = 0; col < nCol; ++col) {
-    if (gcd == 1)
-      break;
-    gcd = llvm::greatestCommonDivisor(gcd, abs(tableau(row, col)));
-  }
-
-  if (gcd == 0 || gcd == 1)
-    return;
-  for (unsigned col = 0; col < nCol; ++col)
-    tableau(row, col) /= gcd;
-  assert(tableau(row, 0) != 0);
-}
 
 template <typename Int>
 void Simplex<Int>::normalizeRow(unsigned row, Vector &rowVec) {
@@ -602,59 +408,20 @@ Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
                                             Direction direction) const {
   Optional<unsigned> col;
 
-  if constexpr (isMatrixized) {
-    Int row_array[16];
+  for (unsigned j = liveColBegin; j < nCol; ++j) {
+    Int elem = tableau(row, j);
+    if (elem == 0)
+      continue;
 
-    __asm__ __volatile__(
-      "smstart sm                                               \n"
-      "mov w12, %w[row]                                         \n" // Move row to w12
-      "mov x13, %[row_array]                                    \n" // Move row_array to x13
-      "ptrue	p0.s                                              \n"
-      "mov z0.s, p0/m, za0h.s[w12, 0]                           \n" // Move the row from ZA0 to z0
-      "st1w z0.s, p0, [x13]                                     \n" // Store the row from ZA0 to row_array
-      "smstop sm                                                \n"
-      : 
-      : [row] "r"(row),
-        [row_array] "r"(row_array)
-      : "x12", "x13",
-        "z0",
-        "za",
-        "p0",
-        "memory"
-    );
-
-    for (unsigned j = liveColBegin; j < nCol; ++j) {
-      Int elem = row_array[j];
-      if (elem == 0)
-        continue;
-
-      if (unknownFromColumn(j).restricted &&
-          !signMatchesDirection(elem, direction))
-        continue;
-      if (!col || colUnknown[j] < colUnknown[*col])
-        col = j;
-    }
-
-    if (!col)
-      return {};
-
-  } else {
-    // Original scalar version as fallback
-    for (unsigned j = liveColBegin; j < nCol; ++j) {
-      Int elem = tableau(row, j);
-      if (elem == 0)
-        continue;
-
-      if (unknownFromColumn(j).restricted &&
-          !signMatchesDirection(elem, direction))
-        continue;
-      if (!col || colUnknown[j] < colUnknown[*col])
-        col = j;
-    }
-
-    if (!col)
-      return {};
+    if (unknownFromColumn(j).restricted &&
+        !signMatchesDirection(elem, direction))
+      continue;
+    if (!col || colUnknown[j] < colUnknown[*col])
+      col = j;
   }
+
+  if (!col)
+    return {};
 
   Direction newDirection =
       tableau(row, *col) < 0 ? flippedDirection<Int>(direction) : direction;
@@ -714,15 +481,6 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
-#ifdef DUMP_MATRIX_STATS
-  if (nRow > MAXNROWS) MAXNROWS = nRow;
-  if (nCol > MAXNCOLS) MAXNCOLS = nCol;
-  TOTALNROWS += nRow;
-  TOTALNCOLS += nCol;
-  NUMPIVOTS++;
-#endif
-
-  // std::cout << "######################### " << std::endl;
   // std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
   // std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
 
@@ -731,14 +489,32 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   swapRowWithCol(pivotRow, pivotCol);
 
   int numRows = tableau.getNumRows();
+  int numCols = tableau.getNumColumns();
+  Int* dataptr = tableau.getDataPointer();
+  int numReserveCols = tableau.getNReservedColumns();
 
-  if constexpr (isMatrixized) {
-    // std::cout << "SME Pivot\n";
+  if (isMatrixized) {
 
-    SMEPivotHelper(numRows, pivotRow, pivotCol);
+    #if SWAP
+    // swap
+    std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
+    // We need to negate the whole pivot row except for the pivot column.
+    if (tableau(pivotRow, 0) < 0) {
+      // If the denominator is negative, we negate the row by simply negating
+      // the denominator.
+      tableau(pivotRow, 0) = -tableau(pivotRow, 0);
+      tableau(pivotRow, pivotCol) = -tableau(pivotRow, pivotCol);
+    } else {
+      for (unsigned col = 1; col < nCol; ++col) {
+        if (col != pivotCol)
+          tableau(pivotRow, col) = -tableau(pivotRow, col);
+      }
+    }
+    #endif
+
+    SMEPivotHelper(dataptr, numRows, numReserveCols, pivotRow, pivotCol);
 
   } else {
-    // std::cout << "Scalar Pivot\n";
     std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
     // We need to negate the whole pivot row except for the pivot column.
     if (tableau(pivotRow, 0) < 0) {
@@ -753,10 +529,6 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       }
     }
     // normalizeRowScalar(pivotRow);
-
-    // std::cout << "After swap\n";
-    // tableau.dump();
-    // std::cout << "Scalar Pivot\n";
 
     for (unsigned row = 0; row < nRow; ++row) {
       if (row == pivotRow)
@@ -775,168 +547,212 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
       // normalizeRowScalar(row);
     }
   }
-
-  // tableau.dump();
 }
 
 template <typename Int>
 __attribute__((always_inline))
-inline void  Simplex<Int>::SMEPivotHelper(int reserved_rows, int pivot_row, int pivot_col) {
+inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int reserved_cols, int pivot_row, int pivot_col) {
   
   // std::cout << "SMEPivotHelper\n";
   __asm__ __volatile__(
-    #if SME_START_STOP
-    // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
-    "smstart sm                                               \n" // Start SME
-    
-    #if SME_HELPERS
-    "mov w0, %w[nrows]                                        \n" // Number of rows
+      #if SME_START_STOP
+      // IMP: smstart za only enables SME and not SVE. So, use smart to enable both.
+      "smstart sm                                               \n" // Start SME
+      
+      #if SME_HELPERS
+      "zero {za}                                                \n" // Zero ZA  
 
-    // ZA tiles can only be indexed through w12-w15
-    "mov w13, %w[prow]                                        \n" // Move pivot_row to w13
-    "mov w14, %w[pcol]                                        \n" // Move pivot_col to w14
-    // w15 will be used o iterate through the tile
+      "mov x0, %[src]                                           \n" // Source matrix pointer
 
-    // predicates
-    "ptrue p0.s                                               \n" // Predicate p0.s is set to true
-    #endif
+      "mov w1, %w[nrows]                                        \n" // Number of rows
+      "mov w2, %w[ncols]                                        \n" // Number of columns
 
-    /* ******************** */
-    #if SWAP
-    "mov z30.s, p0/m, za0h.s[w13, 0]                          \n" // Move pivot row from ZA0 to z30
+      "mov w3, %w[prow]                                         \n" // Move pivot_row to w3
+      "mov w4, %w[pcol]                                         \n" // Move pivot_col to w4
 
-    // get tableau(pivot_row, 0)
-    "ptrue p1.s, VL1                                          \n" // p1 = { T, F, F, F, ... }
-    "lastb w1, p1, z30.s                                      \n" // w1 = tableau(pivot_row, 0)
+      "mov x5, #4                                               \n" // Move 4 to x5 for unroll factor
 
-    // get tableau(pivot_row, pivot_col)
-    "index z0.s, #0, #1                                       \n" // z0 = [0, 1, 2, ...]
-    "dup z1.s, w14                                            \n" // broadcast pivot_col
-    "cmpeq p2.s, p0/z, z0.s, z1.s                             \n" // p2 true only at lane == pivot_col
-    "lastb w2, p2, z30.s                                      \n" // w2 = tableau(pivot_row, pivot_col)
+      "mov w6, %w[coeff]                                        \n" // Coefficient
 
-    "neg w1, w1                                               \n" // negate w1
-    "neg w2, w2                                               \n" // negate w2
+      // ZA tiles can only be indexed through w12-w15
+      // "mov x12, #0                                              \n" // Zeroth column index
+      "mov w13, %w[prow]                                        \n" // Move pivot_row to w13
+      "mov w14, %w[pcol]                                        \n" // Move pivot_col to w14
+      // w15 will be used o iterate through the tile
 
-    "mov z30.s, p1/m, w2                                      \n" // tableau(pivot_row, 0) = -tableau(pivot_row, pivot_col)
-    "mov z30.s, p2/m, w1                                      \n" // tableau(pivot_row, pivot_col) = -tableau(pivot_row, 0)
+      // predicates
+      "ptrue p0.s                                               \n" // Predicate p0.s is set to true
+      "whilelt p1.s, xzr, x2                                    \n" // Predicate p1.s is set to true for ncols elements to prevent seg faults in load/store
+      "ptrue pn8.s                                              \n" // Predicate pn8.s is set to true to load/store 4 rows at a time
+      #endif
 
-    "cmp w2, #0                                               \n" // Compare new tableau(pivot_row, 0) with 0
-    "b.ge 1f                                                  \n" // If >= 0, skip negation
-    
-    "neg z30.s, p0/m, z30.s                                   \n" // Negate z30.s
-    "neg w2, w2                                               \n" // Negate w2
+      #if SME_MATRIX_LOAD
+      // /* ******************** */
+      // Load the matrix into ZA0
 
-    "1:                                                       \n"
+      // Initialize registers
+      "mov w15, #0                                              \n" // Loop counter i = 
+      "mov x8, #0                                               \n" // Offset in source matrix
 
-    // z30 is the pivot row
-    // w2 is the coeff (tableau(pivot_row, 0))
+      // Loop label
+      "1:                                                       \n"
+      "cmp w15, w1                                              \n" // Compare i with nrows
+      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
-    #endif
+      // Load i-i+3 th rows of source matrix into z0-z3
+      "ld1w {z0.s-z3.s}, pn8/z, [x0, x8, lsl #2]                \n"
 
-    /* ******************** */
-    #if SME_SAVE_ROWS_COLS
-    // Save the pivot row and column
-    "mov z31.s, p0/m, za0v.s[w14, 0]                          \n" // Move pivot column from ZA0 to z31
-    // these are needed for outer product
+      // Move the loaded values to ZA0
+      "mov za0h.s[w15, 0:3], {z0.s-z3.s}                        \n"
 
-    /* SME Registers:
-    za0 - original matrix
-    z30 - pivot row
-    z31 - pivot column
-    w2 - coeff (tableau(pivot_row, 0))
-    */
-    #endif
+      // Increment loop counter
+      "add w15, w15, #4                                         \n" // i = i + 4
+      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
 
-    /* ******************** */
-    #if SME_MULTIPLY_ROWS
-    // Multiply rows with coefficients
-    
-    // Broadcast coeff
-    "dup z20.s, w2                                            \n" // z20.s = [coeff, coeff, coeff, ...]
+      // Loop back
+      "b 1b                                                     \n"
 
-    // Initialize registers
-    "mov w15, #0                                              \n" // Loop counter i = 0
+      // Loop exit label
+      "2:                                                       \n"
+      #endif
 
-    // Loop label (0 -> nrows)
-    "1:                                                       \n"
-    "cmp w15, w0                                              \n" // Compare i with nrows
-    "b.ge 2f                                                  \n" // If i >= nrows, exit loop
+      /* ******************** */
+      #if SME_SAVE_ROWS_COLS
+      // Save the pivot row and column
+      "mov z30.s, p0/m, za0h.s[w13, 0]                          \n" // Move pivot row from ZA0 to z30
+      "mov z31.s, p0/m, za0v.s[w14, 0]                          \n" // Move pivot column from ZA0 to z31
+      // these are needed for outer product
+  
+      /* SME Registers:
+      za0 - original matrix
+      z30 - pivot row
+      z31 - pivot column
+      */
+      #endif
 
-    // move matrix rows to z0, z1, z2, z3
-    "mov {z0.s, z1.s, z2.s, z3.s}, za0h.s[w15, 0:3]           \n"
+      /* ******************** */
+      #if SME_MULTIPLY_ROWS
+      // Multiply rows with coefficients
+      
+      // Broadcast coeff
+      "dup z20.s, w6                                            \n" // z20.s = [coeff, coeff, coeff, ...]
 
-    // Multiply matrix rows with coeff
-    "mul z0.s, p0/m, z0.s, z20.s                             \n"
-    "mul z1.s, p0/m, z1.s, z20.s                             \n"
-    "mul z2.s, p0/m, z2.s, z20.s                             \n"
-    "mul z3.s, p0/m, z3.s, z20.s                             \n"
+      // Initialize registers
+      "mov w15, #0                                              \n" // Loop counter i = 0
 
-    // NOTE: Has somnething like this in 2024-06 version; But M4 was realeased in 2024-05.
-    // "fmul {z0.s-z3.s}, {z4.s-z8.s}, {z4.s-z8.s} \n"
+      // Loop label (0 -> nrows)
+      "1:                                                       \n"
+      "cmp w15, w1                                              \n" // Compare i with nrows
+      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
-    // Move the multiplied values to ZA0
-    "mov za0h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
+      // move matrix rows to z0, z1, z2, z3
+      "mov {z0.s, z1.s, z2.s, z3.s}, za0h.s[w15, 0:3]           \n"
 
-    // Increment loop counter
-    "add w15, w15, #4                                         \n" // i++
+      // Multiply matrix rows with coeff
+      "mul z0.s, p0/m, z0.s, z20.s                             \n"
+      "mul z1.s, p0/m, z1.s, z20.s                             \n"
+      "mul z2.s, p0/m, z2.s, z20.s                             \n"
+      "mul z3.s, p0/m, z3.s, z20.s                             \n"
 
-    // Loop back
-    "b 1b                                                     \n"
+      // NOTE: Has somnething like this in 2024-06 version; But M4 was realeased in 2024-05.
+      // "fmul {z0.s-z3.s}, {z4.s-z8.s}, {z4.s-z8.s} \n"
 
-    // Loop exit label
-    "2:                                                       \n"
+      // Move the multiplied values to ZA1
+      "mov za1h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
 
-    #endif
+      // Increment loop counter
+      "add w15, w15, #4                                         \n" // i++
 
-    /* ******************** */
-    #if SME_SAVE_ROWS_COLS
-    "mov w12, #0                                              \n" // Move 0 to w12 for zeroth column index
-    // save the zeroth column
-    "mov z29.s, p0/m, za0v.s[W12, 0]                          \n" // Move zeroth column from ZA0 to z29
+      // Loop back
+      "b 1b                                                     \n"
 
-    // zero out pivot column
-    // no need to zero z28 because smstart already zeros out all SME/SVE registers!?!
-    "dup z28.s, #0                                            \n" // z28.s = [0, 0, 0, ...]
-    "mov za0v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA0 pivot column
+      // Loop exit label
+      "2:                                                       \n"
 
-    #endif
+      #endif
 
-    /* ******************** */
-    #if SME_OUTER_PRODUCT
-    // Cast z31 and z30 to 16-bit integers
-    "sqxtnb z21.h, z31.s                                      \n" // [a, 0, b, 0, c, 0, d, 0, ...]
-    "sqxtnb z20.h, z30.s                                      \n"
+      /* ******************** */
+      #if SME_SAVE_ROWS_COLS
+      "mov w12, #0                                              \n" // Move 0 to w12 for zeroth column index
+      // save the zeroth column
+      "mov z29.s, p0/m, za1v.s[W12, 0]                          \n" // Move zeroth column from ZA1 to z29
 
-    "ptrue p2.h                                               \n"
+      // zero out pivot column
+      // no need to zero z28 because smstart already zeros out all SME/SVE registers!?!
+      "mov za1v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA1 pivot column
 
-    "smopa	za0.s, p2/m, p2/m, z21.h, z20.h                   \n" // old pivot column x pivot row
+      #endif
 
-    #endif
+      /* ******************** */
+      #if SME_OUTER_PRODUCT
+      // Cast z31 and z30 to 16-bit integers
+      "sqxtnb z21.h, z31.s                                      \n" // [a, 0, b, 0, c, 0, d, 0, ...]
+      "sqxtnb z20.h, z30.s                                      \n"
 
-    /* ******************** */
-    #if SME_SAVE_ROWS_COLS
-    // Replaced masked rows/ columns with the saved values
-    "mov za0v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA0
-    "mov za0h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA0
+      "ptrue p2.h                                               \n"
 
-    #endif
+      "smopa	za1.s, p2/m, p2/m, z21.h, z20.h                   \n" // old pivot column x pivot row
 
-    "smstop sm                                                \n"
-    #endif
-    ""
+      #endif
+
+      /* ******************** */
+      #if SME_SAVE_ROWS_COLS
+      // Replaced masked rows/ columns with the saved values
+      "mov za1v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA1
+      "mov za1h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA1
+
+      #endif
+
+      /* ******************** */
+      #if SME_MATRIX_STORE
+      // Store the result back into the matrix
+
+      // Initialize registers
+      "mov w15, #0                                              \n" // Loop counter i = 0
+      "mov x8, #0                                               \n" // Offset in source matrix
+
+      // Loop label
+      "1:                                                       \n"
+      "cmp w15, w1                                              \n" // Compare i with nrows
+      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
+
+      // move i-i+3 th rows of source matrix into z0-z3
+      "mov {z0.s-z3.s}, za1h.s[w15, 0:3]                        \n"
+
+      // Store the loaded values to the matrix
+      "st1w {z0.s-z3.s}, pn8, [x0, x8, lsl #2]                  \n"
+
+      // Increment loop counter
+      "add w15, w15, #4                                         \n" // i = i + 4
+      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
+
+      // Loop back
+      "b 1b                                                     \n"
+
+      // Loop exit label
+      "2:                                                       \n"
+      #endif
+
+      "smstop sm                                                \n"
+      #endif
+      ""
   : 
-  :
+  : [src] "r"(matrix),
     [nrows] "r"(reserved_rows),
+    [ncols] "r"(reserved_cols),
     [prow] "r"(pivot_row), 
-    [pcol] "r"(pivot_col)
-  : "w0", "w1", "w2",
-    "w12", "w13", "w14", "w15",
-    "z0", "z1", "z2", "z3", "z20", "z21", "z28", "z29", "z30", "z31",
+    [pcol] "r"(pivot_col),
+    [coeff] "r"(matrix[pivot_row * reserved_cols])
+  : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x8",
+    "x12", "x13", "x14", "x15",
+    "z0", "z4", "z8", "z12",
+    "z29", "z30", "z31",
+    "z1", "z2", "z3",
+    "z20", "z21",
     "za",
-    "p0", "p1", "p2",
+    "p0", "p1", "p2", "pn8",
     "memory"
-);
+  );
 
 }
 /// Perform pivots until the unknown has a non-negative sample value or until
@@ -985,98 +801,36 @@ template <typename Int>
 Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
                                          Direction direction,
                                          unsigned col) const {
-  if constexpr (isMatrixized) {
-    Optional<unsigned> retRow;
-    Int retElem, retConst;
-    Int col_array[16];
-    Int const_array[16];
+  Optional<unsigned> retRow;
+  Int retElem, retConst;
+  for (unsigned row = nRedundant; row < nRow; ++row) {
+    if (skipRow && row == *skipRow)
+      continue;
+    Int elem = tableau(row, col);
+    if (elem == 0)
+      continue;
+    if (!unknownFromRow(row).restricted)
+      continue;
+    if (signMatchesDirection(elem, direction))
+      continue;
+    Int constTerm = tableau(row, 1);
 
-    __asm__ __volatile__(
-      "smstart sm                                               \n"
-      "mov w12, %w[col]                                         \n" // Move col to w12
-      "mov w13, #1                                              \n" // Move 1 to w13
-      "mov x1, %[col_array]                                     \n" // Move col_array to x1
-      "mov x2, %[const_array]                                   \n" // Move const_array to x2
-      "ptrue	p0.s                                              \n"
-      "mov z0.s, p0/m, za0v.s[w12, 0]                           \n" // Move the col from ZA0 to z0
-      "mov z1.s, p0/m, za0v.s[w13, 0]                           \n" // Move the const from ZA0 to z1
-      "st1w z0.s, p0, [x1]                                      \n" // Store the col from ZA0 to col_array
-      "st1w z1.s, p0, [x2]                                      \n" // Store the const from ZA0 to const_array
-      "smstop sm                                                \n"
-      : 
-      : [col] "r"(col),
-        [col_array] "r"(col_array),
-        [const_array] "r"(const_array)
-      : "x1", "x12", "x2", "x13",
-        "z0", "z1",
-        "za",
-        "p0",
-        "memory"
-    );
-
-    for (unsigned row = nRedundant; row < nRow; ++row) {
-      if (skipRow && row == *skipRow)
-        continue;
-      Int elem = col_array[row];
-      if (elem == 0)
-        continue;
-      if (!unknownFromRow(row).restricted)
-        continue;
-      if (signMatchesDirection(elem, direction))
-        continue;
-      Int constTerm = const_array[row];
-
-      if (!retRow) {
-        retRow = row;
-        retElem = elem;
-        retConst = constTerm;
-        continue;
-      }
-
-      Int diff = retConst * elem - constTerm * retElem;
-      if ((diff == 0 && rowUnknown[row] < rowUnknown[*retRow]) ||
-          (diff != 0 && !signMatchesDirection(diff, direction))) {
-        retRow = row;
-        retElem = elem;
-        retConst = constTerm;
-      }
+    if (!retRow) {
+      retRow = row;
+      retElem = elem;
+      retConst = constTerm;
+      continue;
     }
 
-    return retRow;
-
-  } else {
-    Optional<unsigned> retRow;
-    Int retElem, retConst;
-    for (unsigned row = nRedundant; row < nRow; ++row) {
-      if (skipRow && row == *skipRow)
-        continue;
-      Int elem = tableau(row, col);
-      if (elem == 0)
-        continue;
-      if (!unknownFromRow(row).restricted)
-        continue;
-      if (signMatchesDirection(elem, direction))
-        continue;
-      Int constTerm = tableau(row, 1);
-
-      if (!retRow) {
-        retRow = row;
-        retElem = elem;
-        retConst = constTerm;
-        continue;
-      }
-
-      Int diff = retConst * elem - constTerm * retElem;
-      if ((diff == 0 && rowUnknown[row] < rowUnknown[*retRow]) ||
-          (diff != 0 && !signMatchesDirection(diff, direction))) {
-        retRow = row;
-        retElem = elem;
-        retConst = constTerm;
-      }
+    Int diff = retConst * elem - constTerm * retElem;
+    if ((diff == 0 && rowUnknown[row] < rowUnknown[*retRow]) ||
+        (diff != 0 && !signMatchesDirection(diff, direction))) {
+      retRow = row;
+      retElem = elem;
+      retConst = constTerm;
     }
-
-    return retRow;
   }
+  return retRow;
 }
 
 template <typename Int>
@@ -1185,7 +939,6 @@ bool Simplex<Int>::constraintIsEquality(int conIndex) const {
 /// empty and we mark it as such.
 template <typename Int>
 void Simplex<Int>::addInequality(ArrayRef<Int> coeffs) {
-  // std::cout << "Add Inequality\n";
   unsigned conIndex = addRow(coeffs);
   Unknown &u = con[conIndex];
   u.restricted = true;

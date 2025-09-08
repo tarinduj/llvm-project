@@ -39,7 +39,7 @@ const int nullIndex = std::numeric_limits<int>::max();
 template <typename Int>
 Simplex<Int>::Simplex(unsigned nVar)
     : nRow(0), nCol(2), nRedundant(0), liveColBegin(2), tableau(0, 2 + nVar),
-      empty(false), numPivots(0)
+      empty(false), numPivots(0), dirtyRows{}
       {
   colUnknown.push_back(nullIndex);
   colUnknown.push_back(nullIndex);
@@ -48,6 +48,7 @@ Simplex<Int>::Simplex(unsigned nVar)
     colUnknown.push_back(i);
     nCol++;
   }
+  dirtyRowsPtr = reinterpret_cast<uint32_t*>(dirtyRows);
 }
 
 template <typename Int>
@@ -145,6 +146,8 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 
   addZeroConstraint();
 
+  markRowDirty(nRow - 1);
+
   if constexpr (isVectorized) {
     tableau(nRow - 1, 1) = coeffs.back();
     // Process each given variable coefficient.
@@ -231,6 +234,7 @@ void Simplex<Int>::normalizeRowScalar(unsigned row) {
     return;
   for (unsigned col = 0; col < nCol; ++col)
     tableau(row, col) /= gcd;
+  markRowDirty(row);
   assert(tableau(row, 0) != 0);
 }
 
@@ -484,7 +488,21 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   // std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
   // std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
 
+  // // PRITN DIRTY ROWS
+  // for (unsigned i = 0; i < 16; ++i) {
+  //   std::cout << std::hex << dirtyRows[i] << ' ';
+  // }
+  // std::cout << '\n';
+
+  // for (unsigned i = 0; i < 4; ++i) {
+  //   std::cout << dirtyRowsPtr[i] << ' ';
+  // }
+  // std::cout << '\n';
+
+  // // PRINT TABLEAU
   // tableau.dump();
+
+  // std::cout << "--------------------------------\n";
   
   swapRowWithCol(pivotRow, pivotCol);
 
@@ -512,7 +530,15 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     }
     #endif
 
+    markRowDirty(pivotRow);
+
     SMEPivotHelper(dataptr, numRows, numReserveCols, pivotRow, pivotCol);
+
+    // std::cout << "tableau after SME pivot\n";
+    // tableau.dump();
+    // std::cout << "--------------------------------\n\n";
+
+    clearDirtyRows();
 
   } else {
     std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
@@ -533,7 +559,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     for (unsigned row = 0; row < nRow; ++row) {
       if (row == pivotRow)
         continue;
-      // if (floattableau(row, pivotCol) == 0) // Nothing to do.
+      // if (tableau(row, pivotCol) == 0) // Nothing to do.
       //   continue;
       tableau(row, 0) *= tableau(pivotRow, 0);
       for (unsigned j = 1; j < nCol; ++j) {
@@ -560,7 +586,7 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "smstart sm                                               \n" // Start SME
       
       #if SME_HELPERS
-      "zero {za}                                                \n" // Zero ZA  
+      // "zero {za}                                                \n" // Zero ZA  
 
       "mov x0, %[src]                                           \n" // Source matrix pointer
 
@@ -570,9 +596,11 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "mov w3, %w[prow]                                         \n" // Move pivot_row to w3
       "mov w4, %w[pcol]                                         \n" // Move pivot_col to w4
 
-      "mov x5, #4                                               \n" // Move 4 to x5 for unroll factor
+      "mov x5, #4                                               \n" // Move 4 to x5 for unroll factor"
 
       "mov w6, %w[coeff]                                        \n" // Coefficient
+
+      "mov x7, %[dirtyRowsPtr]                                  \n" // Dirty rows pointer
 
       // ZA tiles can only be indexed through w12-w15
       // "mov x12, #0                                              \n" // Zeroth column index
@@ -597,13 +625,21 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       // Loop label
       "1:                                                       \n"
       "cmp w15, w1                                              \n" // Compare i with nrows
-      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
+      "b.ge 3f                                                  \n" // If i >= nrows, exit loop
+
+      // Check if the row is dirty
+      "ldr w16, [x7, w15, uxtw]                                 \n"
+      "cmp w16, #0                                              \n"
+      "b.eq 2f                                                  \n"
 
       // Load i-i+3 th rows of source matrix into z0-z3
       "ld1w {z0.s-z3.s}, pn8/z, [x0, x8, lsl #2]                \n"
 
       // Move the loaded values to ZA0
       "mov za0h.s[w15, 0:3], {z0.s-z3.s}                        \n"
+
+      // insert a label here
+      "2:                                                    \n"
 
       // Increment loop counter
       "add w15, w15, #4                                         \n" // i = i + 4
@@ -613,7 +649,7 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "b 1b                                                     \n"
 
       // Loop exit label
-      "2:                                                       \n"
+      "3:                                                       \n"
       #endif
 
       /* ******************** */
@@ -657,8 +693,8 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       // NOTE: Has somnething like this in 2024-06 version; But M4 was realeased in 2024-05.
       // "fmul {z0.s-z3.s}, {z4.s-z8.s}, {z4.s-z8.s} \n"
 
-      // Move the multiplied values to ZA1
-      "mov za1h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
+      // Move the multiplied values to ZA0
+      "mov za0h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
 
       // Increment loop counter
       "add w15, w15, #4                                         \n" // i++
@@ -675,11 +711,11 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       #if SME_SAVE_ROWS_COLS
       "mov w12, #0                                              \n" // Move 0 to w12 for zeroth column index
       // save the zeroth column
-      "mov z29.s, p0/m, za1v.s[W12, 0]                          \n" // Move zeroth column from ZA1 to z29
+      "mov z29.s, p0/m, za0v.s[W12, 0]                          \n" // Move zeroth column from ZA1 to z29
 
       // zero out pivot column
       // no need to zero z28 because smstart already zeros out all SME/SVE registers!?!
-      "mov za1v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA1 pivot column
+      "mov za0v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA1 pivot column
 
       #endif
 
@@ -691,15 +727,15 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
 
       "ptrue p2.h                                               \n"
 
-      "smopa	za1.s, p2/m, p2/m, z21.h, z20.h                   \n" // old pivot column x pivot row
+      "smopa	za0.s, p2/m, p2/m, z21.h, z20.h                   \n" // old pivot column x pivot row
 
       #endif
 
       /* ******************** */
       #if SME_SAVE_ROWS_COLS
       // Replaced masked rows/ columns with the saved values
-      "mov za1v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA1
-      "mov za1h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA1
+      "mov za0v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA1
+      "mov za0h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA1
 
       #endif
 
@@ -717,7 +753,7 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
       // move i-i+3 th rows of source matrix into z0-z3
-      "mov {z0.s-z3.s}, za1h.s[w15, 0:3]                        \n"
+      "mov {z0.s-z3.s}, za0h.s[w15, 0:3]                        \n"
 
       // Store the loaded values to the matrix
       "st1w {z0.s-z3.s}, pn8, [x0, x8, lsl #2]                  \n"
@@ -742,9 +778,10 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
     [ncols] "r"(reserved_cols),
     [prow] "r"(pivot_row), 
     [pcol] "r"(pivot_col),
-    [coeff] "r"(matrix[pivot_row * reserved_cols])
-  : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x8",
-    "x12", "x13", "x14", "x15",
+    [coeff] "r"(matrix[pivot_row * reserved_cols]),
+    [dirtyRowsPtr] "r"(dirtyRowsPtr)
+  : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
+    "x12", "x13", "x14", "x15", "x16",
     "z0", "z4", "z8", "z12",
     "z29", "z30", "z31",
     "z1", "z2", "z3",
@@ -841,6 +878,8 @@ void Simplex<Int>::swapRows(unsigned i, unsigned j) {
   if (i == j)
     return;
   tableau.swapRows(i, j);
+  markRowDirty(i);
+  markRowDirty(j);
   std::swap(rowUnknown[i], rowUnknown[j]);
   unknownFromRow(i).pos = i;
   unknownFromRow(j).pos = j;

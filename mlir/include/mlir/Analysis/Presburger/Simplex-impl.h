@@ -761,23 +761,22 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
 
       // Load four 32-bit pivot values as two 64-bit pairs.
       "add x11, x10, x15, lsl #2                                \n"
-      "ldp x16, x17, [x11]                                      \n"
+      "ldr w16, [x11]                                           \n"
 
-      // Check if any of the four values are non-zero.
-      "orr x16, x16, x17                                        \n" // Bitwise OR the two 64-bit values.
-      "cmp x16, #0                                              \n" // If the result is zero, all four original ints were zero.
+      // Check if non-zero.
+      "cmp w16, #0                                              \n" // If the result is zero, all four original ints were zero.
       "b.eq 3f                                                  \n" // If all were zero, skip the store for this block.
 
       // --- Store the 4-row block ---
       // Load the four rows from the ZA tile.
-      "mov {z0.s-z3.s}, za0h.s[w15, 0:3]                        \n"
+      "mov z0.s, p0/m, za0h.s[w15, 0]                           \n"
       // Calculate the base memory offset for the block.
       "mul x8, x15, x2                                          \n"
       // Store the four row vectors contiguously.
-      "st1w {z0.s-z3.s}, pn8, [x0, x8, lsl #2]                  \n"
+      "st1w z0.s, p0, [x0, x8, lsl #2]                          \n"
 
       "3:                                                       \n" // Label to skip the store.
-      "add w15, w15, #4                                         \n" // i += 4.
+      "add w15, w15, #1                                         \n" // i += 4.
       "b 1b                                                     \n" // Loop back to the start.
 
       "2:                                                       \n" // Final exit label.

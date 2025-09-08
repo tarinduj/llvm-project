@@ -628,22 +628,22 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "b.ge 3f                                                  \n" // If i >= nrows, exit loop
 
       // Check if the row is dirty
-      "ldr w16, [x7, w15, uxtw]                                 \n"
+      "ldrb w16, [x7, w15, uxtw]                                \n"
       "cmp w16, #0                                              \n"
       "b.eq 2f                                                  \n"
 
       // Load i-i+3 th rows of source matrix into z0-z3
-      "ld1w {z0.s-z3.s}, pn8/z, [x0, x8, lsl #2]                \n"
+      "ld1w z0.s, p0/z, [x0, x8, lsl #2]                \n"
 
       // Move the loaded values to ZA0
-      "mov za0h.s[w15, 0:3], {z0.s-z3.s}                        \n"
+      "mov za0h.s[w15, 0], p0/m, z0.s                       \n"
 
       // insert a label here
       "2:                                                    \n"
 
       // Increment loop counter
-      "add w15, w15, #4                                         \n" // i = i + 4
-      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
+      "add w15, w15, #1                                         \n" // i = i + 4
+      "add x8, x8, x2                                           \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
 
       // Loop back
       "b 1b                                                     \n"
@@ -741,48 +741,32 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
 
       /* ******************** */
       #if SME_MATRIX_STORE
-      // Store the result back, unrolled to process 4 rows at a time for int32 data.
-      // Assumes the total number of rows is always a multiple of 4.
+      // Store the result back into the matrix
 
-      // Get vector length and allocate stack space.
-      "rdvl x9, #1                                              \n"
-      "sub  sp, sp, x9                                          \n"
-      "mov  x10, sp                                             \n"
+      // Initialize registers
+      "mov w15, #0                                              \n" // Loop counter i = 0
+      "mov x8, #0                                               \n" // Offset in source matrix
 
-      // Store the original int32 pivot column to the stack.
-      "st1w {z31.s}, p0, [x10]                                  \n"
+      // Loop label
+      "1:                                                       \n"
+      "cmp w15, w1                                              \n" // Compare i with nrows
+      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
-      // --- Main Unrolled Loop ---
-      "mov w15, #0                                              \n" // Initialize loop counter i = 0.
-
-      "1:                                                       \n" // Loop start.
-      "cmp w15, w1                                              \n" // Loop while i < nrows.
-      "b.ge 2f                                                  \n" // If i >= nrows, exit.
-
-      // Load four 32-bit pivot values as two 64-bit pairs.
-      "add x11, x10, x15, lsl #2                                \n"
-      "ldp x16, x17, [x11]                                      \n"
-
-      // Check if any of the four values are non-zero.
-      "orr x16, x16, x17                                        \n" // Bitwise OR the two 64-bit values.
-      "cmp x16, #0                                              \n" // If the result is zero, all four original ints were zero.
-      "b.eq 3f                                                  \n" // If all were zero, skip the store for this block.
-
-      // --- Store the 4-row block ---
-      // Load the four rows from the ZA tile.
+      // move i-i+3 th rows of source matrix into z0-z3
       "mov {z0.s-z3.s}, za0h.s[w15, 0:3]                        \n"
-      // Calculate the base memory offset for the block.
-      "mul x8, x15, x2                                          \n"
-      // Store the four row vectors contiguously.
+
+      // Store the loaded values to the matrix
       "st1w {z0.s-z3.s}, pn8, [x0, x8, lsl #2]                  \n"
 
-      "3:                                                       \n" // Label to skip the store.
-      "add w15, w15, #4                                         \n" // i += 4.
-      "b 1b                                                     \n" // Loop back to the start.
+      // Increment loop counter
+      "add w15, w15, #4                                         \n" // i = i + 4
+      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
 
-      "2:                                                       \n" // Final exit label.
-      // Deallocate the stack space.
-      "add  sp, sp, x9                                          \n"
+      // Loop back
+      "b 1b                                                     \n"
+
+      // Loop exit label
+      "2:                                                       \n"
       #endif
 
       "smstop sm                                                \n"

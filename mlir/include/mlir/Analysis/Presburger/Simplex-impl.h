@@ -39,7 +39,7 @@ const int nullIndex = std::numeric_limits<int>::max();
 template <typename Int>
 Simplex<Int>::Simplex(unsigned nVar)
     : nRow(0), nCol(2), nRedundant(0), liveColBegin(2), tableau(0, 2 + nVar),
-      empty(false), numPivots(0), dirtyRows{}
+      empty(false), numPivots(0)
       {
   colUnknown.push_back(nullIndex);
   colUnknown.push_back(nullIndex);
@@ -48,7 +48,6 @@ Simplex<Int>::Simplex(unsigned nVar)
     colUnknown.push_back(i);
     nCol++;
   }
-  dirtyRowsPtr = reinterpret_cast<uint32_t*>(dirtyRows);
 }
 
 template <typename Int>
@@ -146,8 +145,6 @@ unsigned Simplex<Int>::addRow(ArrayRef<Int> coeffs) {
 
   addZeroConstraint();
 
-  markRowDirty(nRow - 1);
-
   if constexpr (isVectorized) {
     tableau(nRow - 1, 1) = coeffs.back();
     // Process each given variable coefficient.
@@ -234,7 +231,6 @@ void Simplex<Int>::normalizeRowScalar(unsigned row) {
     return;
   for (unsigned col = 0; col < nCol; ++col)
     tableau(row, col) /= gcd;
-  markRowDirty(row);
   assert(tableau(row, 0) != 0);
 }
 
@@ -381,7 +377,6 @@ template <typename Int>
 bool Simplex<Int>::rowIsAtLeastZero(Unknown &unknown) {
   assert(unknown.orientation == Orientation::Row &&
          "Unknown is in column position!");
-  int while_count = 0;
   while (tableau(unknown.pos, 1) < 0) {
     auto p = findPivot(unknown.pos, Simplex<Int>::Direction::Up);
 
@@ -391,9 +386,7 @@ bool Simplex<Int>::rowIsAtLeastZero(Unknown &unknown) {
     else if (p->row == unknown.pos)
       // The unknown is unbounded above
       return true;
-    pivot(*p);    
-    while_count++;
-    std::cout << "rowIsAtLeastZero while_count: " << while_count << std::endl;
+    pivot(*p);
   }
   return true;
 }
@@ -414,7 +407,6 @@ template <typename Int>
 Optional<typename Simplex<Int>::Pivot> Simplex<Int>::findPivot(int row,
                                             Direction direction) const {
   Optional<unsigned> col;
-  std::cout << "findPivot row: " << row << std::endl;
 
   for (unsigned j = liveColBegin; j < nCol; ++j) {
     Int elem = tableau(row, j);
@@ -489,24 +481,10 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
   numPivots++;
 #endif
 
-  std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
+  // std::cout << "Pivot: " << numPivots++ << " Size: " << nRow << " x " << nCol << '\n';
   // std::cout << "Pivot row: " << pivotRow << " Pivot col: " << pivotCol << '\n';
 
-  // // PRITN DIRTY ROWS
-  // for (unsigned i = 0; i < 16; ++i) {
-  //   std::cout << std::hex << dirtyRows[i] << ' ';
-  // }
-  // std::cout << '\n';
-
-  // for (unsigned i = 0; i < 4; ++i) {
-  //   std::cout << dirtyRowsPtr[i] << ' ';
-  // }
-  // std::cout << '\n';
-
-  // // PRINT TABLEAU
   // tableau.dump();
-
-  // std::cout << "--------------------------------\n";
   
   swapRowWithCol(pivotRow, pivotCol);
 
@@ -534,15 +512,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     }
     #endif
 
-    markRowDirty(pivotRow);
-
     SMEPivotHelper(dataptr, numRows, numReserveCols, pivotRow, pivotCol);
-
-    // std::cout << "tableau after SME pivot\n";
-    // tableau.dump();
-    // std::cout << "--------------------------------\n\n";
-
-    clearDirtyRows();
 
   } else {
     std::swap(tableau(pivotRow, 0), tableau(pivotRow, pivotCol));
@@ -563,7 +533,7 @@ void Simplex<Int>::pivot(unsigned pivotRow, unsigned pivotCol) {
     for (unsigned row = 0; row < nRow; ++row) {
       if (row == pivotRow)
         continue;
-      // if (tableau(row, pivotCol) == 0) // Nothing to do.
+      // if (floattableau(row, pivotCol) == 0) // Nothing to do.
       //   continue;
       tableau(row, 0) *= tableau(pivotRow, 0);
       for (unsigned j = 1; j < nCol; ++j) {
@@ -590,7 +560,7 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "smstart sm                                               \n" // Start SME
       
       #if SME_HELPERS
-      // "zero {za}                                                \n" // Zero ZA  
+      "zero {za}                                                \n" // Zero ZA  
 
       "mov x0, %[src]                                           \n" // Source matrix pointer
 
@@ -600,11 +570,9 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       "mov w3, %w[prow]                                         \n" // Move pivot_row to w3
       "mov w4, %w[pcol]                                         \n" // Move pivot_col to w4
 
-      "mov x5, #4                                               \n" // Move 4 to x5 for unroll factor"
+      "mov x5, #4                                               \n" // Move 4 to x5 for unroll factor
 
       "mov w6, %w[coeff]                                        \n" // Coefficient
-
-      "mov x7, %[dirtyRowsPtr]                                  \n" // Dirty rows pointer
 
       // ZA tiles can only be indexed through w12-w15
       // "mov x12, #0                                              \n" // Zeroth column index
@@ -629,31 +597,23 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       // Loop label
       "1:                                                       \n"
       "cmp w15, w1                                              \n" // Compare i with nrows
-      "b.ge 3f                                                  \n" // If i >= nrows, exit loop
-
-      // Check if the row is dirty
-      "ldrb w16, [x7, w15, uxtw]                                \n"
-      "cmp w16, #0                                              \n"
-      "b.eq 2f                                                  \n"
+      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
       // Load i-i+3 th rows of source matrix into z0-z3
-      "ld1w z0.s, p0/z, [x0, x8, lsl #2]                \n"
+      "ld1w {z0.s-z3.s}, pn8/z, [x0, x8, lsl #2]                \n"
 
       // Move the loaded values to ZA0
-      "mov za0h.s[w15, 0], p0/m, z0.s                       \n"
-
-      // insert a label here
-      "2:                                                    \n"
+      "mov za0h.s[w15, 0:3], {z0.s-z3.s}                        \n"
 
       // Increment loop counter
-      "add w15, w15, #1                                         \n" // i = i + 4
-      "add x8, x8, x2                                           \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
+      "add w15, w15, #4                                         \n" // i = i + 4
+      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
 
       // Loop back
       "b 1b                                                     \n"
 
       // Loop exit label
-      "3:                                                       \n"
+      "2:                                                       \n"
       #endif
 
       /* ******************** */
@@ -697,8 +657,8 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       // NOTE: Has somnething like this in 2024-06 version; But M4 was realeased in 2024-05.
       // "fmul {z0.s-z3.s}, {z4.s-z8.s}, {z4.s-z8.s} \n"
 
-      // Move the multiplied values to ZA0
-      "mov za0h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
+      // Move the multiplied values to ZA1
+      "mov za1h.s[w15, 0:3], {z0.s, z1.s, z2.s, z3.s}           \n"
 
       // Increment loop counter
       "add w15, w15, #4                                         \n" // i++
@@ -715,11 +675,11 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
       #if SME_SAVE_ROWS_COLS
       "mov w12, #0                                              \n" // Move 0 to w12 for zeroth column index
       // save the zeroth column
-      "mov z29.s, p0/m, za0v.s[W12, 0]                          \n" // Move zeroth column from ZA1 to z29
+      "mov z29.s, p0/m, za1v.s[W12, 0]                          \n" // Move zeroth column from ZA1 to z29
 
       // zero out pivot column
       // no need to zero z28 because smstart already zeros out all SME/SVE registers!?!
-      "mov za0v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA1 pivot column
+      "mov za1v.s[w14, 0], p0/m, z28.s                          \n" // Move z28 to ZA1 pivot column
 
       #endif
 
@@ -731,61 +691,46 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
 
       "ptrue p2.h                                               \n"
 
-      "smopa	za0.s, p2/m, p2/m, z21.h, z20.h                   \n" // old pivot column x pivot row
+      "smopa	za1.s, p2/m, p2/m, z21.h, z20.h                   \n" // old pivot column x pivot row
 
       #endif
 
       /* ******************** */
       #if SME_SAVE_ROWS_COLS
       // Replaced masked rows/ columns with the saved values
-      "mov za0v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA1
-      "mov za0h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA1
+      "mov za1v.s[w12, 0], p0/m, z29.s                          \n" // Move zeroth column from z29 to ZA1
+      "mov za1h.s[w13, 0], p0/m, z30.s                          \n" // Move old pivot row from z30 to ZA1
 
       #endif
 
       /* ******************** */
       #if SME_MATRIX_STORE
-      // Store the result back, unrolled to process 4 rows at a time for int32 data.
-      // Assumes the total number of rows is always a multiple of 4.
+      // Store the result back into the matrix
 
-      // Get vector length and allocate stack space.
-      "rdvl x9, #1                                              \n"
-      "sub  sp, sp, x9                                          \n"
-      "mov  x10, sp                                             \n"
+      // Initialize registers
+      "mov w15, #0                                              \n" // Loop counter i = 0
+      "mov x8, #0                                               \n" // Offset in source matrix
 
-      // Store the original int32 pivot column to the stack.
-      "st1w {z31.s}, p0, [x10]                                  \n"
+      // Loop label
+      "1:                                                       \n"
+      "cmp w15, w1                                              \n" // Compare i with nrows
+      "b.ge 2f                                                  \n" // If i >= nrows, exit loop
 
-      // --- Main Unrolled Loop ---
-      "mov w15, #0                                              \n" // Initialize loop counter i = 0.
+      // move i-i+3 th rows of source matrix into z0-z3
+      "mov {z0.s-z3.s}, za1h.s[w15, 0:3]                        \n"
 
-      "1:                                                       \n" // Loop start.
-      "cmp w15, w1                                              \n" // Loop while i < nrows.
-      "b.ge 2f                                                  \n" // If i >= nrows, exit.
+      // Store the loaded values to the matrix
+      "st1w {z0.s-z3.s}, pn8, [x0, x8, lsl #2]                  \n"
 
-      // Load four 32-bit pivot values as two 64-bit pairs.
-      "add x11, x10, x15, lsl #2                                \n"
-      "ldr w16, [x11]                                           \n"
+      // Increment loop counter
+      "add w15, w15, #4                                         \n" // i = i + 4
+      "madd x8, x2, x5, x8                                      \n" // offset += ncols * unroll factor (x8 = x8 + x2 * x5)
 
-      // Check if non-zero.
-      "cmp w16, #0                                              \n" // If the result is zero, all four original ints were zero.
-      "b.eq 3f                                                  \n" // If all were zero, skip the store for this block.
+      // Loop back
+      "b 1b                                                     \n"
 
-      // --- Store the 4-row block ---
-      // Load the four rows from the ZA tile.
-      "mov z0.s, p0/m, za0h.s[w15, 0]                           \n"
-      // Calculate the base memory offset for the block.
-      "mul x8, x15, x2                                          \n"
-      // Store the four row vectors contiguously.
-      "st1w z0.s, p0, [x0, x8, lsl #2]                          \n"
-
-      "3:                                                       \n" // Label to skip the store.
-      "add w15, w15, #1                                         \n" // i += 4.
-      "b 1b                                                     \n" // Loop back to the start.
-
-      "2:                                                       \n" // Final exit label.
-      // Deallocate the stack space.
-      "add  sp, sp, x9                                          \n"
+      // Loop exit label
+      "2:                                                       \n"
       #endif
 
       "smstop sm                                                \n"
@@ -797,16 +742,15 @@ inline void  Simplex<Int>::SMEPivotHelper(Int *matrix, int reserved_rows, int re
     [ncols] "r"(reserved_cols),
     [prow] "r"(pivot_row), 
     [pcol] "r"(pivot_col),
-    [coeff] "r"(matrix[pivot_row * reserved_cols]),
-    [dirtyRowsPtr] "r"(dirtyRowsPtr)
-  : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11",
-    "x12", "x13", "x14", "x15", "x16", "x17",
+    [coeff] "r"(matrix[pivot_row * reserved_cols])
+  : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x8",
+    "x12", "x13", "x14", "x15",
     "z0", "z4", "z8", "z12",
     "z29", "z30", "z31",
     "z1", "z2", "z3",
     "z20", "z21",
     "za",
-    "p0", "p1", "p2", "pn8", "sp",
+    "p0", "p1", "p2", "pn8",
     "memory"
   );
 
@@ -819,10 +763,6 @@ LogicalResult Simplex<Int>::restoreRow(Unknown &u) {
   assert(u.orientation == Orientation::Row &&
          "unknown should be in row position");
 
-  std::cout << "++++++++++++++++++++++++++++++++" << std::endl;
-  std::cout << "restoreRow" << std::endl;
-  std::cout << "++++++++++++++++++++++++++++++++" << std::endl;
-  int while_count = 0;
   while (tableau(u.pos, 1) < 0) {
     Optional<Pivot> maybePivot = findPivot(u.pos, Direction::Up);
     if (!maybePivot)
@@ -831,8 +771,6 @@ LogicalResult Simplex<Int>::restoreRow(Unknown &u) {
     pivot(*maybePivot);
     if (u.orientation == Orientation::Column)
       return LogicalResult::Success; // the unknown is unbounded above.
-    while_count++;
-    std::cout << "restoreRow while_count: " << while_count << std::endl;
   }
   return success(tableau(u.pos, 1) >= 0);
 }
@@ -863,8 +801,6 @@ template <typename Int>
 Optional<unsigned> Simplex<Int>::findPivotRow(Optional<unsigned> skipRow,
                                          Direction direction,
                                          unsigned col) const {
-
-  std::cout << "findPivotRow col: " << col << std::endl;
   Optional<unsigned> retRow;
   Int retElem, retConst;
   for (unsigned row = nRedundant; row < nRow; ++row) {
@@ -905,8 +841,6 @@ void Simplex<Int>::swapRows(unsigned i, unsigned j) {
   if (i == j)
     return;
   tableau.swapRows(i, j);
-  markRowDirty(i);
-  markRowDirty(j);
   std::swap(rowUnknown[i], rowUnknown[j]);
   unknownFromRow(i).pos = i;
   unknownFromRow(j).pos = j;
@@ -1057,9 +991,6 @@ template <typename Int>
 void Simplex<Int>::detectRedundant() {
   if (empty)
     return;
-  
-  std::cout << "========================" << std::endl; 
-  std::cout << "detectRedundant" << std::endl;
   for (int i = con.size() - 1; i >= 0; i--) {
     if (con[i].redundant)
       continue;
@@ -1071,8 +1002,6 @@ void Simplex<Int>::detectRedundant() {
       markRedundant(con[i].pos);
     }
   }
-  std::cout << "detectRedundant done" << std::endl;
-  std::cout << "========================" << std::endl; 
 }
 
 template <typename Int>
@@ -1108,8 +1037,6 @@ unsigned Simplex<Int>::getSnapshotBasis() {
 
 template <typename Int>
 void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
-  std::cout << "########################" << std::endl;
-  std::cout << "undo entry: " << std::endl;
   if (entry == UndoLogEntry::RemoveLastConstraint) {
     Unknown &constraint = con.back();
     if (constraint.orientation == Orientation::Column) {
@@ -1189,7 +1116,6 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
     auto basis = std::move(savedBases.back());
     savedBases.pop_back();
 
-    int for_count = 0;
     for (int index : basis) {
       Unknown &u = unknownFromIndex(index);
       if (u.orientation == Orientation::Column)
@@ -1202,8 +1128,6 @@ void Simplex<Int>::undo(UndoLogEntry entry, Optional<int> index) {
         if (tableau(u.pos, col) == 0)
           continue;
         pivot(u.pos, col);
-        for_count++;
-        std::cout << "undo for_count: " << for_count << std::endl;
         break;
       }
 
@@ -1233,15 +1157,12 @@ template <typename Int>
 Optional<Fraction<Int>> Simplex<Int>::computeRowOptimum(Direction direction,
                                               unsigned row) {
   // Keep trying to find a pivot for the row in the specified direction.
-  int while_count = 0;
   while (Optional<Pivot> maybePivot = findPivot(row, direction)) {
     // If findPivot returns a pivot involving the row itself, then the optimum
     // is unbounded, so we return None.
     if (maybePivot->row == row)
       return {};
     pivot(*maybePivot);
-    while_count++;
-    std::cout << "ComputeRowOptimum while_count: " << while_count << std::endl;
   }
 
   // The row has reached its optimal sample value, which we return.
@@ -2163,9 +2084,7 @@ Int Simplex<Int>::signOfMax(Unknown &u) {
                        : tableau(row, 1) <= 0;
   };
 
-  int while_count = 0;
   while (mustContinueLoop(u.pos)) {
-
     auto p = findPivot(u.pos, Direction::Up);
     if (!p) {
       // u is manifestly maximised
@@ -2179,8 +2098,6 @@ Int Simplex<Int>::signOfMax(Unknown &u) {
       return 1;
     }
     pivot(*p);
-    while_count++;
-    std::cout << "signOfMax while_count: " << while_count << std::endl;
   }
   return 1;
 }

@@ -519,10 +519,6 @@ protected:
   /// These hold information about each unknown.
   SmallVector<Unknown, 8> con, var;
 
-  /// Dirty rows of the tableau.
-  bool dirtyRows[16];
-  uint32_t* dirtyRowsPtr;
-
   unsigned numPivots;
 
   void printAndResetNumPivots() {
@@ -530,15 +526,6 @@ protected:
     std::cout << numPivots << '\n';
     numPivots = 0;
 #endif
-  }
-
-  /// Mark a row as dirty (modified)
-  void markRowDirty(unsigned row) {
-    dirtyRows[row] = true;
-  }
-
-  void clearDirtyRows() {
-    std::fill(std::begin(dirtyRows), std::end(dirtyRows), false);
   }
 };
 

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/FunctionExtras.h"
+#include "CountCopyAndMove.h"
 #include "gtest/gtest.h"
 
 #include <memory>
@@ -289,6 +290,58 @@ TEST(UniqueFunctionTest, IncompleteTypes) {
   unique_function<Templated<Incomplete> &()> IncompleteResultLValueReference;
   unique_function<Templated<Incomplete> && ()> IncompleteResultRValueReference2;
   unique_function<Templated<Incomplete> *()> IncompleteResultPointer;
+}
+
+// Incomplete function returning an incomplete type
+Incomplete incompleteFunction();
+const Incomplete incompleteFunctionConst();
+
+// Check that we can assign a callable to a unique_function when the
+// callable return value is incomplete.
+TEST(UniqueFunctionTest, IncompleteCallableType) {
+  unique_function<Incomplete()> IncompleteReturnInCallable{incompleteFunction};
+  unique_function<const Incomplete()> IncompleteReturnInCallableConst{
+      incompleteFunctionConst};
+  unique_function<const Incomplete()> IncompleteReturnInCallableConstConversion{
+      incompleteFunction};
+}
+
+// Define the incomplete function
+class Incomplete {};
+Incomplete incompleteFunction() { return {}; }
+const Incomplete incompleteFunctionConst() { return {}; }
+
+// Check that we can store a pointer-sized payload inline in the unique_function.
+TEST(UniqueFunctionTest, InlineStorageWorks) {
+  // We do assume a couple of implementation details of the unique_function here:
+  //  - It can store certain small-enough payload inline
+  //  - Inline storage size is at least >= sizeof(void*)
+  void *ptr = nullptr;
+  unique_function<void(void *)> UniqueFunctionWithInlineStorage{
+      [ptr](void *self) {
+        auto mid = reinterpret_cast<uintptr_t>(&ptr);
+        auto beg = reinterpret_cast<uintptr_t>(self);
+        auto end = reinterpret_cast<uintptr_t>(self) +
+                   sizeof(unique_function<void(void *)>);
+        // Make sure the address of the captured pointer lies somewhere within
+        // the unique_function object.
+        EXPECT_TRUE(mid >= beg && mid < end);
+      }};
+  UniqueFunctionWithInlineStorage(&UniqueFunctionWithInlineStorage);
+}
+
+// Check that the moved-from captured state is properly destroyed during
+// move construction/assignment.
+TEST(UniqueFunctionTest, MovedFromStateIsDestroyedCorrectly) {
+  CountCopyAndMove::ResetCounts();
+  {
+    unique_function<void()> CapturingFunction{
+        [Counter = CountCopyAndMove{}] {}};
+    unique_function<void()> CapturingFunctionMoved{
+        std::move(CapturingFunction)};
+  }
+  EXPECT_EQ(CountCopyAndMove::TotalConstructions(),
+            CountCopyAndMove::Destructions);
 }
 
 } // anonymous namespace

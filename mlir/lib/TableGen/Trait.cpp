@@ -13,8 +13,6 @@
 #include "mlir/TableGen/Trait.h"
 #include "mlir/TableGen/Interfaces.h"
 #include "mlir/TableGen/Predicate.h"
-#include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/FormatVariadic.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 
@@ -26,7 +24,7 @@ using namespace mlir::tblgen;
 //===----------------------------------------------------------------------===//
 
 Trait Trait::create(const llvm::Init *init) {
-  auto def = cast<llvm::DefInit>(init)->getDef();
+  auto *def = cast<llvm::DefInit>(init)->getDef();
   if (def->isSubClassOf("PredTrait"))
     return Trait(Kind::Pred, def);
   if (def->isSubClassOf("GenInternalTrait"))
@@ -48,6 +46,18 @@ std::string NativeTrait::getFullyQualifiedTraitName() const {
   llvm::StringRef cppNamespace = def->getValueAsString("cppNamespace");
   return cppNamespace.empty() ? trait.str()
                               : (cppNamespace + "::" + trait).str();
+}
+
+bool NativeTrait::isStructuralOpTrait() const {
+  return def->isSubClassOf("StructuralOpTrait");
+}
+
+StringRef NativeTrait::getExtraConcreteClassDeclaration() const {
+  return def->getValueAsString("extraConcreteClassDeclaration");
+}
+
+StringRef NativeTrait::getExtraConcreteClassDefinition() const {
+  return def->getValueAsString("extraConcreteClassDefinition");
 }
 
 //===----------------------------------------------------------------------===//

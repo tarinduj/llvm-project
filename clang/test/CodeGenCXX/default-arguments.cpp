@@ -12,6 +12,17 @@ void g() {
 }
 }
 
+namespace GH113324 {
+struct S1 {
+  friend void f(S1, int = 42) {}
+};
+
+void test() {
+  S1 s1;
+  f(s1);
+}
+};
+
 struct A1 {
  A1();
  ~A1();
@@ -42,14 +53,14 @@ struct C {
  C();
 };
 
-// CHECK-LABEL: define{{.*}} void @_ZN1CC2Ev(%struct.C* {{[^,]*}} %this) unnamed_addr
+// CHECK-LABEL: define{{.*}} void @_ZN1CC2Ev(ptr {{[^,]*}} %this) unnamed_addr
 // CHECK: call void @_ZN2A1C1Ev(
 // CHECK: call void @_ZN2A2C1Ev(
 // CHECK: call void @_ZN1BC1ERK2A1RK2A2(
 // CHECK: call void @_ZN2A2D1Ev
 // CHECK: call void @_ZN2A1D1Ev
 
-// CHECK-LABEL: define{{.*}} void @_ZN1CC1Ev(%struct.C* {{[^,]*}} %this) unnamed_addr
+// CHECK-LABEL: define{{.*}} void @_ZN1CC1Ev(ptr {{[^,]*}} %this) unnamed_addr
 // CHECK: call void @_ZN1CC2Ev(
 C::C() { }
 
@@ -71,6 +82,6 @@ void f4() {
   }
   void g4(int a = 5, int b);
 
-  // CHECK: call void @_Z2g4ii(i32 5, i32 7)
+  // CHECK: call void @_Z2g4ii(i32 noundef 5, i32 noundef 7)
   g4();
 }

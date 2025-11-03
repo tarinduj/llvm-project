@@ -13,14 +13,15 @@
 #ifndef LLVM_EXECUTIONENGINE_ORC_DEBUGOBJECTMANAGERPLUGIN_H
 #define LLVM_EXECUTIONENGINE_ORC_DEBUGOBJECTMANAGERPLUGIN_H
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <functional>
 #include <map>
@@ -45,11 +46,31 @@ class DebugObject;
 /// DebugObjectRegistrar is notified. Ownership of DebugObjects remains with the
 /// plugin.
 ///
-class DebugObjectManagerPlugin : public ObjectLinkingLayer::Plugin {
+class LLVM_ABI DebugObjectManagerPlugin : public ObjectLinkingLayer::Plugin {
 public:
+  // DEPRECATED - Please specify options explicitly
   DebugObjectManagerPlugin(ExecutionSession &ES,
                            std::unique_ptr<DebugObjectRegistrar> Target);
-  ~DebugObjectManagerPlugin();
+
+  /// Create the plugin to submit DebugObjects for JITLink artifacts. For all
+  /// options the recommended setting is true.
+  ///
+  /// RequireDebugSections:
+  ///   Submit debug objects to the executor only if they contain actual debug
+  ///   info. Turning this off may allow minimal debugging based on raw symbol
+  ///   names. Note that this may cause significant memory and transport
+  ///   overhead for objects built with a release configuration.
+  ///
+  /// AutoRegisterCode:
+  ///   Notify the debugger for each new debug object. This is a good default
+  ///   mode, but it may cause significant overhead when adding many modules in
+  ///   sequence. When turning this off, the user has to issue the call to
+  ///   __jit_debug_register_code() on the executor side manually.
+  ///
+  DebugObjectManagerPlugin(ExecutionSession &ES,
+                           std::unique_ptr<DebugObjectRegistrar> Target,
+                           bool RequireDebugSections, bool AutoRegisterCode);
+  ~DebugObjectManagerPlugin() override;
 
   void notifyMaterializing(MaterializationResponsibility &MR,
                            jitlink::LinkGraph &G, jitlink::JITLinkContext &Ctx,
@@ -57,9 +78,9 @@ public:
 
   Error notifyEmitted(MaterializationResponsibility &MR) override;
   Error notifyFailed(MaterializationResponsibility &MR) override;
-  Error notifyRemovingResources(ResourceKey K) override;
+  Error notifyRemovingResources(JITDylib &JD, ResourceKey K) override;
 
-  void notifyTransferringResources(ResourceKey DstKey,
+  void notifyTransferringResources(JITDylib &JD, ResourceKey DstKey,
                                    ResourceKey SrcKey) override;
 
   void modifyPassConfig(MaterializationResponsibility &MR,
@@ -77,6 +98,8 @@ private:
   std::mutex RegisteredObjsLock;
 
   std::unique_ptr<DebugObjectRegistrar> Target;
+  bool RequireDebugSections;
+  bool AutoRegisterCode;
 };
 
 } // namespace orc

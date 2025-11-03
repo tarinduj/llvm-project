@@ -1,5 +1,4 @@
-// RUN: %clang_cc1 -triple spir-unknown-unknown -emit-llvm %s -o - -fno-experimental-new-pass-manager | opt -instnamer -S | FileCheck -enable-var-scope %s
-// RUN: %clang_cc1 -triple spir-unknown-unknown -emit-llvm %s -o - -fexperimental-new-pass-manager | opt -instnamer -S | FileCheck -enable-var-scope %s
+// RUN: %clang_cc1 -triple spir-unknown-unknown -emit-llvm %s -o - | FileCheck -enable-var-scope %s
 
 // This is initially assumed convergent, but can be deduced to not require it.
 
@@ -28,7 +27,7 @@ void g(void);
 //      non_convfun();
 //    }
 //
-// CHECK-LABEL: define{{.*}} spir_func void @test_merge_if(i32 %a) local_unnamed_addr #1 {
+// CHECK-LABEL: define{{.*}} spir_func void @test_merge_if(i32 noundef %a) local_unnamed_addr #1 {
 // CHECK: %[[tobool:.+]] = icmp eq i32 %a, 0
 // CHECK: br i1 %[[tobool]], label %[[if_end3_critedge:.+]], label %[[if_then:.+]]
 
@@ -61,7 +60,7 @@ void test_merge_if(int a) {
 
 
 // Test two if's are not merged.
-// CHECK-LABEL: define{{.*}} spir_func void @test_no_merge_if(i32 %a) local_unnamed_addr #1
+// CHECK-LABEL: define{{.*}} spir_func void @test_no_merge_if(i32 noundef %a) local_unnamed_addr #1
 // CHECK:  %[[tobool:.+]] = icmp eq i32 %a, 0
 // CHECK: br i1 %[[tobool]], label %[[if_end:.+]], label %[[if_then:.+]]
 // CHECK: [[if_then]]:
@@ -128,7 +127,7 @@ void test_not_unroll() {
 // CHECK: declare spir_func void @nodupfun(){{[^#]*}} #[[attr3:[0-9]+]]
 
 // CHECK-LABEL: @assume_convergent_asm
-// CHECK: tail call void asm sideeffect "s_barrier", ""() #5
+// CHECK: tail call void asm sideeffect "s_barrier", ""() #6
 kernel void assume_convergent_asm()
 {
   __asm__ volatile("s_barrier");
@@ -139,5 +138,7 @@ kernel void assume_convergent_asm()
 // CHECK: attributes #2 = { {{[^}]*}}convergent{{[^}]*}} }
 // CHECK: attributes #3 = { {{[^}]*}}convergent noduplicate{{[^}]*}} }
 // CHECK: attributes #4 = { {{[^}]*}}convergent{{[^}]*}} }
-// CHECK: attributes #5 = { {{[^}]*}}convergent{{[^}]*}} }
-// CHECK: attributes #6 = { {{[^}]*}}convergent noduplicate{{[^}]*}} }
+// CHECK: attributes #5 = { {{[^}]*}}alwaysinline convergent{{[^}]*}} }
+// CHECK: attributes #6 = { {{[^}]*}}convergent{{[^}]*}} }
+// CHECK: attributes #7 = { {{[^}]*}}nounwind{{[^}]*}} }
+// CHECK: attributes #8 = { {{[^}]*}}convergent noduplicate nounwind{{[^}]*}} }

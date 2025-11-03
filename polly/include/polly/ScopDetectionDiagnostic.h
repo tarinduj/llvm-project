@@ -73,6 +73,7 @@ enum class RejectReasonKind {
   InvalidTerminator,
   IrreducibleRegion,
   UnreachableInExit,
+  IndirectPredecessor,
   LastCFG,
 
   // Non-Affinity
@@ -136,7 +137,7 @@ public:
   /// Get the Basic Block containing this remark.
   ///
   /// @return The Basic Block containing this remark.
-  virtual const Value *getRemarkBB() const = 0;
+  virtual const BasicBlock *getRemarkBB() const = 0;
 
   /// Generate a reasonable diagnostic message describing this error.
   ///
@@ -162,7 +163,7 @@ public:
 using RejectReasonPtr = std::shared_ptr<RejectReason>;
 
 /// Stores all errors that occurred during the detection.
-class RejectLog {
+class RejectLog final {
   Region *R;
   SmallVector<RejectReasonPtr, 1> ErrorReports;
 
@@ -203,7 +204,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures bad terminator within a Scop candidate.
-class ReportInvalidTerminator : public ReportCFG {
+class ReportInvalidTerminator final : public ReportCFG {
   BasicBlock *BB;
 
 public:
@@ -218,7 +219,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   //@}
@@ -226,7 +227,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures irreducible regions in CFG.
-class ReportIrreducibleRegion : public ReportCFG {
+class ReportIrreducibleRegion final : public ReportCFG {
   Region *R;
   DebugLoc DbgLoc;
 
@@ -242,7 +243,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   std::string getEndUserMessage() const override;
   const DebugLoc &getDebugLoc() const override;
@@ -251,7 +252,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures regions with an unreachable in the exit block.
-class ReportUnreachableInExit : public ReportCFG {
+class ReportUnreachableInExit final : public ReportCFG {
   BasicBlock *BB;
   DebugLoc DbgLoc;
 
@@ -268,7 +269,33 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
+  std::string getMessage() const override;
+  std::string getEndUserMessage() const override;
+  const DebugLoc &getDebugLoc() const override;
+  //@}
+};
+
+//===----------------------------------------------------------------------===//
+/// Captures regions with an IndirectBr predecessor.
+class ReportIndirectPredecessor final : public ReportCFG {
+  Instruction *Inst;
+  DebugLoc DbgLoc;
+
+public:
+  ReportIndirectPredecessor(Instruction *Inst, DebugLoc DbgLoc)
+      : ReportCFG(RejectReasonKind::IndirectPredecessor), Inst(Inst),
+        DbgLoc(DbgLoc) {}
+
+  /// @name LLVM-RTTI interface
+  //@{
+  static bool classof(const RejectReason *RR);
+  //@}
+
+  /// @name RejectReason interface
+  //@{
+  std::string getRemarkName() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   std::string getEndUserMessage() const override;
   const DebugLoc &getDebugLoc() const override;
@@ -301,7 +328,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures a condition that is based on an 'undef' value.
-class ReportUndefCond : public ReportAffFunc {
+class ReportUndefCond final : public ReportAffFunc {
   // The BasicBlock we found the broken condition in.
   BasicBlock *BB;
 
@@ -317,7 +344,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   //@}
 };
@@ -326,7 +353,7 @@ public:
 /// Captures an invalid condition
 ///
 /// Conditions have to be either constants or icmp instructions.
-class ReportInvalidCond : public ReportAffFunc {
+class ReportInvalidCond final : public ReportAffFunc {
   // The BasicBlock we found the broken condition in.
   BasicBlock *BB;
 
@@ -342,14 +369,14 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   //@}
 };
 
 //===----------------------------------------------------------------------===//
 /// Captures an undefined operand.
-class ReportUndefOperand : public ReportAffFunc {
+class ReportUndefOperand final : public ReportAffFunc {
   // The BasicBlock we found the undefined operand in.
   BasicBlock *BB;
 
@@ -365,14 +392,14 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   //@}
 };
 
 //===----------------------------------------------------------------------===//
 /// Captures a non-affine branch.
-class ReportNonAffBranch : public ReportAffFunc {
+class ReportNonAffBranch final : public ReportAffFunc {
   // The BasicBlock we found the non-affine branch in.
   BasicBlock *BB;
 
@@ -399,14 +426,14 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   //@}
 };
 
 //===----------------------------------------------------------------------===//
 /// Captures a missing base pointer.
-class ReportNoBasePtr : public ReportAffFunc {
+class ReportNoBasePtr final : public ReportAffFunc {
 public:
   ReportNoBasePtr(const Instruction *Inst)
       : ReportAffFunc(RejectReasonKind::NoBasePtr, Inst) {}
@@ -419,14 +446,14 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   //@}
 };
 
 //===----------------------------------------------------------------------===//
 /// Captures an undefined base pointer.
-class ReportUndefBasePtr : public ReportAffFunc {
+class ReportUndefBasePtr final : public ReportAffFunc {
 public:
   ReportUndefBasePtr(const Instruction *Inst)
       : ReportAffFunc(RejectReasonKind::UndefBasePtr, Inst) {}
@@ -439,14 +466,14 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   //@}
 };
 
 //===----------------------------------------------------------------------===//
 /// Captures a base pointer that is not invariant in the region.
-class ReportVariantBasePtr : public ReportAffFunc {
+class ReportVariantBasePtr final : public ReportAffFunc {
   // The variant base pointer.
   Value *BaseValue;
 
@@ -463,7 +490,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   std::string getEndUserMessage() const override;
   //@}
@@ -471,7 +498,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures a non-affine access function.
-class ReportNonAffineAccess : public ReportAffFunc {
+class ReportNonAffineAccess final : public ReportAffFunc {
   // The non-affine access function.
   const SCEV *AccessFunction;
 
@@ -494,7 +521,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   std::string getEndUserMessage() const override;
   //@}
@@ -502,7 +529,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Report array accesses with differing element size.
-class ReportDifferentArrayElementSize : public ReportAffFunc {
+class ReportDifferentArrayElementSize final : public ReportAffFunc {
   // The base pointer of the memory access.
   const Value *BaseValue;
 
@@ -519,7 +546,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   std::string getEndUserMessage() const override;
   //@}
@@ -527,7 +554,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors with non affine loop bounds.
-class ReportLoopBound : public RejectReason {
+class ReportLoopBound final : public RejectReason {
   // The offending loop.
   Loop *L;
 
@@ -550,7 +577,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   std::string getEndUserMessage() const override;
@@ -559,7 +586,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors when loop has no exit.
-class ReportLoopHasNoExit : public RejectReason {
+class ReportLoopHasNoExit final : public RejectReason {
   /// The loop that has no exit.
   Loop *L;
 
@@ -578,7 +605,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   std::string getEndUserMessage() const override;
@@ -587,7 +614,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors when a loop has multiple exists.
-class ReportLoopHasMultipleExits : public RejectReason {
+class ReportLoopHasMultipleExits final : public RejectReason {
   /// The loop that has multiple exits.
   Loop *L;
 
@@ -606,7 +633,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   std::string getEndUserMessage() const override;
@@ -615,7 +642,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors when not all loop latches are part of the scop.
-class ReportLoopOnlySomeLatches : public RejectReason {
+class ReportLoopOnlySomeLatches final : public RejectReason {
   /// The loop for which not all loop latches are part of the scop.
   Loop *L;
 
@@ -634,7 +661,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   std::string getEndUserMessage() const override;
@@ -643,7 +670,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors with non-side-effect-known function calls.
-class ReportFuncCall : public RejectReason {
+class ReportFuncCall final : public RejectReason {
   // The offending call instruction.
   Instruction *Inst;
 
@@ -658,7 +685,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   std::string getEndUserMessage() const override;
@@ -667,7 +694,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors with aliasing.
-class ReportAlias : public RejectReason {
+class ReportAlias final : public RejectReason {
 public:
   using PointerSnapshotTy = std::vector<const Value *>;
 
@@ -697,7 +724,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   std::string getEndUserMessage() const override;
@@ -724,7 +751,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors with bad IntToPtr instructions.
-class ReportIntToPtr : public ReportOther {
+class ReportIntToPtr final : public ReportOther {
   // The offending base value.
   Instruction *BaseValue;
 
@@ -739,7 +766,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   //@}
@@ -747,7 +774,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors with alloca instructions.
-class ReportAlloca : public ReportOther {
+class ReportAlloca final : public ReportOther {
   Instruction *Inst;
 
 public:
@@ -761,7 +788,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   //@}
@@ -769,7 +796,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors with unknown instructions.
-class ReportUnknownInst : public ReportOther {
+class ReportUnknownInst final : public ReportOther {
   Instruction *Inst;
 
 public:
@@ -783,7 +810,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   //@}
@@ -791,7 +818,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors with regions containing the function entry block.
-class ReportEntry : public ReportOther {
+class ReportEntry final : public ReportOther {
   BasicBlock *BB;
 
 public:
@@ -805,7 +832,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   std::string getEndUserMessage() const override;
   const DebugLoc &getDebugLoc() const override;
@@ -814,7 +841,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Report regions that seem not profitable to be optimized.
-class ReportUnprofitable : public ReportOther {
+class ReportUnprofitable final : public ReportOther {
   Region *R;
 
 public:
@@ -828,7 +855,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   std::string getEndUserMessage() const override;
   const DebugLoc &getDebugLoc() const override;
@@ -837,7 +864,7 @@ public:
 
 //===----------------------------------------------------------------------===//
 /// Captures errors with non-simple memory accesses.
-class ReportNonSimpleMemoryAccess : public ReportOther {
+class ReportNonSimpleMemoryAccess final : public ReportOther {
   // The offending call instruction.
   Instruction *Inst;
 
@@ -852,7 +879,7 @@ public:
   /// @name RejectReason interface
   //@{
   std::string getRemarkName() const override;
-  const Value *getRemarkBB() const override;
+  const BasicBlock *getRemarkBB() const override;
   std::string getMessage() const override;
   const DebugLoc &getDebugLoc() const override;
   std::string getEndUserMessage() const override;

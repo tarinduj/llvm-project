@@ -3,9 +3,9 @@ OpenMP Optimization Remarks
 
 The :doc:`OpenMP-Aware optimization pass </optimizations/OpenMPOpt>` is able to
 generate compiler remarks for performed and missed optimisations. To emit them,
-pass ``-Rpass=openmp-opt``, ``-Rpass-analysis=openmp-opt``, and
-``-Rpass-missed=openmp-opt`` to the Clang invocation.  For more information and
-features of the remark system the clang documentation should be consulted:
+pass these options to the Clang invocation: ``-Rpass=openmp-opt
+-Rpass-analysis=openmp-opt -Rpass-missed=openmp-opt``.  For more information and
+features of the remark system, consult the clang documentation:
 
 + `Clang options to emit optimization reports <https://clang.llvm.org/docs/UsersManual.html#options-to-emit-optimization-reports>`_
 + `Clang diagnostic and remark flags <https://clang.llvm.org/docs/ClangCommandLineReference.html#diagnostic-flags>`_
@@ -39,6 +39,8 @@ OpenMP Remarks
    OMP150
    OMP160
    OMP170
+   OMP180
+   OMP190
 
 .. list-table::
    :widths: 15 15 70
@@ -79,7 +81,7 @@ OpenMP Remarks
    * - :ref:`OMP121 <omp121>`
      - Analysis
      - Value has potential side effects preventing SPMD-mode execution. Add
-       `__attribute__((assume(\"ompx_spmd_amenable\")))` to the called function
+       `[[omp::assume(\"ompx_spmd_amenable\")]]` to the called function
        to override.
    * - :ref:`OMP130 <omp130>`
      - Optimization
@@ -94,7 +96,7 @@ OpenMP Remarks
    * - :ref:`OMP133 <omp133>`
      - Analysis
      - Call may contain unknown parallel regions. Use
-       `__attribute__((assume("omp_no_parallelism")))` to override.
+       `[[omp::assume("omp_no_parallelism")]]` to override.
    * - :ref:`OMP140 <omp140>`
      - Analysis
      - Could not internalize function. Some optimizations may not be possible.
@@ -107,3 +109,9 @@ OpenMP Remarks
    * - :ref:`OMP170 <omp170>`
      - Optimization
      - OpenMP runtime call <call> deduplicated.
+   * - :ref:`OMP180 <omp180>`
+     - Optimization
+     - Replacing OpenMP runtime call <call> with <value>.
+   * - :ref:`OMP190 <omp190>`
+     - Optimization
+     - Redundant barrier eliminated. (device only)

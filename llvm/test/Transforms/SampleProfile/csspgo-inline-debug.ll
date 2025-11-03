@@ -60,7 +60,7 @@ while.cond2.preheader:                            ; preds = %entry
 
 while.body:                                       ; preds = %while.body, %entry
   %x.addr.016 = phi i32 [ %sub, %while.body ], [ %x, %entry ]
-  %tmp = load volatile i32, i32* @factor, align 4, !dbg !64
+  %tmp = load volatile i32, ptr @factor, align 4, !dbg !64
   %call = tail call i32 @_Z3fibi(i32 %tmp), !dbg !67
   %sub = sub nsw i32 %x.addr.016, %call, !dbg !68
   %cmp1 = icmp sgt i32 %sub, 0, !dbg !69
@@ -68,7 +68,7 @@ while.body:                                       ; preds = %while.body, %entry
 
 while.body4:                                      ; preds = %while.body4, %while.cond2.preheader
   %x.addr.114 = phi i32 [ %add, %while.body4 ], [ %x, %while.cond2.preheader ]
-  %tmp1 = load volatile i32, i32* @factor, align 4, !dbg !72
+  %tmp1 = load volatile i32, ptr @factor, align 4, !dbg !72
   %call5 = tail call i32 @_Z3fibi(i32 %tmp1), !dbg !74
   %add = add nsw i32 %call5, %x.addr.114, !dbg !75
   %cmp3 = icmp slt i32 %add, 0, !dbg !60
@@ -88,8 +88,8 @@ entry:
 
 declare i32 @_Z3fibi(i32)
 
-attributes #0 = { nofree noinline norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" "use-sample-profile" }
-attributes #1 = { nofree norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" "use-sample-profile" }
+attributes #0 = { nofree noinline norecurse nounwind uwtable "use-sample-profile" }
+attributes #1 = { nofree norecurse nounwind uwtable "use-sample-profile" }
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!14, !15, !16}

@@ -73,7 +73,15 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
   /// given region. For Toy this hook can simply return true, as all Toy
   /// operations are inlinable.
   bool isLegalToInline(Operation *, Region *, bool,
-                       BlockAndValueMapping &) const final {
+                       IRMapping &) const final {
+    return true;
+  }
+
+  /// This hook cheks if the given 'src' region can be inlined into the 'dest'
+  /// region. The regions here are the bodies of the callable functions. For
+  /// Toy, any function can be inlined, so we simply return true.
+  bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
+                       IRMapping &valueMapping) const final {
     return true;
   }
 
@@ -83,7 +91,7 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
   /// previously returned by the call operation with the operands of the
   /// return.
   void handleTerminator(Operation *op,
-                        ArrayRef<Value> valuesToRepl) const final {
+                        ValueRange valuesToRepl) const final {
     // Only "toy.return" needs to be handled here.
     auto returnOp = cast<ReturnOp>(op);
 
@@ -93,6 +101,22 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
       valuesToRepl[it.index()].replaceAllUsesWith(it.value());
   }
 };
+```
+
+Besides, the inliner will only discard private-visible unused function
+definitions. We also have to set the visibility of functions (except the
+main function) in the MLIR generator.
+
+```c++
+/// Emit a new function and add it to the MLIR module.
+mlir::toy::FuncOp mlirGen(FunctionAST &funcAST) {
+  ...
+  // If this function isn't main, then set the visibility to private.
+  if (funcAST.getProto()->getName() != "main")
+    function.setPrivate();
+
+  return function;
+}
 ```
 
 We then register our dialect interface directly on the Toy dialect, similarly to
@@ -105,12 +129,12 @@ void ToyDialect::initialize() {
 ```
 
 Next, we need to provide a way for the inliner to know that `toy.generic_call`
-represents a call to a function. MLIR provides an
-[operation interface](../../Interfaces.md/#attributeoperationtype-interfaces) that can be used
-to mark an operation as being "call-like". Unlike dialect interfaces, operation
-interfaces provide a more refined granularity of information that is specific
-and core to a single operation. The interface that we will be adding here is the
-`CallOpInterface`.
+represents a call, and `toy.func` represents a function. MLIR provides
+[operation interfaces](../../Interfaces.md/#attributeoperationtype-interfaces) that can be used
+to mark an operation as being "call-like" or "callable-like". Unlike dialect interfaces,
+operation interfaces provide a more refined granularity of information that is specific
+and core to a single operation. The interfaces that we will be adding here is the
+`CallOpInterface` and `CallableOpInterface`.
 
 To add this interface we just need to include the definition into our operation
 specification file (`Ops.td`):
@@ -122,6 +146,11 @@ include "mlir/Interfaces/CallInterfaces.td"
 and add it to the traits list of `GenericCallOp`:
 
 ```tablegen
+def FuncOp : Toy_Op<"func",
+    [FunctionOpInterface, IsolatedFromAbove]> {
+  ...
+}
+
 def GenericCallOp : Toy_Op<"generic_call",
     [DeclareOpInterfaceMethods<CallOpInterface>]> {
   ...
@@ -130,18 +159,49 @@ def GenericCallOp : Toy_Op<"generic_call",
 
 In the above we also use the `DeclareOpInterfaceMethods` directive to
 auto-declare all of the interface methods in the class declaration of
-GenericCallOp. This means that we just need to provide a definition:
+`GenericCallOp`. However, using this directive with `CallOpInterface`
+includes methods for handling argument and result attributes. Therefore,
+we need to add these specifically named attributes to our `GenericCallOp`
+definition:
+
+```tablegen
+let arguments = (ins
+  ...
+  OptionalAttr<DictArrayAttr>:$arg_attrs,
+  OptionalAttr<DictArrayAttr>:$res_attrs
+);
+```
+
+We have already provided the definition in the `extraClassDeclaration`
+field of the `FuncOp` class:
 
 ```c++
+/// Returns the region on the function operation that is callable.
+Region *FuncOp::getCallableRegion() { return &getBody(); }
+
+// ....
+
 /// Return the callee of the generic call operation, this is required by the
 /// call interface.
 CallInterfaceCallable GenericCallOp::getCallableForCallee() {
-  return getAttrOfType<SymbolRefAttr>("callee");
+  return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+}
+
+/// Set the callee for the generic call operation, this is required by the call
+/// interface.
+void GenericCallOp::setCalleeFromCallable(CallInterfaceCallable callee) {
+  (*this)->setAttr("callee", callee.get<SymbolRefAttr>());
 }
 
 /// Get the argument operands to the called function, this is required by the
 /// call interface.
-Operation::operand_range GenericCallOp::getArgOperands() { return inputs(); }
+Operation::operand_range GenericCallOp::getArgOperands() { return getInputs(); }
+
+/// Get the argument operands to the called function as a mutable range, this is
+/// required by the call interface.
+MutableOperandRange GenericCallOp::getArgOperandsMutable() {
+  return getInputsMutable();
+}
 ```
 
 Now that the inliner has been informed about the Toy dialect, we can add the
@@ -154,13 +214,13 @@ inliner pass to the pass manager for Toy:
 Now let's look at a working example:
 
 ```mlir
-func @multiply_transpose(%arg0: tensor<*xf64>, %arg1: tensor<*xf64>) -> tensor<*xf64> {
+toy.func @multiply_transpose(%arg0: tensor<*xf64>, %arg1: tensor<*xf64>) -> tensor<*xf64> {
   %0 = toy.transpose(%arg0 : tensor<*xf64>) to tensor<*xf64>
   %1 = toy.transpose(%arg1 : tensor<*xf64>) to tensor<*xf64>
   %2 = toy.mul %0, %1 : tensor<*xf64>
   toy.return %2 : tensor<*xf64>
 }
-func @main() {
+toy.func @main() {
   %0 = toy.constant dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
   %1 = toy.reshape(%0 : tensor<2x3xf64>) to tensor<2x3xf64>
   %2 = toy.constant dense<[1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00]> : tensor<6xf64>
@@ -184,7 +244,7 @@ casts between two different shapes.
 ```tablegen
 def CastOp : Toy_Op<"cast", [
     DeclareOpInterfaceMethods<CastOpInterface>,
-    NoSideEffect,
+    Pure,
     SameOperandsAndResultShape]
   > {
   let summary = "shape cast operation";
@@ -198,6 +258,7 @@ def CastOp : Toy_Op<"cast", [
 
   let arguments = (ins F64Tensor:$input);
   let results = (outs F64Tensor:$output);
+  let assemblyFormat = "$input attr-dict `:` type($input) `to` type($output)";
 }
 ```
 
@@ -214,8 +275,8 @@ bool CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   if (inputs.size() != 1 || outputs.size() != 1)
     return false;
   // The inputs must be Tensors with the same element type.
-  TensorType input = inputs.front().dyn_cast<TensorType>();
-  TensorType output = outputs.front().dyn_cast<TensorType>();
+  TensorType input = llvm::dyn_cast<TensorType>(inputs.front());
+  TensorType output = llvm::dyn_cast<TensorType>(outputs.front());
   if (!input || !output || input.getElementType() != output.getElementType())
     return false;
   // The shape is required to match if both types are ranked.
@@ -239,7 +300,7 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
   Operation *materializeCallConversion(OpBuilder &builder, Value input,
                                        Type resultType,
                                        Location conversionLoc) const final {
-    return builder.create<CastOp>(conversionLoc, resultType, input);
+    return CastOp::create(builder, conversionLoc, resultType, input);
   }
 };
 ```
@@ -247,14 +308,14 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
 If we run the working example through the pipeline again, we get the expected:
 
 ```mlir
-func @main() {
-  %0 = "toy.constant"() {value = dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>} : () -> tensor<2x3xf64>
-  %1 = "toy.constant"() {value = dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>} : () -> tensor<2x3xf64>
-  %2 = "toy.cast"(%1) : (tensor<2x3xf64>) -> tensor<*xf64>
-  %3 = "toy.cast"(%0) : (tensor<2x3xf64>) -> tensor<*xf64>
-  %4 = "toy.transpose"(%2) : (tensor<*xf64>) -> tensor<*xf64>
-  %5 = "toy.transpose"(%3) : (tensor<*xf64>) -> tensor<*xf64>
-  %6 = "toy.mul"(%4, %5) : (tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
+toy.func @main() {
+  %0 = toy.constant dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
+  %1 = toy.constant dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
+  %2 = toy.cast %1 : tensor<2x3xf64> to tensor<*xf64>
+  %3 = toy.cast %0 : tensor<2x3xf64> to tensor<*xf64>
+  %4 = toy.transpose(%2 : tensor<*xf64>) to tensor<*xf64>
+  %5 = toy.transpose(%3 : tensor<*xf64>) to tensor<*xf64>
+  %6 = toy.mul %4, %5 : tensor<*xf64>
   toy.print %6 : tensor<*xf64>
   toy.return
 }
@@ -336,24 +397,24 @@ inferred as the shape of the inputs.
 ```c++
 /// Infer the output shape of the MulOp, this is required by the shape inference
 /// interface.
-void MulOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
+void MulOp::inferShapes() { getResult().setType(getLhs().getType()); }
 ```
 
 At this point, each of the necessary Toy operations provide a mechanism by which
-to infer their output shapes. The ShapeInferencePass is a FunctionPass: it will
-run on each Function in isolation. MLIR also supports general
-[OperationPasses](../../PassManagement.md/#operation-pass) that run on any isolated
-operation (i.e. other function-like operations), but here our module only
-contains functions, so there is no need to generalize to all operations.
+to infer their output shapes. The ShapeInferencePass will operate on functions:
+it will run on each function in isolation. MLIR also supports general
+[OperationPasses](../../PassManagement.md/#operation-pass) that run on any
+isolated operation, but here our module only contains functions, so there is no
+need to generalize to all operations.
 
 Implementing such a pass is done by creating a class inheriting from
-`mlir::FunctionPass` and overriding the `runOnFunction()` method.
+`mlir::OperationPass<FuncOp>` and overriding the `runOnOperation()` method.
 
 ```c++
 class ShapeInferencePass
-    : public mlir::PassWrapper<ShapeInferencePass, FunctionPass> {
-  void runOnFunction() override {
-    FuncOp function = getFunction();
+    : public mlir::PassWrapper<ShapeInferencePass, OperationPass<FuncOp>> {
+  void runOnOperation() override {
+    FuncOp function = getOperation();
     ...
   }
 };
@@ -384,7 +445,7 @@ When processing an operation like described, we query if it registered the
 
 ```c++
   // Ask the operation to infer its output shapes.
-  LLVM_DEBUG(llvm::dbgs() << "Inferring shape for: " << *op << "\n");
+  LDBG() << "Inferring shape for: " << *op;
 
   /// We check if an operation has a particular interface by casting.
   if (ShapeInference shapeOp = dyn_cast<ShapeInference>(op)) {
@@ -405,10 +466,10 @@ We can then add our pass to the pass manager:
 If we rerun our original example, we now get the following:
 
 ```mlir
-func @main() {
-  %0 = "toy.constant"() {value = dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>} : () -> tensor<2x3xf64>
-  %1 = "toy.transpose"(%0) : (tensor<2x3xf64>) -> tensor<3x2xf64>
-  %2 = "toy.mul"(%1, %1) : (tensor<3x2xf64>, tensor<3x2xf64>) -> tensor<3x2xf64>
+toy.func @main() {
+  %0 = toy.constant dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
+  %1 = toy.transpose(%0 : tensor<2x3xf64>) to tensor<3x2xf64>
+  %2 = toy.mul %1, %1 : tensor<3x2xf64>
   toy.print %2 : tensor<3x2xf64>
   toy.return
 }

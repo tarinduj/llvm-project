@@ -11,6 +11,8 @@
 // is_signed
 
 #include <type_traits>
+#include <cstddef>
+
 #include "test_macros.h"
 
 template <class T>
@@ -119,7 +121,7 @@ int main(int, char**)
   test_is_not_signed<bool>();
   test_is_not_signed<unsigned>();
 
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
     test_is_signed<__int128_t>();
     test_is_not_signed<__uint128_t>();
 #endif

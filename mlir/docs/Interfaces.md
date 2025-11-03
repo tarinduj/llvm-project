@@ -8,6 +8,8 @@ to account for the semantics of every operation, or be overly conservative.
 Without care, this can result in code with special-cases for each supported
 operation type. To combat this, MLIR provides a concept of `interfaces`.
 
+[TOC]
+
 ## Motivation
 
 Interfaces provide a generic way of interacting with the IR. The goal is to be
@@ -37,7 +39,7 @@ utilities for registering an interface with a dialect so that it can be
 referenced later. Once the interface has been defined, dialects can override it
 using dialect-specific information. The interfaces defined by a dialect are
 registered via `addInterfaces<>`, a similar mechanism to Attributes, Operations,
-Types, etc
+Types, etc.
 
 ```c++
 /// Define a base inlining interface class to allow for dialects to opt-in to
@@ -51,7 +53,7 @@ public:
   /// This can be used to examine what values will replace entry arguments into
   /// the 'src' region, for example.
   virtual bool isLegalToInline(Region *dest, Region *src,
-                               BlockAndValueMapping &valueMapping) const {
+                               IRMapping &valueMapping) const {
     return false;
   }
 };
@@ -61,7 +63,7 @@ public:
 struct AffineInlinerInterface : public DialectInlinerInterface {
   /// Affine structures have specific inlining constraints.
   bool isLegalToInline(Region *dest, Region *src,
-                       BlockAndValueMapping &valueMapping) const final {
+                       IRMapping &valueMapping) const final {
     ...
   }
 };
@@ -77,8 +79,7 @@ or transformation without the need to determine the specific dialect subclass:
 
 ```c++
 Dialect *dialect = ...;
-if (DialectInlinerInterface *interface
-      = dialect->getRegisteredInterface<DialectInlinerInterface>()) {
+if (DialectInlinerInterface *interface = dyn_cast<DialectInlinerInterface>(dialect)) {
   // The dialect has provided an implementation of this interface.
   ...
 }
@@ -87,7 +88,7 @@ if (DialectInlinerInterface *interface
 #### DialectInterfaceCollection
 
 An additional utility is provided via `DialectInterfaceCollection`. This class
-allows for collecting all of the dialects that have registered a given interface
+allows collecting all of the dialects that have registered a given interface
 within an instance of the `MLIRContext`. This can be useful to hide and optimize
 the lookup of a registered dialect interface.
 
@@ -98,7 +99,7 @@ class InlinerInterface : public
   /// with default implementations that call the hook on the interface for a
   /// given dialect.
   virtual bool isLegalToInline(Region *dest, Region *src,
-                               BlockAndValueMapping &valueMapping) const {
+                               IRMapping &valueMapping) const {
     auto *handler = getInterfaceFor(dest->getContainingOp());
     return handler ? handler->isLegalToInline(dest, src, valueMapping) : false;
   }
@@ -131,7 +132,7 @@ methods that are overridden by the `Model` that is templated on the concrete
 entity type. It is important to note that these classes should be pure, and
 should not contain non-static data members or other mutable data. To attach an
 interface to an object, the base interface classes provide a
-[`Trait`](Traits.md) class that can be appended to the trait list of that
+[`Trait`](Traits) class that can be appended to the trait list of that
 object.
 
 ```c++
@@ -255,7 +256,7 @@ struct ExampleTypeInterfaceTraits {
   struct ExternalModel : public FallbackModel<ConcreteModel> {
     unsigned exampleInterfaceHook(Type type) const override {
       // Default implementation can be provided here.
-      return type.cast<ConcreteType>().callSomeTypeSpecificMethod();
+      return cast<ConcreteType>(type).callSomeTypeSpecificMethod();
     }
   };
 };
@@ -285,10 +286,10 @@ int main() {
   MLIRContext context;
   /* ... */;
 
-  // Register the interface model with the type in the given context before
-  // using it. The dialect contaiing the type is expected to have been loaded
+  // Attach the interface model to the type in the given context before
+  // using it. The dialect containing the type is expected to have been loaded
   // at this point.
-  IntegerType::registerInterface<ExternalModelExample>(context);
+  IntegerType::attachInterface<ExternalModelExample>(context);
 }
 ```
 
@@ -297,6 +298,30 @@ interface being externally applied. This prevents a situation where neither the
 owner of the dialect containing the object nor the owner of the interface are
 aware of an interface implementation, which can lead to duplicate or
 diverging implementations.
+
+Forgetting to register an external model can lead to bugs which are hard to
+track down. The `declarePromisedInterface` function can be used to declare that
+an external model implementation for an operation must eventually be provided.
+
+```
+  void MyDialect::initialize() {
+    declarePromisedInterface<SomeInterface, SomeOp>();
+     ...
+  }
+```
+
+Now attempting to use the interface, e.g in a cast, without a prior registration
+of the external model will lead to a runtime error that will look similar to
+this:
+
+```
+LLVM ERROR: checking for an interface (`SomeInterface`) that was promised by dialect 'mydialect' but never implemented. This is generally an indication that the dialect extension implementing the interface was never registered.
+```
+
+If you encounter this error for a dialect and an interface provided by MLIR, you
+may look for a method that will be named like
+`register<Dialect><Interface>ExternalModels(DialectRegistry &registry);` ; try
+to find it with `git grep 'register.*SomeInterface.*Model' mlir`.
 
 #### Dialect Fallback for OpInterface
 
@@ -327,7 +352,7 @@ operations by overriding the `getRegisteredInterfaceForOp` method :
 
 ```c++
 void *TestDialect::getRegisteredInterfaceForOp(TypeID typeID,
-                                               Identifier opName) {
+                                               StringAttr opName) {
   if (typeID == TypeID::get<ExampleOpInterface>()) {
     if (isSupported(opName))
       return fallbackExampleOpInterface;
@@ -341,7 +366,7 @@ void *TestDialect::getRegisteredInterfaceForOp(TypeID typeID,
 
 Note: Before reading this section, the reader should have some familiarity with
 the concepts described in the
-[`Operation Definition Specification`](OpDefinitions.md) documentation.
+[`Operation Definition Specification`](DefiningDialects/Operations.md) documentation.
 
 As detailed above, [Interfaces](#attributeoperationtype-interfaces) allow for
 attributes, operations, and types to expose method calls without requiring that
@@ -378,6 +403,9 @@ comprised of the following components:
 
 *   C++ Class Name (Provided via template parameter)
     -   The name of the C++ interface class.
+*   Interface Base Classes
+    -   A set of interfaces that the interface class should derived from. See
+        [Interface Inheritance](#interface-inheritance) below for more details.
 *   Description (`description`)
     -   A string description of the interface, its invariants, example usages,
         etc.
@@ -393,6 +421,22 @@ comprised of the following components:
         These declarations are _not_ implicitly visible in default
         implementations of interface methods, but static declarations may be
         accessed with full name qualification.
+*   Extra Shared Class Declarations (Optional: `extraSharedClassDeclaration`)
+    -   Additional C++ code that is injected into the declarations of both the
+        interface and the trait class. This allows for defining methods and more
+        that are exposed on both the interface and the trait class, e.g. to inject
+        utilities on both the interface and the derived entity implementing the
+        interface (e.g. attribute, operation, etc.).
+    -   In non-static methods, `$_attr`/`$_op`/`$_type`
+        (depending on the type of interface) may be used to refer to an
+        instance of the IR entity. In the interface declaration, the type of
+        the instance is the interface class. In the trait declaration, the
+        type of the instance is the concrete entity class
+        (e.g. `IntegerAttr`, `FuncOp`, etc.).
+*   Extra Trait Class Declarations (Optional: `extraTraitClassDeclaration`)
+    -   Additional C++ code that is injected into the interface trait
+        declaration.
+    -   Allows the same replacements as extra shared class declarations.
 
 `OpInterface` classes may additionally contain the following:
 
@@ -400,7 +444,9 @@ comprised of the following components:
     -   A C++ code block containing additional verification applied to the
         operation that the interface is attached to.
     -   The structure of this code block corresponds 1-1 with the structure of a
-        [`Trait::verifyTrait`](Traits.md) method.
+        [`Trait::verifyTrait`](Traits) method.
+
+##### Interface Methods
 
 There are two types of methods that can be used with an interface,
 `InterfaceMethod` and `StaticInterfaceMethod`. They are both comprised of the
@@ -435,7 +481,7 @@ Interface methods are comprised of the following components:
     -   This implementation is placed within the `Trait` class that is attached
         to the IR entity, and does not directly affect any of the interface
         classes. As such, this method has the same characteristics as any other
-        [`Trait`](Traits.md) method.
+        [`Trait`](Traits) method.
     -   `ConcreteAttr`/`ConcreteOp`/`ConcreteType` is an implicitly defined
         `typename` that can be used to refer to the type of the derived IR
         entity currently being operated on.
@@ -448,7 +494,7 @@ operation if the operation specifies the interface with
 
 Examples:
 
-~~~tablegen
+```tablegen
 def MyInterface : OpInterface<"MyInterface"> {
   let description = [{
     This is the description of the interface. It provides concrete information
@@ -517,7 +563,7 @@ def MyInterface : OpInterface<"MyInterface"> {
         template <typename ConcreteOp>
         struct Model : public Concept {
           Operation *create(OpBuilder &builder, Location loc) const override {
-            return builder.create<ConcreteOp>(loc);
+            return ConcreteOp::create(builder, loc);
           }
         }
       };
@@ -528,7 +574,7 @@ def MyInterface : OpInterface<"MyInterface"> {
     }],
       "Operation *", "create", (ins "OpBuilder &":$builder, "Location":$loc),
       /*methodBody=*/[{
-        return builder.create<ConcreteOp>(loc);
+        return ConcreteOp::create(builder, loc);
     }]>,
 
     InterfaceMethod<[{
@@ -545,8 +591,7 @@ def MyInterface : OpInterface<"MyInterface"> {
 
         template <typename ConcreteOp>
         struct Model : public Concept {
-          Operation *create(Operation *opaqueOp, OpBuilder &builder,
-                            Location loc) const override {
+          unsigned getNumInputsAndOutputs(Operation *opaqueOp) const override {
             ConcreteOp op = cast<ConcreteOp>(opaqueOp);
             return op.getNumInputs() + op.getNumOutputs();
           }
@@ -575,12 +620,12 @@ def MyInterface : OpInterface<"MyInterface"> {
       public:
         bool isSafeToTransform() {
           ConcreteOp op = cast<ConcreteOp>(this->getOperation());
-          return op.getNumInputs() + op.getNumOutputs();
+          return op.getProperties().hasFlag;
         }
       };
       ```
 
-      As detailed in [Traits](Traits.md), given that each operation implementing
+      As detailed in [Traits](Traits), given that each operation implementing
       this interface will also add the interface trait, the methods on this
       interface are inherited by the derived operation. This allows for
       injecting a default implementation of this method into each operation that
@@ -601,12 +646,13 @@ def MyInterface : OpInterface<"MyInterface"> {
     }],
       "bool", "isSafeToTransform", (ins), /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
+        return $_op.getProperties().hasFlag;
     }]>,
   ];
 }
 
 // Operation interfaces can optionally be wrapped inside
-// DeclareOpInterfaceMethods. This would result in autogenerating declarations
+// `DeclareOpInterfaceMethods`. This would result in autogenerating declarations
 // for members `foo`, `bar` and `fooStatic`. Methods with bodies are not
 // declared inside the op declaration but instead handled by the op interface
 // trait directly.
@@ -619,7 +665,79 @@ def OpWithInferTypeInterfaceOp : Op<...
 // the generation of a declaration for those methods.
 def OpWithOverrideInferTypeInterfaceOp : Op<...
     [DeclareOpInterfaceMethods<MyInterface, ["getNumWithDefault"]>]> { ... }
-~~~
+```
+
+##### Interface Inheritance
+
+Interfaces also support a limited form of inheritance, which allows for
+building upon pre-existing interfaces in a way similar to that of classes in
+programming languages like C++. This more easily allows for building modular
+interfaces, without suffering from the pain of lots of explicit casting. To
+enable inheritance, an interface simply needs to provide the desired set of
+base classes in its definition. For example:
+
+```tablegen
+def MyBaseInterface : OpInterface<"MyBaseInterface"> {
+  ...
+}
+
+def MyInterface : OpInterface<"MyInterface", [MyBaseInterface]> {
+  ...
+}
+```
+
+This will result in `MyInterface` inheriting various components from
+`MyBaseInterface`, namely its interface methods and extra class declarations.
+Given that these inherited components are comprised of opaque C++ blobs, we
+cannot properly sandbox the names. As such, it's important to ensure that inherited
+components do not create name overlaps, as these will result in errors during
+interface generation.
+
+`MyInterface` will also implicitly inherit any base classes defined on
+`MyBaseInterface` as well. It's important to note, however, that there is only
+ever one instance of each interface for a given attribute, operation, or type.
+Inherited interface methods simplify forward to base interface implementation.
+This produces a simpler system overall, and also removes any potential problems
+surrounding "diamond inheritance". The interfaces on an attribute/op/type can be
+thought of as comprising a set, with each interface (including base interfaces)
+uniqued within this set and referenced elsewhere as necessary.
+
+When adding an interface with inheritance to an attribute, operation, or type,
+all of the base interfaces are also implicitly added as well. The user may still
+manually specify the base interfaces if they desire, such as for use with the
+`Declare<Attr|Op|Type>InterfaceMethods` helper classes.
+
+If our interface were to be specified as:
+
+```tablegen
+def MyBaseInterface : OpInterface<"MyBaseInterface"> {
+  ...
+}
+
+def MyOtherBaseInterface : OpInterface<MyOtherBaseInterface, [MyBaseInterface]> {
+  ...
+}
+
+def MyInterface : OpInterface<"MyInterface", [MyBaseInterface, MyOtherBaseInterface]> {
+  ...
+}
+```
+
+An operation with `MyInterface` attached, would have the following interfaces added:
+
+* MyBaseInterface, MyOtherBaseInterface, MyInterface
+
+The methods from `MyBaseInterface` in both `MyInterface` and `MyOtherBaseInterface` would
+forward to a single unique implementation for the operation.
+
+##### Generation
+
+Once the interfaces have been defined, the C++ header and source files can be
+generated using the `--gen-<attr|op|type>-interface-decls` and
+`--gen-<attr|op|type>-interface-defs` options with mlir-tblgen. Note that when
+generating interfaces, mlir-tblgen will only generate interfaces defined in
+the top-level input `.td` file. This means that any interfaces that are
+defined within include files will not be considered for generation.
 
 Note: Existing operation interfaces defined in C++ can be accessed in the ODS
 framework via the `OpInterfaceTrait` class.
@@ -635,12 +753,25 @@ interface section goes as follows:
     -   (`C++ class` -- `ODS class`(if applicable))
 
 ##### CallInterfaces
-
 *   `CallOpInterface` - Used to represent operations like 'call'
     -   `CallInterfaceCallable getCallableForCallee()`
+    -   `void setCalleeFromCallable(CallInterfaceCallable)`
+    -   `ArrayAttr getArgAttrsAttr()`
+    -   `ArrayAttr getResAttrsAttr()`
+    -   `void setArgAttrsAttr(ArrayAttr)`
+    -   `void setResAttrsAttr(ArrayAttr)`
+    -   `Attribute removeArgAttrsAttr()`
+    -   `Attribute removeResAttrsAttr()`
 *   `CallableOpInterface` - Used to represent the target callee of call.
     -   `Region * getCallableRegion()`
-    -   `ArrayRef<Type> getCallableResults()`
+    -   `ArrayRef<Type> getArgumentTypes()`
+    -   `ArrayRef<Type> getResultTypes()`
+    -   `ArrayAttr getArgAttrsAttr()`
+    -   `ArrayAttr getResAttrsAttr()`
+    -   `void setArgAttrsAttr(ArrayAttr)`
+    -   `void setResAttrsAttr(ArrayAttr)`
+    -   `Attribute removeArgAttrsAttr()`
+    -   `Attribute removeResAttrsAttr()`
 
 ##### RegionKindInterfaces
 

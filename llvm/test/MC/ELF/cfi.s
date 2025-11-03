@@ -9,27 +9,27 @@
 
 f1:
         .cfi_startproc
-	.cfi_lsda 0x3, bar
+        .cfi_lsda 0x3, bar
         nop
         .cfi_endproc
 
 f2:
         .cfi_startproc
         .cfi_personality 0x00, foo
-	.cfi_lsda 0x3, bar
+        .cfi_lsda 0x3, bar
         nop
         .cfi_endproc
 
 f3:
         .cfi_startproc
-	.cfi_lsda 0x3, bar
+        .cfi_lsda 0x3, bar
         nop
         .cfi_endproc
 
 f4:
         .cfi_startproc
         .cfi_personality 0x00, foo
-	.cfi_lsda 0x2, bar
+        .cfi_lsda 0x2, bar
         nop
         .cfi_endproc
 
@@ -358,6 +358,7 @@ f37:
 // CHECK:          Name: .rela.eh_frame
 // CHECK-NEXT:     Type: SHT_RELA
 // CHECK-NEXT:     Flags [
+// CHECK-NEXT:       SHF_INFO_LINK
 // CHECK-NEXT:     ]
 // CHECK-NEXT:     Address: 0x0
 // CHECK-NEXT:     Offset:
@@ -444,12 +445,14 @@ f37:
 // CHECK:        }
 
 .ifdef ERR
-// ERR: [[#@LINE+1]]:15: error: expected .eh_frame or .debug_frame
+// ERR: [[#@LINE+1]]:15: error: expected .eh_frame, .debug_frame, or .sframe
 .cfi_sections $
 // ERR: [[#@LINE+1]]:28: error: expected comma
 .cfi_sections .debug_frame $
 // ERR: [[#@LINE+1]]:39: error: expected comma
 .cfi_sections .debug_frame, .eh_frame $
+// ERR: [[#@LINE+1]]:48: error: expected comma
+.cfi_sections .debug_frame, .eh_frame, .sframe $
 
 // ERR: [[#@LINE+1]]:16: error: unexpected token
 .cfi_startproc $

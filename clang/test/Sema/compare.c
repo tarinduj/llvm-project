@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin -fsyntax-only -pedantic -verify -Wsign-compare -Wtautological-constant-in-range-compare %s -Wno-unreachable-code
-// RUN: %clang_cc1 -triple x86_64-apple-darwin -fsyntax-only -pedantic -verify -Wsign-compare -Wtype-limits %s -Wno-unreachable-code
+// RUN: %clang_cc1 -triple x86_64-apple-darwin -fsyntax-only -pedantic -verify -Wsign-compare -Wtautological-constant-in-range-compare %s -Wno-unreachable-code -DTEST=1
+// RUN: %clang_cc1 -triple x86_64-apple-darwin -fsyntax-only -pedantic -verify -Wsign-compare -Wtype-limits %s -Wno-unreachable-code -DTEST=2
 
 int test(char *C) { // nothing here should warn.
   return C != ((void*)0);
@@ -262,7 +262,7 @@ int test2(int i32) {
 }
 
 // PR5887
-void test3() {
+void test3(void) {
   unsigned short x, y;
   unsigned int z;
   if ((x > y ? x : y) > z)
@@ -271,7 +271,7 @@ void test3() {
 
 // PR5961
 extern char *ptr4;
-void test4() {
+void test4(void) {
   long value;
   if (value < (unsigned long) &ptr4) // expected-warning {{comparison of integers of different signs}}
     return;
@@ -304,7 +304,7 @@ int test6(unsigned i, unsigned power) {
   return x != 3 ? 1 << power : i;
 }
 
-// <rdar://problem/8414119> enum >= (enum)0 comparison should not generate any warnings
+// enum >= (enum)0 comparison should not generate any warnings
 enum rdar8414119_Vals { X, Y, Z };
 #define ZERO 0
 #define CHECK(x) (x >= X)
@@ -320,7 +320,7 @@ int rdar8414119_bar(unsigned x) {
 #undef ZERO
 #undef CHECK
 
-int rdar8511238() {
+int rdar8511238(void) {
   enum A { A_foo, A_bar };
   enum A a;
 
@@ -419,3 +419,65 @@ void pr36008(enum PR36008EnumTest lhs) {
   if (x == y) x = y; // no warning
   if (y == x) y = x; // no warning
 }
+
+int test13(unsigned a, int b) {
+  return a > ~(95 != b); // expected-warning {{comparison of integers of different signs}}
+}
+
+int test14(unsigned a, unsigned b) {
+  return a > ~b; // no-warning
+}
+
+int test15(unsigned a, int b) {
+  return a > -(95 != b); // expected-warning {{comparison of integers of different signs}}
+}
+
+int test16(unsigned a, unsigned b) {
+  return a > -b; // no-warning
+}
+
+int test17(int a, unsigned b) {
+  return a > -(-b); // expected-warning {{comparison of integers of different signs}}
+}
+
+int test18(int a) {
+  return a == -(-2147483648); // expected-warning {{result of comparison of constant 2147483648 with expression of type 'int' is always false}}
+}
+
+int test19(int n) {
+  return -(n & 15) <= -15; // no-warning
+}
+
+#if TEST == 1
+int test20(int n) {
+  return -(n & 15) <= -17; // expected-warning {{result of comparison of 5-bit signed value <= -17 is always false}}
+}
+#endif
+
+int test21(short n) {
+  return -n == 32768; // no-warning
+}
+
+#if TEST == 1
+int test22(short n) {
+  return -n == 65536; // expected-warning {{result of comparison of 17-bit signed value == 65536 is always false}}
+}
+#endif
+
+int test23(unsigned short n) {
+  return ~n == 32768; // no-warning
+}
+
+int test24(short n) {
+  return ~n == 32767; // no-warning
+}
+
+#if TEST == 1
+int test25(unsigned short n) {
+  return ~n == 65536; // expected-warning {{result of comparison of 17-bit signed value == 65536 is always false}}
+}
+
+int test26(short n) {
+  return ~n == 32768; // expected-warning {{result of comparison of 16-bit signed value == 32768 is always false}}
+}
+#endif

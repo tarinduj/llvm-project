@@ -83,7 +83,7 @@ define <4 x i32> @cmp_sel_Cplus1_or_C_vec(<4 x i32> %x, <4 x i32> %y) {
 ; AVX-LABEL: cmp_sel_Cplus1_or_C_vec:
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    vpcmpeqd %xmm1, %xmm0, %xmm0
-; AVX-NEXT:    vmovdqa {{.*#+}} xmm1 = [42,0,4294967294,4294967295]
+; AVX-NEXT:    vpmovsxbq {{.*#+}} xmm1 = [42,18446744073709551614]
 ; AVX-NEXT:    vpsubd %xmm0, %xmm1, %xmm0
 ; AVX-NEXT:    retq
   %cond = icmp eq <4 x i32> %x, %y
@@ -260,38 +260,63 @@ define <4 x i32> @cmp_sel_0_or_1_vec(<4 x i32> %x, <4 x i32> %y) {
 define <2 x i37> @ossfuzz21167(<2 x i37> %x, <2 x i37> %y) {
 ; SSE-LABEL: ossfuzz21167:
 ; SSE:       # %bb.0: # %BB
-; SSE-NEXT:    psllq $27, %xmm1
-; SSE-NEXT:    movdqa %xmm1, %xmm0
-; SSE-NEXT:    psrad $27, %xmm0
-; SSE-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[1,3,2,3]
-; SSE-NEXT:    psrlq $27, %xmm1
-; SSE-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[0,2,2,3]
-; SSE-NEXT:    punpckldq {{.*#+}} xmm1 = xmm1[0],xmm0[0],xmm1[1],xmm0[1]
-; SSE-NEXT:    movdqa {{.*#+}} xmm0 = [2147483648,2147483648]
-; SSE-NEXT:    pxor %xmm0, %xmm1
-; SSE-NEXT:    movdqa %xmm1, %xmm2
-; SSE-NEXT:    pcmpgtd %xmm0, %xmm2
-; SSE-NEXT:    pcmpeqd %xmm0, %xmm1
-; SSE-NEXT:    pshufd {{.*#+}} xmm1 = xmm1[1,1,3,3]
-; SSE-NEXT:    pand %xmm2, %xmm1
-; SSE-NEXT:    pshufd {{.*#+}} xmm0 = xmm2[1,1,3,3]
-; SSE-NEXT:    por %xmm1, %xmm0
-; SSE-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; SSE-NEXT:    xorps %xmm0, %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: ossfuzz21167:
 ; AVX:       # %bb.0: # %BB
-; AVX-NEXT:    vpsllq $27, %xmm1, %xmm0
-; AVX-NEXT:    vpsrad $27, %xmm0, %xmm1
-; AVX-NEXT:    vpsrlq $27, %xmm0, %xmm0
-; AVX-NEXT:    vpblendw {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,3],xmm0[4,5],xmm1[6,7]
-; AVX-NEXT:    vpxor %xmm1, %xmm1, %xmm1
-; AVX-NEXT:    vpcmpgtq %xmm1, %xmm0, %xmm0
-; AVX-NEXT:    vpsrlq $63, %xmm0, %xmm0
+; AVX-NEXT:    vxorps %xmm0, %xmm0, %xmm0
 ; AVX-NEXT:    retq
 BB:
   %c0 = icmp sgt <2 x i37> %y, zeroinitializer
   %xor_x = xor <2 x i37> undef, undef
   %smax96 = select <2 x i1> %c0, <2 x i37> %xor_x, <2 x i37> zeroinitializer
   ret <2 x i37> %smax96
+}
+
+; PR53401
+
+define i32 @wrong_min_signbits(<2 x i16> %x) {
+; SSE-LABEL: wrong_min_signbits:
+; SSE:       # %bb.0:
+; SSE-NEXT:    pxor %xmm1, %xmm1
+; SSE-NEXT:    pcmpeqw %xmm0, %xmm1
+; SSE-NEXT:    movd {{.*#+}} xmm0 = [1,0,0,0]
+; SSE-NEXT:    pand %xmm1, %xmm0
+; SSE-NEXT:    pandn {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; SSE-NEXT:    por %xmm0, %xmm1
+; SSE-NEXT:    movd %xmm1, %eax
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: wrong_min_signbits:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vpxor %xmm1, %xmm1, %xmm1
+; AVX-NEXT:    vpcmpeqw %xmm1, %xmm0, %xmm0
+; AVX-NEXT:    vpmovsxbq {{.*#+}} xmm1 = [2,0]
+; AVX-NEXT:    vpblendvb %xmm0, {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm0
+; AVX-NEXT:    vmovd %xmm0, %eax
+; AVX-NEXT:    retq
+  %true_true = icmp ne <2 x i16> %x, zeroinitializer
+  %true_false = and <2 x i1> %true_true, <i1 true, i1 false>
+  %sel = select <2 x i1> %true_false, <2 x i16> <i16 2, i16 0>, <2 x i16> <i16 1, i16 0>
+  %t1 = bitcast <2 x i16> %sel to i32
+  ret i32 %t1
+}
+
+define i32 @pr129181() {
+; SSE-LABEL: pr129181:
+; SSE:       # %bb.0: # %entry
+; SSE-NEXT:    xorl %eax, %eax
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: pr129181:
+; AVX:       # %bb.0: # %entry
+; AVX-NEXT:    xorl %eax, %eax
+; AVX-NEXT:    retq
+entry:
+  %x = insertelement <4 x i32> zeroinitializer, i32 0, i32 0
+  %cmp = icmp ult <4 x i32> %x, splat (i32 1)
+  %sel = select <4 x i1> %cmp, <4 x i32> zeroinitializer, <4 x i32> <i32 0, i32 0, i32 1, i32 poison>
+  %reduce = tail call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %sel)
+  ret i32 %reduce
 }

@@ -17,7 +17,7 @@
 //
 // Because this structure is shared throughout clangd, it's a potential source
 // of layering problems. Config should be expressed in terms of simple
-// vocubulary types where possible.
+// vocabulary types where possible.
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,9 +26,10 @@
 
 #include "support/Context.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
+#include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -55,16 +56,21 @@ struct Config {
   struct CDBSearchSpec {
     enum { Ancestors, FixedDir, NoCDBSearch } Policy = Ancestors;
     // Absolute, native slashes, no trailing slash.
-    llvm::Optional<std::string> FixedCDBPath;
+    std::optional<std::string> FixedCDBPath;
   };
 
+  enum class BuiltinHeaderPolicy { Clangd, QueryDriver };
   /// Controls how the compile command for the current file is determined.
   struct {
     /// Edits to apply to the compile command, in sequence.
     std::vector<llvm::unique_function<void(std::vector<std::string> &) const>>
         Edits;
     /// Where to search for compilation databases for this file's flags.
-    CDBSearchSpec CDBSearch = {CDBSearchSpec::Ancestors, llvm::None};
+    CDBSearchSpec CDBSearch = {CDBSearchSpec::Ancestors, std::nullopt};
+
+    /// Whether to use clangd's own builtin headers, or ones from the system
+    /// include extractor, if available.
+    BuiltinHeaderPolicy BuiltinHeaders = BuiltinHeaderPolicy::Clangd;
   } CompileFlags;
 
   enum class BackgroundPolicy { Build, Skip };
@@ -79,13 +85,20 @@ struct Config {
     /// forward-slashes.
     std::string MountPoint;
   };
-  /// Controls background-index behavior.
+  /// Controls index behavior.
   struct {
-    /// Whether this TU should be indexed.
+    /// Whether this TU should be background-indexed.
     BackgroundPolicy Background = BackgroundPolicy::Build;
     ExternalIndexSpec External;
+    bool StandardLibrary = true;
   } Index;
 
+  enum class IncludesPolicy {
+    /// Diagnose missing and unused includes.
+    Strict,
+    None,
+  };
+  enum class FastCheckPolicy { Strict, Loose, None };
   /// Controls warnings and errors when parsing code.
   struct {
     bool SuppressAll = false;
@@ -93,10 +106,21 @@ struct Config {
 
     /// Configures what clang-tidy checks to run and options to use with them.
     struct {
-      // A comma-seperated list of globs specify which clang-tidy checks to run.
+      // A comma-separated list of globs specify which clang-tidy checks to run.
       std::string Checks;
       llvm::StringMap<std::string> CheckOptions;
+      FastCheckPolicy FastCheckFilter = FastCheckPolicy::Strict;
     } ClangTidy;
+
+    IncludesPolicy UnusedIncludes = IncludesPolicy::Strict;
+    IncludesPolicy MissingIncludes = IncludesPolicy::None;
+
+    struct {
+      /// IncludeCleaner will not diagnose usages of these headers matched by
+      /// these regexes.
+      std::vector<std::function<bool(llvm::StringRef)>> IgnoreHeader;
+      bool AnalyzeAngledIncludes = false;
+    } Includes;
   } Diagnostics;
 
   /// Style of the codebase.
@@ -105,14 +129,89 @@ struct Config {
     // declarations, always spell out the whole name (with or without leading
     // ::). All nested namespaces are affected as well.
     std::vector<std::string> FullyQualifiedNamespaces;
+
+    // List of matcher functions for inserting certain headers with <> or "".
+    std::vector<std::function<bool(llvm::StringRef)>> QuotedHeaders;
+    std::vector<std::function<bool(llvm::StringRef)>> AngledHeaders;
   } Style;
+
+  /// controls the completion options for argument lists.
+  enum class ArgumentListsPolicy {
+    /// nothing, no argument list and also NO Delimiters "()" or "<>".
+    None,
+    /// open, only opening delimiter "(" or "<".
+    OpenDelimiter,
+    /// empty pair of delimiters "()" or "<>".
+    Delimiters,
+    /// full name of both type and variable.
+    FullPlaceholders,
+  };
+
+  enum class HeaderInsertionPolicy {
+    IWYU,       // Include what you use
+    NeverInsert // Never insert headers as part of code completion
+  };
+
+  enum class CodePatternsPolicy {
+    All, // Suggest all code patterns and snippets
+    None // Suggest none of the code patterns and snippets
+  };
 
   /// Configures code completion feature.
   struct {
     /// Whether code completion includes results that are not visible in current
     /// scopes.
     bool AllScopes = true;
+    /// controls the completion options for argument lists.
+    ArgumentListsPolicy ArgumentLists = ArgumentListsPolicy::FullPlaceholders;
+    /// Controls if headers should be inserted when completions are accepted
+    HeaderInsertionPolicy HeaderInsertion = HeaderInsertionPolicy::IWYU;
+    /// Enables code patterns & snippets suggestions
+    CodePatternsPolicy CodePatterns = CodePatternsPolicy::All;
   } Completion;
+
+  /// Configures hover feature.
+  struct {
+    /// Whether hover show a.k.a type.
+    bool ShowAKA = true;
+    /// Limit the number of characters returned when hovering a macro;
+    /// 0 is no limit.
+    uint32_t MacroContentsLimit = 2048;
+  } Hover;
+
+  struct {
+    /// If false, inlay hints are completely disabled.
+    bool Enabled = true;
+
+    // Whether specific categories of hints are enabled.
+    bool Parameters = true;
+    bool DeducedTypes = true;
+    bool Designators = true;
+    bool BlockEnd = false;
+    bool DefaultArguments = false;
+    // Limit the length of type names in inlay hints. (0 means no limit)
+    uint32_t TypeNameLimit = 32;
+  } InlayHints;
+
+  struct {
+    /// Controls highlighting kinds that are disabled.
+    std::vector<std::string> DisabledKinds;
+    /// Controls highlighting modifiers that are disabled.
+    std::vector<std::string> DisabledModifiers;
+  } SemanticTokens;
+
+  enum class CommentFormatPolicy {
+    /// Treat comments as plain text.
+    PlainText,
+    /// Treat comments as Markdown.
+    Markdown,
+    /// Treat comments as doxygen.
+    Doxygen,
+  };
+
+  struct {
+    CommentFormatPolicy CommentFormat = CommentFormatPolicy::PlainText;
+  } Documentation;
 };
 
 } // namespace clangd

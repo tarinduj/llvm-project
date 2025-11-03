@@ -8,6 +8,7 @@
 
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "gtest/gtest.h"
 using namespace llvm;
 
@@ -34,27 +35,55 @@ TEST(TypesTest, LayoutIdenticalEmptyStructs) {
   EXPECT_TRUE(Foo->isLayoutIdentical(Bar));
 }
 
-TEST(TypesTest, CopyPointerType) {
-  LLVMContext C;
+TEST(TypesTest, TargetExtType) {
+  LLVMContext Context;
+  Type *A = TargetExtType::get(Context, "typea");
+  Type *Aparam = TargetExtType::get(Context, "typea", {}, {0, 1});
+  Type *Aparam2 = TargetExtType::get(Context, "typea", {}, {0, 1});
 
-  PointerType *P1 = PointerType::get(C, 1);
-  EXPECT_TRUE(P1->isOpaque());
-  PointerType *P1C = PointerType::getWithSamePointeeType(P1, 1);
-  EXPECT_EQ(P1, P1C);
-  EXPECT_TRUE(P1C->isOpaque());
-  PointerType *P1C0 = PointerType::getWithSamePointeeType(P1, 0);
-  EXPECT_NE(P1, P1C0);
-  EXPECT_TRUE(P1C0->isOpaque());
+  // Opaque types with same parameters are identical...
+  EXPECT_EQ(Aparam, Aparam2);
+  // ... but just having the same name is not enough.
+  EXPECT_NE(A, Aparam);
 
-  Type *Int8 = Type::getInt8Ty(C);
-  PointerType *P2 = PointerType::get(Int8, 1);
-  EXPECT_FALSE(P2->isOpaque());
-  PointerType *P2C = PointerType::getWithSamePointeeType(P2, 1);
-  EXPECT_EQ(P2, P2C);
-  EXPECT_FALSE(P2C->isOpaque());
-  PointerType *P2C0 = PointerType::getWithSamePointeeType(P2, 0);
-  EXPECT_NE(P2, P2C0);
-  EXPECT_FALSE(P2C0->isOpaque());
+  // ensure struct types in targest extension types
+  // only show the struct name, not the struct body
+  Type *Int32Type = Type::getInt32Ty(Context);
+  Type *FloatType = Type::getFloatTy(Context);
+  std::array<Type *, 2> Elements = {Int32Type, FloatType};
+
+  StructType *Struct = llvm::StructType::create(Context, Elements, "MyStruct",
+                                                /*isPacked=*/false);
+  SmallVector<char, 50> TETV;
+  llvm::raw_svector_ostream TETStream(TETV);
+  Type *TargetExtensionType =
+      TargetExtType::get(Context, "structTET", {Struct}, {0, 1});
+  TargetExtensionType->print(TETStream);
+
+  EXPECT_STREQ(TETStream.str().str().data(),
+               "target(\"structTET\", %MyStruct, 0, 1)");
+
+  // ensure that literal structs in the target extension type print the struct
+  // body
+  Struct = StructType::get(Context, Struct->elements(), /*isPacked=*/false);
+
+  TargetExtensionType =
+      TargetExtType::get(Context, "structTET", {Struct}, {0, 1});
+  TETV.clear();
+  TargetExtensionType->print(TETStream);
+
+  EXPECT_STREQ(TETStream.str().str().data(),
+               "target(\"structTET\", { i32, float }, 0, 1)");
+}
+
+TEST(TypedPointerType, PrintTest) {
+  std::string Buffer;
+  LLVMContext Context;
+  raw_string_ostream OS(Buffer);
+
+  Type *I8Ptr = TypedPointerType::get(Type::getInt8Ty(Context), 0);
+  I8Ptr->print(OS);
+  EXPECT_EQ(StringRef(Buffer), ("typedptr(i8, 0)"));
 }
 
 }  // end anonymous namespace

@@ -1,9 +1,10 @@
-# RUN: llvm-mc -triple=wasm32-unknown-unknown -mattr=+reference-types,atomics,+simd128,+nontrapping-fptoint,+exception-handling < %s | FileCheck %s
+# RUN: llvm-mc -triple=wasm32-unknown-unknown -mattr=+tail-call,+reference-types,atomics,+simd128,+nontrapping-fptoint < %s | FileCheck %s
 # Check that it converts to .o without errors, but don't check any output:
-# RUN: llvm-mc -triple=wasm32-unknown-unknown -filetype=obj -mattr=+reference-types,+atomics,+simd128,+nontrapping-fptoint,+exception-handling -o %t.o < %s
+# RUN: llvm-mc -triple=wasm32-unknown-unknown -filetype=obj -mattr=+tail-call,+reference-types,+atomics,+simd128,+nontrapping-fptoint -o %t.o < %s
 
 .functype   something1 () -> ()
 .functype   something2 (i64) -> (i32, f64)
+.functype   something3 () -> (i32)
 .globaltype __stack_pointer, i32
 
 empty_func:
@@ -81,11 +82,24 @@ test0:
     i32.const   3
     end_block            # "switch" exit.
     if                   # void
+    i32.const   0
     if          i32
-    end_if
-    else
+    i32.const   0
     end_if
     drop
+    else
+    end_if
+    block       void
+    i32.const   2
+    return
+    end_block
+    block       void
+    return_call something3
+    end_block
+    block       void
+    i32.const   3
+    return_call_indirect () -> (i32)
+    end_block
     local.get   4
     local.get   5
     f32x4.add
@@ -95,19 +109,14 @@ test0:
     #i32x4.trunc_sat_f32x4_s
     f32.const   1.0
     i32.trunc_f32_s
-    try
     i32.atomic.load 0
     i32.const   0
     memory.atomic.notify 0
     drop
 .LBB0_3:
-    catch       __cpp_exception
-    local.set   0
-    end_try
     i32.const   .L.str
     i32.load8_u .L.str+2
     i32.load16_u .L.str:p2align=0
-    throw 0
 .LBB0_4:
     #i32.trunc_sat_f32_s
     global.get  __stack_pointer
@@ -125,20 +134,24 @@ test0:
     .int32      2000000000
     .size       .L.str, 28
 
+    .data
+    .int8       73
+
     .section    .init_array.42,"",@
     .p2align    2
     .int32      test0
 
     .ident      "clang version 9.0.0 (trunk 364502) (llvm/trunk 364571)"
 
-.tabletype empty_eref_table, externref
-empty_eref_table:
+.tabletype empty_externref_table, externref
+empty_externref_table:
 
-.tabletype empty_fref_table, funcref
-empty_fref_table:
+.tabletype empty_funcref_table, funcref
+empty_funcref_table:
 
+.tabletype empty_exnref_table, exnref
+empty_exnref_table:
 
-# CHECK:           .text
 # CHECK:           .globaltype __stack_pointer, i32
 
 # CHECK-LABEL: empty_func:
@@ -210,30 +223,38 @@ empty_fref_table:
 # CHECK-NEXT:      i32.const   3
 # CHECK-NEXT:      end_block           # label2:
 # CHECK-NEXT:      if
+# CHECK-NEXT:      i32.const   0
 # CHECK-NEXT:      if          i32
-# CHECK-NEXT:      end_if
-# CHECK-NEXT:      else
+# CHECK-NEXT:      i32.const   0
 # CHECK-NEXT:      end_if
 # CHECK-NEXT:      drop
+# CHECK-NEXT:      else
+# CHECK-NEXT:      end_if
+# CHECK-NEXT:      block
+# CHECK-NEXT:      i32.const   2
+# CHECK-NEXT:      return
+# CHECK-NEXT:      end_block
+# CHECK-NEXT:      block
+# CHECK-NEXT:      return_call something3
+# CHECK-NEXT:      end_block
+# CHECK-NEXT:      block
+# CHECK-NEXT:      i32.const   3
+# CHECK-NEXT:      return_call_indirect __indirect_function_table, () -> (i32)
+# CHECK-NEXT:      end_block
 # CHECK-NEXT:      local.get   4
 # CHECK-NEXT:      local.get   5
 # CHECK-NEXT:      f32x4.add
 # CHECK-NEXT:      drop
 # CHECK-NEXT:      f32.const   0x1p0
 # CHECK-NEXT:      i32.trunc_f32_s
-# CHECK-NEXT:      try
 # CHECK-NEXT:      i32.atomic.load 0
 # CHECK-NEXT:      i32.const   0
 # CHECK-NEXT:      memory.atomic.notify 0
 # CHECK-NEXT:      drop
 # CHECK-NEXT:  .LBB0_3:
-# CHECK-NEXT:      catch       __cpp_exception
-# CHECK-NEXT:      local.set   0
-# CHECK-NEXT:      end_try
 # CHECK-NEXT:      i32.const   .L.str
 # CHECK-NEXT:      i32.load8_u .L.str+2
 # CHECK-NEXT:      i32.load16_u .L.str:p2align=0
-# CHECK-NEXT:      throw       0
 # CHECK-NEXT:  .LBB0_4:
 # CHECK-NEXT:      global.get  __stack_pointer
 # CHECK-NEXT:      global.set  __stack_pointer
@@ -249,12 +270,19 @@ empty_fref_table:
 # CHECK-NEXT:      .int32      2000000000
 # CHECK-NEXT:      .size       .L.str, 28
 
+# CHECK:           .data
+# CHECK-EMPTY:
+# CHECK-NEXT:      .int8       73
+
 # CHECK:           .section    .init_array.42,"",@
 # CHECK-NEXT:      .p2align    2
 # CHECK-NEXT:      .int32      test0
 
-# CHECK:           .tabletype empty_eref_table, externref
-# CHECK-NEXT: empty_eref_table:
+# CHECK:           .tabletype empty_externref_table, externref
+# CHECK-NEXT: empty_externref_table:
 
-# CHECK:           .tabletype empty_fref_table, funcref
-# CHECK-NEXT: empty_fref_table:
+# CHECK:           .tabletype empty_funcref_table, funcref
+# CHECK-NEXT: empty_funcref_table:
+
+# CHECK:           .tabletype empty_exnref_table, exnref
+# CHECK-NEXT: empty_exnref_table:

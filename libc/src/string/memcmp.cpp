@@ -7,21 +7,21 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/string/memcmp.h"
-#include "src/__support/common.h"
+#include "src/__support/macros/config.h"
+#include "src/__support/macros/null_check.h"
+#include "src/string/memory_utils/inline_memcmp.h"
+
 #include <stddef.h> // size_t
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
-// TODO: It is a simple implementation, an optimized version is preparing.
 LLVM_LIBC_FUNCTION(int, memcmp,
                    (const void *lhs, const void *rhs, size_t count)) {
-  const unsigned char *_lhs = reinterpret_cast<const unsigned char *>(lhs);
-  const unsigned char *_rhs = reinterpret_cast<const unsigned char *>(rhs);
-  for (size_t i = 0; i < count; ++i)
-    if (_lhs[i] != _rhs[i])
-      return _lhs[i] - _rhs[i];
-  // count is 0 or _lhs and _rhs are the same.
-  return 0;
+  if (count) {
+    LIBC_CRASH_ON_NULLPTR(lhs);
+    LIBC_CRASH_ON_NULLPTR(rhs);
+  }
+  return inline_memcmp(lhs, rhs, count);
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

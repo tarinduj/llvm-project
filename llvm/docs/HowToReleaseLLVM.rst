@@ -18,25 +18,54 @@ create the binary packages, please refer to the :doc:`ReleaseProcess` instead.
 Release Timeline
 ================
 
-LLVM is released on a time based schedule --- with major releases roughly
+LLVM is released on a time-based schedule --- with major releases roughly
 every 6 months.  In between major releases there may be dot releases.
 The release manager will determine if and when to make a dot release based
 on feedback from the community.  Typically, dot releases should be made if
-there are large number of bug-fixes in the stable branch or a critical bug
+there are a large number of bug fixes in the stable branch or a critical bug
 has been discovered that affects a large number of users.
 
 Unless otherwise stated, dot releases will follow the same procedure as
 major releases.
 
-The release process is roughly as follows:
+Annual Release Schedule
+-----------------------
 
-* Set code freeze and branch creation date for 6 months after last code freeze
-  date.  Announce release schedule to the LLVM community and update the website.
+Here is the annual release schedule for LLVM.  This is meant to be a
+guide, and release managers are not required to follow this exactly.
+Releases should be tagged on Tuesdays.
+
+=============================== =========================
+Release                         Approx. Date
+=============================== =========================
+*release branch: even releases* *2nd Tue in January*
+*release branch: odd releases*  *2nd Tue in July*
+X.1.0-rc1                       3 days after branch.
+X.1.0-rc2                       2 weeks after branch.
+X.1.0-rc3                       4 weeks after branch
+**X.1.0-final**                 **6 weeks after branch**
+**X.1.1**                       **8 weeks after branch**
+**X.1.2**                       **10 weeks after branch**
+**X.1.3**                       **12 weeks after branch**
+**X.1.4**                       **14 weeks after branch**
+**X.1.5**                       **16 weeks after branch**
+**X.1.6**                       **18 weeks after branch**
+**X.1.7**                       **20 weeks after branch**
+**X.1.8**                       **22 weeks after branch**
+**X.1.9** (If necessary)        **24 weeks after branch**
+**Next release branches**       **~25 weeks after branch**
+=============================== =========================
+
+Release Process Summary
+-----------------------
+
+* Announce release schedule to the LLVM community and update the website.  Do
+  this at least 3 weeks before the -rc1 release.
 
 * Create release branch and begin release process.
 
 * Send out release candidate sources for first round of testing.  Testing lasts
-  7-10 days.  During the first round of testing, any regressions found should be
+  6 weeks.  During the first round of testing, any regressions found should be
   fixed.  Patches are merged from mainline into the release branch.  Also, all
   features need to be completed during this time.  Any features not completed at
   the end of the first round of testing will be removed or disabled for the
@@ -44,7 +73,7 @@ The release process is roughly as follows:
 
 * Generate and send out the second release candidate sources.  Only *critical*
   bugs found during this testing phase will be fixed.  Any bugs introduced by
-  merged patches will be fixed.  If so a third round of testing is needed.
+  merged patches will be fixed.  If so, a third round of testing is needed.
 
 * The release notes are updated.
 
@@ -52,14 +81,7 @@ The release process is roughly as follows:
 
 * Announce bug fix release schedule to the LLVM community and update the website.
 
-* Tag bug fix -rc1 after 4 weeks have passed.
-
-* Tag bug fix -rc2 4 weeks after -rc1.
-
-* Tag additional -rc candidates, if needed, to fix critical issues in
-  previous -rc releases.
-
-* Tag final release.
+* Do bug-fix releases every two weeks until X.1.5 or X.1.6 (if necessary).
 
 Release Process
 ===============
@@ -79,43 +101,37 @@ release process to begin.  Specifically, it involves:
 
 * Tagging release candidates for the release team to begin testing.
 
-Create Release Branch
-^^^^^^^^^^^^^^^^^^^^^
+Create Release Branch and Update LLVM Version
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Branch the Git trunk using the following procedure:
 
 #. Remind developers that the release branching is imminent and to refrain from
-   committing patches that might break the build.  E.g., new features, large
+   committing patches that might break the build, e.g., new features, large
    patches for works in progress, an overhaul of the type system, an exciting
    new TableGen feature, etc.
 
 #. Verify that the current git trunk is in decent shape by
    examining nightly tester and buildbot results.
 
-#. Bump the version in trunk to N.0.0git and tag the commit with llvmorg-N-init.
-   If ``X`` is the version to be released, then ``N`` is ``X + 1``.
+#. Bump the version in trunk to ``N.0.0git`` with the script in
+   ``llvm/utils/release/bump-version.py``, and tag the commit with ``llvmorg-N-init``.
+   If ``X`` is the version to be released, then ``N`` is ``X + 1``. ::
 
-::
+    $ git tag -sa llvmorg-N-init
 
-  $ git tag -a llvmorg-N-init
-
-#. Clear the release notes in trunk.
+#. Clear the release notes in trunk with the script in
+   ``llvm/utils/release/clear-release-notes.py``.
 
 #. Create the release branch from the last known good revision from before the
-   version bump.  The branch's name is release/X.x where ``X`` is the major version
+   version bump.  The branch's name is ``release/X.x`` where ``X`` is the major version
    number and ``x`` is just the letter ``x``.
 
-#. All tags and branches need to be created in both the llvm/llvm-project and
-   llvm/llvm-test-suite repos.
+#. On the newly-created release branch, immediately bump the version
+   to ``X.1.0git`` (where ``X`` is the major version of the branch.)
 
-Update LLVM Version
-^^^^^^^^^^^^^^^^^^^
-
-After creating the LLVM release branch, update the release branches'
-``CMakeLists.txt`` versions from '``X.0.0git``' to '``X.0.0``'.
-
-In addition, the version numbers of all the Bugzilla components must be updated
-for the next release.
+#. All tags and branches need to be created in both the ``llvm/llvm-project`` and
+   ``llvm/llvm-test-suite`` repos.
 
 Tagging the LLVM Release Candidates
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -124,24 +140,29 @@ Tag release candidates:
 
 ::
 
-  $ git tag -a llvmorg-X.Y.Z-rcN
+  $ git tag -sa llvmorg-X.Y.Z-rcN
 
-The Release Manager must supply pre-packaged source tarballs for users.  This can
-be done with the export.sh script in utils/release.
+The pre-packaged source tarballs will be automatically generated via the
+`Release Sources
+<https://github.com/llvm/llvm-project/actions/workflows/release-sources.yml>`_
+workflow on GitHub.  This workflow will create an artifact containing all the
+release tarballs and the artifact attestation.  The Release Manager should
+download the artifact, verify the tarballs, sign them, and then upload them to
+the release page.
+
+::
+
+  $ unzip artifact.zip
+  $ gh auth login
+  $ for f in *.xz; do gh attestation verify --owner llvm $f && gpg -b $f; done
 
 Tarballs, release binaries,  or any other release artifacts must be uploaded to
-GitHub.  This can be done using the github-upload-release.py script in utils/release.
+GitHub.  This can be done using the ``github-upload-release.py`` script in ``utils/release``.
 
 ::
 
   $ github-upload-release.py upload --token <github-token> --release X.Y.Z-rcN --files <release_files>
 
-::
-
-  $ ./export.sh -release X.Y.Z -rc $RC
-
-This will generate source tarballs for each LLVM project being validated, which
-can be uploaded to github for further testing.
 
 Build The Binary Distribution
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -149,10 +170,10 @@ Build The Binary Distribution
 Creating the binary distribution requires following the instructions
 :doc:`here <ReleaseProcess>`.
 
-That process will perform both Release+Asserts and Release builds but only
-pack the Release build for upload. You should use the Release+Asserts sysroot,
+That process performs both Release+Asserts and Release builds but only packs
+the Release build for upload. You should use the Release+Asserts sysroot,
 normally under ``final/Phase3/Release+Asserts/llvmCore-3.8.1-RCn.install/``,
-for test-suite and run-time benchmarks, to make sure nothing serious has 
+for test-suite and run-time benchmarks, to ensure nothing serious has
 passed through the net. For compile-time benchmarks, use the Release version.
 
 The minimum required version of the tools you'll need are :doc:`here <GettingStarted>`
@@ -160,14 +181,14 @@ The minimum required version of the tools you'll need are :doc:`here <GettingSta
 Release Qualification Criteria
 ------------------------------
 
-There are no official release qualification criteria.  It is up to the
-the release manager to determine when a release is ready.  The release manager
+There are no official release qualification criteria.
+The release manager determines when a release is ready.  The release manager
 should pay attention to the results of community testing, the number of outstanding
-bugs, and then number of regressions when determining whether or not to make a
+bugs, and the number of regressions when determining whether or not to make a
 release.
 
 The community values time based releases, so releases should not be delayed for
-too long unless there are critical issues remaining.  In most cases, the only
+too long unless critical issues remain.  In most cases, the only
 kind of bugs that are critical enough to block a release would be a major regression
 from a previous release.
 
@@ -178,31 +199,33 @@ A few developers in the community have dedicated time to validate the release
 candidates and volunteered to be the official release testers for each
 architecture.
 
-These will be the ones testing, generating and uploading the official binaries
+These will be the ones testing, generating, and uploading the official binaries
 to the server, and will be the minimum tests *necessary* for the release to
 proceed.
 
 This will obviously not cover all OSs and distributions, so additional community
-validation is important. However, if community input is not reached before the
-release is out, all bugs reported will have to go on the next stable release.
+validation is important. However, if community input is not received before the
+release, all reported bugs will be deferred to the next stable release.
 
 The official release managers are:
 
-* Major releases (X.0): Hans Wennborg
-* Stable releases (X.n): Tom Stellard
+* Even releases: Tom Stellard (tstellar@redhat.com)
+* Odd releases: Tobias Hieta (tobias@hieta.se)
 
-The official release testers are volunteered from the community and have
+The official release testers are volunteers from the community who have
 consistently validated and released binaries for their targets/OSs. To contact
-them, you should email the ``release-testers@lists.llvm.org`` mailing list.
+them, you should post on the `Discourse forums (Project
+Infrastructure - Release Testers). <https://discourse.llvm.org/c/infrastructure/release-testers/66>`_
 
-The official testers list is in the file ``RELEASE_TESTERS.TXT``, in the ``LLVM``
-repository.
+The official testers list is in the file ``RELEASE_TESTERS.TXT``
+<https://github.com/llvm/llvm-project/blob/main/llvm/RELEASE_TESTERS.TXT>`_, in
+the LLVM repository.
 
 Community Testing
 -----------------
 
-Once all testing has been completed and appropriate bugs filed, the release
-candidate tarballs are put on the website and the LLVM community is notified.
+Once all testing is complete and appropriate bugs are filed, the release
+candidate tarballs are put on the website, and the LLVM community is notified.
 
 We ask that all LLVM developers test the release in any the following ways:
 
@@ -228,7 +251,7 @@ We ask that all LLVM developers test the release in any the following ways:
    architecture.
 
 We also ask that the OS distribution release managers test their packages with
-the first candidate of every release, and report any *new* errors in Bugzilla.
+the first candidate of every release and report any *new* errors in GitHub.
 If the bug can be reproduced with an unpatched upstream version of the release
 candidate (as opposed to the distribution's own build), the priority should be
 release blocker.
@@ -245,39 +268,54 @@ next stage.
 Reporting Regressions
 ---------------------
 
-Every regression that is found during the tests (as per the criteria above),
-should be filled in a bug in Bugzilla with the priority *release blocker* and
-blocking a specific release.
+Every regression found during the tests (as per the criteria above)
+should be filled in a bug in GitHub and added to the release milestone.
 
-To help manage all the bugs reported and which ones are blockers or not, a new
-"[meta]" bug should be created and all regressions *blocking* that Meta. Once
-all blockers are done, the Meta can be closed.
+If a bug can't be reproduced or stops being a blocker, it should be removed
+from the Milestone. Debugging can continue, but on trunk.
 
-If a bug can't be reproduced, or stops being a blocker, it should be removed
-from the Meta and its priority decreased to *normal*. Debugging can continue,
-but on trunk.
+Backport Requests
+-----------------
 
-Merge Requests
---------------
+Instructions for requesting a backport to a stable branch can be found
+:ref:`here <backporting>`.
 
-You can use any of the following methods to request that a revision from trunk
-be merged into a release branch:
+Triaging Bug Reports for Releases
+---------------------------------
 
-#. Use the ``utils/release/merge-request.sh`` script which will automatically
-   file a bug_ requesting that the patch be merged. e.g. To request revision
-   12345 be merged into the branch for the 5.0.1 release:
-   ``llvm.src/utils/release/merge-request.sh -stable-version 5.0 -r 12345 -user bugzilla@example.com``
+This section describes how to triage bug reports:
 
-#. Manually file a bug_ with the subject: "Merge r12345 into the X.Y branch",
-   enter the commit(s) that you want merged in the "Fixed by Commit(s)" and mark
-   it as a blocker of the current release bug.  Release bugs are given aliases
-   in the form of release-x.y.z, so to mark a bug as a blocker for the 5.0.1
-   release, just enter release-5.0.1 in the "Blocks" field.
+#. Search for bugs with a Release Milestone that have not been added to the
+   "Release Status" github project:
 
-#. Reply to the commit email on llvm-commits for the revision to merge and cc
-   the release manager.
+   https://github.com/llvm/llvm-project/issues?q=is%3Aissue+milestone%3A%22LLVM+14.0.5+Release%22+no%3Aproject+
 
-.. _bug: https://bugs.llvm.org/
+   Replace 14.0.5 in this query with the version from the Release Milestone being
+   targeted.
+
+   Add these bugs to the "Release Status" project.
+
+#. Navigate to the `Release Status project <https://github.com/orgs/llvm/projects/3>`_
+   to see the list of bugs that are being considered for the release.
+
+#. Review each bug and first check if it has been fixed in main.  If it has, update
+   its status to "Needs Pull Request" and create a pull request for the fix
+   using the ``/cherry-pick`` or ``/branch`` comments if this has not been done already.
+
+#. If a bug has been fixed and has a pull request created for backporting it,
+   then update its status to "Needs Review" and notify a knowledgeable
+   reviewer.  Usually you will want to notify the person who approved the
+   patch, but you may use your best judgement on who a good reviewer would be.
+   Once you have identified the reviewer(s), assign the issue to them and
+   mention them (i.e., ``@username``) in a comment and ask them if the patch is safe
+   to backport.  You should also review the bug yourself to ensure that it
+   meets the requirements for committing to the release branch.
+
+#. Once a bug has been reviewed, update the status to "Needs Merge". Check the
+   pull request associated with the issue. If all the tests pass, then the pull
+   request can be merged. If not, then add a comment on the issue asking
+   someone to take a look at the failures.
+
 
 Release Patch Rules
 -------------------
@@ -285,43 +323,33 @@ Release Patch Rules
 Below are the rules regarding patching the release branch:
 
 #. Patches applied to the release branch may only be applied by the release
-   manager, the official release testers or the code owners with approval from
+   manager, the official release testers, or the maintainers with approval from
    the release manager.
 
-#. Release managers are encouraged, but not required, to get approval from code
-   owners before approving patches.  If there is no code owner or the code owner
-   is unreachable then release managers can ask approval from patch reviewers or
-   other developers active in that area.
+#. Release managers are encouraged, but not required, to get approval from a
+   maintainer before approving patches.  If there are no reachable maintainers,
+   then release managers can ask approval from patch reviewers or other
+   developers active in that area.
 
 #. *Before RC1* Patches should be limited to bug fixes, important optimization
    improvements, or completion of features that were started before the branch
-   was created.  As with all phases, release managers and code owners can reject
+   was created.  As with all phases, release managers and maintainers can reject
    patches that are deemed too invasive.
 
-#. *Before RC2* Patches should be limited to bug fixes or backend specific
+#. *Before RC2/RC3* Patches should be limited to bug fixes or backend-specific
    improvements that are determined to be very safe.
 
-#. *Before RC3/Final Major Release* Patches should be limited to critical
+#. *Before Final Major Release* Patches should be limited to critical
    bugs or regressions.
 
 #. *Bug fix releases* Patches should be limited to bug fixes or very safe
    and critical performance improvements.  Patches must maintain both API and
-   ABI compatibility with the previous major release.
-
-
-Merging Patches
-^^^^^^^^^^^^^^^
-
-Use the ``git cherry-pick -x`` command to merge patches to the release branch:
-
-#. ``git cherry-pick -x abcdef0``
-
-#. Run regression tests.
+   ABI compatibility with the X.1.0 release.
 
 Release Final Tasks
 -------------------
 
-The final stages of the release process involves tagging the "final" release
+The final stages of the release process involve tagging the "final" release
 branch, updating documentation that refers to the release, and updating the
 demo page.
 
@@ -331,9 +359,8 @@ Update Documentation
 Review the documentation in the release branch and ensure that it is up
 to date.  The "Release Notes" must be updated to reflect new features, bug
 fixes, new known issues, and changes in the list of supported platforms.
-The "Getting Started Guide" should be updated to reflect the new release
-version number tag available from Subversion and changes in basic system
-requirements.
+The :doc:`GettingStarted` page should be updated to reflect the new release
+version number tag and changes in basic system requirements.
 
 .. _tag:
 
@@ -344,7 +371,7 @@ Tag the final release sources:
 
 ::
 
-  $ git tag -a llvmorg-X.Y.Z
+  $ git tag -sa llvmorg-X.Y.Z
   $ git push https://github.com/llvm/llvm-project.git llvmorg-X.Y.Z
 
 Update the LLVM Website
@@ -353,7 +380,8 @@ Update the LLVM Website
 The website must be updated before the release announcement is sent out.  Here
 is what to do:
 
-#. Check out the ``www-releases`` module from GitHub.
+#. Check out the `www-releases <https://github.com/llvm/www-releases>`_ repo
+   from GitHub.
 
 #. Create a new sub-directory ``X.Y.Z`` in the releases directory.
 
@@ -366,13 +394,25 @@ is what to do:
 #. Update the ``releases/index.html`` with the new release and link to release
    documentation.
 
-#. Finally checkout the llvm-www repo and update the main page
+#. After you push the changes to the ``www-releases`` repo, someone with admin
+   access must log in to ``prereleases-origin.llvm.org`` and manually pull the new
+   changes into ``/data/www-releases/``. This is where the website is served from.
+
+#. Finally, check out the ``llvm-www`` repo and update the main page
    (``index.html`` and sidebar) to point to the new release and release
    announcement.
 
 Announce the Release
 ^^^^^^^^^^^^^^^^^^^^
 
-Send an email to the list announcing the release, pointing people to all the
-relevant documentation, download pages and bugs fixed.
+Create a new post in the `Announce Category <https://discourse.llvm.org/c/announce>`_
+once all the release tasks are complete.  For X.1.0 releases, make sure to include a
+link to the release notes in the post.  For X.1.1+ releases, generate a changelog
+using this command and add it to the post.
 
+::
+
+  $ git log --format="- %aN: [%s (%h)](https://github.com/llvm/llvm-project/commit/%H)" llvmorg-X.1.N-1..llvmorg-X.1.N
+
+Once the release has been announced, add a link to the announcement on the llvm
+homepage (from the ``llvm-www`` repo) in the "Release Emails" section.

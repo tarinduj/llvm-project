@@ -1,4 +1,4 @@
-//===------------------------- cxa_exception.cpp --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,7 +20,56 @@
 #include "cxa_exception.h"
 #include "cxa_handlers.h"
 #include "private_typeinfo.h"
-#include "unwind.h"
+
+#if __has_feature(ptrauth_calls)
+
+// CXXABI depends on defintions in libunwind as pointer auth couples the
+// definitions
+#  include "libunwind.h"
+
+// The actual value of the discriminators listed below is not important.
+// The derivation of the constants is only being included for the purpose
+// of maintaining a record of how they were originally produced.
+
+// ptrauth_string_discriminator("scan_results::languageSpecificData") == 0xE50D)
+#  define __ptrauth_scan_results_lsd __ptrauth(ptrauth_key_process_dependent_code, 1, 0xE50D)
+
+// ptrauth_string_discriminator("scan_results::actionRecord") == 0x9823
+#  define __ptrauth_scan_results_action_record __ptrauth(ptrauth_key_process_dependent_code, 1, 0x9823)
+
+// scan result is broken up as we have a manual re-sign that requires each component
+#  define __ptrauth_scan_results_landingpad_key ptrauth_key_process_dependent_code
+// ptrauth_string_discriminator("scan_results::landingPad") == 0xD27C
+#  define __ptrauth_scan_results_landingpad_disc 0xD27C
+#  define __ptrauth_scan_results_landingpad                                                                            \
+    __ptrauth(__ptrauth_scan_results_landingpad_key, 1, __ptrauth_scan_results_landingpad_disc)
+
+// `__ptrauth_restricted_intptr` is a feature of apple clang that predates
+// support for direct application of `__ptrauth` to integer types. This
+// guard is necessary to support compilation with those compiler.
+#  if __has_extension(ptrauth_restricted_intptr_qualifier)
+#    define __ptrauth_scan_results_landingpad_intptr                                                                   \
+      __ptrauth_restricted_intptr(__ptrauth_scan_results_landingpad_key, 1, __ptrauth_scan_results_landingpad_disc)
+#  else
+#    define __ptrauth_scan_results_landingpad_intptr                                                                   \
+      __ptrauth(__ptrauth_scan_results_landingpad_key, 1, __ptrauth_scan_results_landingpad_disc)
+#  endif
+
+#else
+#  define __ptrauth_scan_results_lsd
+#  define __ptrauth_scan_results_action_record
+#  define __ptrauth_scan_results_landingpad
+#  define __ptrauth_scan_results_landingpad_intptr
+#endif
+
+// TODO: This is a temporary workaround for libc++abi to recognize that it's being
+// built against LLVM's libunwind. LLVM's libunwind started reporting _LIBUNWIND_VERSION
+// in LLVM 15 -- we can remove this workaround after shipping LLVM 17. Once we remove
+// this workaround, it won't be possible to build libc++abi against libunwind headers
+// from LLVM 14 and before anymore.
+#if defined(____LIBUNWIND_CONFIG_H__) && !defined(_LIBUNWIND_VERSION)
+#   define _LIBUNWIND_VERSION
+#endif
 
 #if defined(__SEH__) && !defined(__USING_SJLJ_EXCEPTIONS__)
 #include <windows.h>
@@ -61,7 +110,7 @@ extern "C" EXCEPTION_DISPOSITION _GCC_specific_handler(PEXCEPTION_RECORD,
 +------------------+--+-----+-----+------------------------+--------------------------+
 | callSiteTableLength | (ULEB128) | Call Site Table length, used to find Action table |
 +---------------------+-----------+---------------------------------------------------+
-#ifndef __USING_SJLJ_EXCEPTIONS__
+#if !defined(__USING_SJLJ_EXCEPTIONS__) && !defined(__WASM_EXCEPTIONS__)
 +---------------------+-----------+------------------------------------------------+
 | Beginning of Call Site Table            The current ip lies within the           |
 | ...                                     (start, length) range of one of these    |
@@ -75,7 +124,7 @@ extern "C" EXCEPTION_DISPOSITION _GCC_specific_handler(PEXCEPTION_RECORD,
 | +-------------+---------------------------------+------------------------------+ |
 | ...                                                                              |
 +----------------------------------------------------------------------------------+
-#else  // __USING_SJLJ_EXCEPTIONS__
+#else  // __USING_SJLJ_EXCEPTIONS__ || __WASM_EXCEPTIONS__
 +---------------------+-----------+------------------------------------------------+
 | Beginning of Call Site Table            The current ip is a 1-based index into   |
 | ...                                     this table.  Or it is -1 meaning no      |
@@ -88,7 +137,7 @@ extern "C" EXCEPTION_DISPOSITION _GCC_specific_handler(PEXCEPTION_RECORD,
 | +-------------+---------------------------------+------------------------------+ |
 | ...                                                                              |
 +----------------------------------------------------------------------------------+
-#endif // __USING_SJLJ_EXCEPTIONS__
+#endif // __USING_SJLJ_EXCEPTIONS__ || __WASM_EXCEPTIONS__
 +---------------------------------------------------------------------+
 | Beginning of Action Table       ttypeIndex == 0 : cleanup           |
 | ...                             ttypeIndex  > 0 : catch             |
@@ -158,7 +207,7 @@ uintptr_t readPointerHelper(const uint8_t*& p) {
     return static_cast<uintptr_t>(value);
 }
 
-} // end namespace
+} // namespace
 
 extern "C"
 {
@@ -518,12 +567,17 @@ get_thrown_object_ptr(_Unwind_Exception* unwind_exception)
 namespace
 {
 
+typedef const uint8_t *__ptrauth_scan_results_lsd lsd_ptr_t;
+typedef const uint8_t *__ptrauth_scan_results_action_record action_ptr_t;
+typedef uintptr_t __ptrauth_scan_results_landingpad_intptr landing_pad_t;
+typedef void *__ptrauth_scan_results_landingpad landing_pad_ptr_t;
+
 struct scan_results
 {
     int64_t        ttypeIndex;   // > 0 catch handler, < 0 exception spec handler, == 0 a cleanup
-    const uint8_t* actionRecord;         // Currently unused.  Retained to ease future maintenance.
-    const uint8_t* languageSpecificData;  // Needed only for __cxa_call_unexpected
-    uintptr_t      landingPad;   // null -> nothing found, else something found
+    action_ptr_t   actionRecord; // Currently unused.  Retained to ease future maintenance.
+    lsd_ptr_t      languageSpecificData; // Needed only for __cxa_call_unexpected
+    landing_pad_t  landingPad;   // null -> nothing found, else something found
     void*          adjustedPtr;  // Used in cxa_exception.cpp
     _Unwind_Reason_Code reason;  // One of _URC_FATAL_PHASE1_ERROR,
                                  //        _URC_FATAL_PHASE2_ERROR,
@@ -538,7 +592,7 @@ void
 set_registers(_Unwind_Exception* unwind_exception, _Unwind_Context* context,
               const scan_results& results)
 {
-#if defined(__USING_SJLJ_EXCEPTIONS__)
+#if defined(__USING_SJLJ_EXCEPTIONS__) || defined(__WASM_EXCEPTIONS__)
 #define __builtin_eh_return_data_regno(regno) regno
 #elif defined(__ibmxl__)
 // IBM xlclang++ compiler does not support __builtin_eh_return_data_regno.
@@ -548,7 +602,23 @@ set_registers(_Unwind_Exception* unwind_exception, _Unwind_Context* context,
                 reinterpret_cast<uintptr_t>(unwind_exception));
   _Unwind_SetGR(context, __builtin_eh_return_data_regno(1),
                 static_cast<uintptr_t>(results.ttypeIndex));
+#if __has_feature(ptrauth_calls)
+  auto stackPointer = _Unwind_GetGR(context, UNW_REG_SP);
+  // We manually re-sign the IP as the __ptrauth qualifiers cannot
+  // express the required relationship with the destination address
+  const auto existingDiscriminator =
+      ptrauth_blend_discriminator(&results.landingPad,
+                                  __ptrauth_scan_results_landingpad_disc);
+  unw_word_t newIP /* opaque __ptrauth(ptrauth_key_return_address, stackPointer, 0) */ =
+      (unw_word_t)ptrauth_auth_and_resign(*(void* const*)&results.landingPad,
+                                          __ptrauth_scan_results_landingpad_key,
+                                          existingDiscriminator,
+                                          ptrauth_key_return_address,
+                                          stackPointer);
+  _Unwind_SetIP(context, newIP);
+#else
   _Unwind_SetIP(context, results.landingPad);
+#endif
 }
 
 /*
@@ -613,7 +683,7 @@ static void scan_eh_tab(scan_results &results, _Unwind_Action actions,
         results.reason = _URC_FATAL_PHASE1_ERROR;
         return;
     }
-    // Start scan by getting exception table address
+    // Start scan by getting exception table address.
     const uint8_t *lsda = (const uint8_t *)_Unwind_GetLanguageSpecificData(context);
     if (lsda == 0)
     {
@@ -633,7 +703,7 @@ static void scan_eh_tab(scan_results &results, _Unwind_Action actions,
     // Get beginning current frame's code (as defined by the
     // emitted dwarf code)
     uintptr_t funcStart = _Unwind_GetRegionStart(context);
-#ifdef __USING_SJLJ_EXCEPTIONS__
+#if defined(__USING_SJLJ_EXCEPTIONS__) || defined(__WASM_EXCEPTIONS__)
     if (ip == uintptr_t(-1))
     {
         // no action
@@ -643,18 +713,17 @@ static void scan_eh_tab(scan_results &results, _Unwind_Action actions,
     else if (ip == 0)
         call_terminate(native_exception, unwind_exception);
     // ip is 1-based index into call site table
-#else  // !__USING_SJLJ_EXCEPTIONS__
+#else  // !__USING_SJLJ_EXCEPTIONS__ && !__WASM_EXCEPTIONS__
     uintptr_t ipOffset = ip - funcStart;
-#endif // !defined(_USING_SLJL_EXCEPTIONS__)
+#endif // !__USING_SJLJ_EXCEPTIONS__ && !__WASM_EXCEPTIONS__
     const uint8_t* classInfo = NULL;
     // Note: See JITDwarfEmitter::EmitExceptionTable(...) for corresponding
     //       dwarf emission
     // Parse LSDA header.
     uint8_t lpStartEncoding = *lsda++;
-    const uint8_t* lpStart =
-        (const uint8_t*)readEncodedPointer(&lsda, lpStartEncoding, base);
-    if (lpStart == 0)
-        lpStart = (const uint8_t*)funcStart;
+    const uint8_t* lpStart = lpStartEncoding == DW_EH_PE_omit
+                                 ? (const uint8_t*)funcStart
+                                 : (const uint8_t*)readEncodedPointer(&lsda, lpStartEncoding, base);
     uint8_t ttypeEncoding = *lsda++;
     if (ttypeEncoding != DW_EH_PE_omit)
     {
@@ -667,8 +736,8 @@ static void scan_eh_tab(scan_results &results, _Unwind_Action actions,
     // Walk call-site table looking for range that
     // includes current PC.
     uint8_t callSiteEncoding = *lsda++;
-#ifdef __USING_SJLJ_EXCEPTIONS__
-    (void)callSiteEncoding;  // When using SjLj exceptions, callSiteEncoding is never used
+#if defined(__USING_SJLJ_EXCEPTIONS__) || defined(__WASM_EXCEPTIONS__)
+    (void)callSiteEncoding;  // When using SjLj/Wasm exceptions, callSiteEncoding is never used
 #endif
     uint32_t callSiteTableLength = static_cast<uint32_t>(readULEB128(&lsda));
     const uint8_t* callSiteTableStart = lsda;
@@ -678,23 +747,23 @@ static void scan_eh_tab(scan_results &results, _Unwind_Action actions,
     while (callSitePtr < callSiteTableEnd)
     {
         // There is one entry per call site.
-#ifndef __USING_SJLJ_EXCEPTIONS__
+#if !defined(__USING_SJLJ_EXCEPTIONS__) && !defined(__WASM_EXCEPTIONS__)
         // The call sites are non-overlapping in [start, start+length)
         // The call sites are ordered in increasing value of start
         uintptr_t start = readEncodedPointer(&callSitePtr, callSiteEncoding);
         uintptr_t length = readEncodedPointer(&callSitePtr, callSiteEncoding);
-        uintptr_t landingPad = readEncodedPointer(&callSitePtr, callSiteEncoding);
+        landing_pad_t landingPad = readEncodedPointer(&callSitePtr, callSiteEncoding);
         uintptr_t actionEntry = readULEB128(&callSitePtr);
         if ((start <= ipOffset) && (ipOffset < (start + length)))
-#else  // __USING_SJLJ_EXCEPTIONS__
+#else  // __USING_SJLJ_EXCEPTIONS__ || __WASM_EXCEPTIONS__
         // ip is 1-based index into this table
-        uintptr_t landingPad = readULEB128(&callSitePtr);
+        landing_pad_t landingPad = readULEB128(&callSitePtr);
         uintptr_t actionEntry = readULEB128(&callSitePtr);
         if (--ip == 0)
-#endif // __USING_SJLJ_EXCEPTIONS__
+#endif // __USING_SJLJ_EXCEPTIONS__ || __WASM_EXCEPTIONS__
         {
             // Found the call site containing ip.
-#ifndef __USING_SJLJ_EXCEPTIONS__
+#if !defined(__USING_SJLJ_EXCEPTIONS__) && !defined(__WASM_EXCEPTIONS__)
             if (landingPad == 0)
             {
                 // No handler here
@@ -702,16 +771,14 @@ static void scan_eh_tab(scan_results &results, _Unwind_Action actions,
                 return;
             }
             landingPad = (uintptr_t)lpStart + landingPad;
-            results.landingPad = landingPad;
-#else  // __USING_SJLJ_EXCEPTIONS__
+#else  // __USING_SJLJ_EXCEPTIONS__ || __WASM_EXCEPTIONS__
             ++landingPad;
-#endif // __USING_SJLJ_EXCEPTIONS__
+#endif // __USING_SJLJ_EXCEPTIONS__ || __WASM_EXCEPTIONS__
+            results.landingPad = landingPad;
             if (actionEntry == 0)
             {
                 // Found a cleanup
-                results.reason = actions & _UA_SEARCH_PHASE
-                                     ? _URC_CONTINUE_UNWIND
-                                     : _URC_HANDLER_FOUND;
+                results.reason = (actions & _UA_SEARCH_PHASE) ? _URC_CONTINUE_UNWIND : _URC_HANDLER_FOUND;
                 return;
             }
             // Convert 1-based byte offset into
@@ -832,7 +899,7 @@ static void scan_eh_tab(scan_results &results, _Unwind_Action actions,
                 action += actionOffset;
             }  // there is no break out of this loop, only return
         }
-#ifndef __USING_SJLJ_EXCEPTIONS__
+#if !defined(__USING_SJLJ_EXCEPTIONS__) && !defined(__WASM_EXCEPTIONS__)
         else if (ipOffset < start)
         {
             // There is no call site for this ip
@@ -840,7 +907,7 @@ static void scan_eh_tab(scan_results &results, _Unwind_Action actions,
             // Possible stack corruption.
             call_terminate(native_exception, unwind_exception);
         }
-#endif // !__USING_SJLJ_EXCEPTIONS__
+#endif // !__USING_SJLJ_EXCEPTIONS__ && !__WASM_EXCEPTIONS__
     }  // there might be some tricky cases which break out of this loop
 
     // It is possible that no eh table entry specify how to handle
@@ -897,12 +964,67 @@ _UA_CLEANUP_PHASE
 */
 
 #if !defined(_LIBCXXABI_ARM_EHABI)
-#if defined(__SEH__) && !defined(__USING_SJLJ_EXCEPTIONS__)
+
+// We use these helper functions to work around the behavior of casting between
+// integers (even those that are authenticated) and authenticated pointers.
+// Because the schemas being used are address discriminated we cannot use a
+// trivial value union to coerce the types so instead we perform the re-signing
+// manually.
+using __cxa_catch_temp_type = decltype(__cxa_exception::catchTemp);
+static inline void set_landing_pad(scan_results& results,
+                                   const __cxa_catch_temp_type& source) {
+#if __has_feature(ptrauth_calls)
+  const uintptr_t sourceDiscriminator =
+      ptrauth_blend_discriminator(&source, __ptrauth_cxxabi_catch_temp_disc);
+  const uintptr_t targetDiscriminator =
+      ptrauth_blend_discriminator(&results.landingPad,
+                                  __ptrauth_scan_results_landingpad_disc);
+  uintptr_t reauthenticatedLandingPad =
+      (uintptr_t)ptrauth_auth_and_resign(*reinterpret_cast<void* const*>(&source),
+                                         __ptrauth_cxxabi_catch_temp_key,
+                                         sourceDiscriminator,
+                                         __ptrauth_scan_results_landingpad_key,
+                                         targetDiscriminator);
+  memmove(reinterpret_cast<void *>(&results.landingPad),
+          reinterpret_cast<void *>(&reauthenticatedLandingPad),
+          sizeof(reauthenticatedLandingPad));
+#else
+  results.landingPad = reinterpret_cast<landing_pad_t>(source);
+#endif
+}
+
+static inline void get_landing_pad(__cxa_catch_temp_type &dest,
+                                   const scan_results &results) {
+#if __has_feature(ptrauth_calls)
+  const uintptr_t sourceDiscriminator =
+      ptrauth_blend_discriminator(&results.landingPad,
+                                  __ptrauth_scan_results_landingpad_disc);
+  const uintptr_t targetDiscriminator =
+      ptrauth_blend_discriminator(&dest, __ptrauth_cxxabi_catch_temp_disc);
+  uintptr_t reauthenticatedPointer =
+      (uintptr_t)ptrauth_auth_and_resign(*reinterpret_cast<void* const*>(&results.landingPad),
+                                         __ptrauth_scan_results_landingpad_key,
+                                         sourceDiscriminator,
+                                         __ptrauth_cxxabi_catch_temp_key,
+                                         targetDiscriminator);
+  memmove(reinterpret_cast<void *>(&dest),
+          reinterpret_cast<void *>(&reauthenticatedPointer),
+          sizeof(reauthenticatedPointer));
+#else
+  dest = reinterpret_cast<__cxa_catch_temp_type>(results.landingPad);
+#endif
+}
+
+#ifdef __WASM_EXCEPTIONS__
+_Unwind_Reason_Code __gxx_personality_wasm0
+#elif defined(__SEH__) && !defined(__USING_SJLJ_EXCEPTIONS__)
 static _Unwind_Reason_Code __gxx_personality_imp
 #else
 _LIBCXXABI_FUNC_VIS _Unwind_Reason_Code
 #ifdef __USING_SJLJ_EXCEPTIONS__
 __gxx_personality_sj0
+#elif defined(__MVS__)
+__zos_cxx_personality_v2
 #else
 __gxx_personality_v0
 #endif
@@ -925,8 +1047,7 @@ __gxx_personality_v0
         results.ttypeIndex = exception_header->handlerSwitchValue;
         results.actionRecord = exception_header->actionRecord;
         results.languageSpecificData = exception_header->languageSpecificData;
-        results.landingPad =
-            reinterpret_cast<uintptr_t>(exception_header->catchTemp);
+        set_landing_pad(results, exception_header->catchTemp);
         results.adjustedPtr = exception_header->adjustedPtr;
 
         // Jump to the handler.
@@ -960,8 +1081,13 @@ __gxx_personality_v0
             exc->handlerSwitchValue = static_cast<int>(results.ttypeIndex);
             exc->actionRecord = results.actionRecord;
             exc->languageSpecificData = results.languageSpecificData;
-            exc->catchTemp = reinterpret_cast<void*>(results.landingPad);
+            get_landing_pad(exc->catchTemp, results);
             exc->adjustedPtr = results.adjustedPtr;
+#ifdef __WASM_EXCEPTIONS__
+            // Wasm only uses a single phase (_UA_SEARCH_PHASE), so save the
+            // results here.
+            set_registers(unwind_exception, context, results);
+#endif
         }
         return _URC_HANDLER_FOUND;
     }
@@ -1004,13 +1130,18 @@ extern "C" _Unwind_Reason_Code __gnu_unwind_frame(_Unwind_Exception*,
 static _Unwind_Reason_Code continue_unwind(_Unwind_Exception* unwind_exception,
                                            _Unwind_Context* context)
 {
-    if (__gnu_unwind_frame(unwind_exception, context) != _URC_OK)
-        return _URC_FAILURE;
+  switch (__gnu_unwind_frame(unwind_exception, context)) {
+  case _URC_OK:
     return _URC_CONTINUE_UNWIND;
+  case _URC_END_OF_STACK:
+    return _URC_END_OF_STACK;
+  default:
+    return _URC_FAILURE;
+  }
 }
 
 // ARM register names
-#if !defined(LIBCXXABI_USE_LLVM_UNWINDER)
+#if !defined(_LIBUNWIND_VERSION)
 static const uint32_t REG_UCB = 12;  // Register to save _Unwind_Control_Block
 #endif
 static const uint32_t REG_SP = 13;
@@ -1045,7 +1176,7 @@ __gxx_personality_v0(_Unwind_State state,
 
     bool native_exception = __isOurExceptionClass(unwind_exception);
 
-#if !defined(LIBCXXABI_USE_LLVM_UNWINDER)
+#if !defined(_LIBUNWIND_VERSION)
     // Copy the address of _Unwind_Control_Block to r12 so that
     // _Unwind_GetLanguageSpecificData() and _Unwind_GetRegionStart() can
     // return correct address.
@@ -1107,9 +1238,16 @@ __gxx_personality_v0(_Unwind_State state,
         }
 
         // Either we didn't do a phase 1 search (due to forced unwinding), or
-        //  phase 1 reported no catching-handlers.
+        // phase 1 reported no catching-handlers.
         // Search for a (non-catching) cleanup
-        scan_eh_tab(results, _UA_CLEANUP_PHASE, native_exception, unwind_exception, context);
+        if (is_force_unwinding)
+          scan_eh_tab(
+              results,
+              static_cast<_Unwind_Action>(_UA_CLEANUP_PHASE | _UA_FORCE_UNWIND),
+              native_exception, unwind_exception, context);
+        else
+          scan_eh_tab(results, _UA_CLEANUP_PHASE, native_exception,
+                      unwind_exception, context);
         if (results.reason == _URC_HANDLER_FOUND)
         {
             // Found a non-catching handler
@@ -1281,6 +1419,12 @@ _LIBCXXABI_FUNC_VIS _Unwind_Reason_Code __xlcxx_personality_v1(
     __attribute__((__alias__("__gxx_personality_v0")));
 #endif
 
-}  // extern "C"
+} // extern "C"
 
 }  // __cxxabiv1
+
+#if defined(_AIX)
+// Include implementation of the personality and helper functions for the
+// state table based EH used by IBM legacy compilers xlC and xlclang++ on AIX.
+#  include "aix_state_tab_eh.inc"
+#endif

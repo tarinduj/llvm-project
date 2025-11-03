@@ -45,6 +45,7 @@
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/SmallVector.h"
+#include <stack>
 
 namespace clang {
 namespace clangd {
@@ -128,8 +129,8 @@ public:
     DynTypedNode ASTNode;
     // The extent to which this node is covered by the selection.
     Selection Selected;
-    // Walk up the AST to get the DeclContext of this Node,
-    // which is not the node itself.
+    // Walk up the AST to get the lexical DeclContext of this Node, which is not
+    // the node itself.
     const DeclContext &getDeclContext() const;
     // Printable node kind, like "CXXRecordDecl" or "AutoTypeLoc".
     std::string kind() const;

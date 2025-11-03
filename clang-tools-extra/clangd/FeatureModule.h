@@ -13,14 +13,16 @@
 #include "support/Threading.h"
 #include "clang/Basic/Diagnostic.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/Registry.h"
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <vector>
 
 namespace clang {
+class CompilerInstance;
 namespace clangd {
 struct Diag;
 class LSPBinder;
@@ -106,6 +108,11 @@ public:
     /// Listeners are destroyed once the AST is built.
     virtual ~ASTListener() = default;
 
+    /// Called before every AST build, both for main file and preamble. The call
+    /// happens immediately before FrontendAction::Execute(), with Preprocessor
+    /// set up already and after BeginSourceFile() on main file was called.
+    virtual void beforeExecute(CompilerInstance &CI) {}
+
     /// Called everytime a diagnostic is encountered. Modules can use this
     /// modify the final diagnostic, or store some information to surface code
     /// actions later on.
@@ -132,14 +139,19 @@ protected:
   using OutgoingMethod = llvm::unique_function<void(const P &, Callback<R>)>;
 
 private:
-  llvm::Optional<Facilities> Fac;
+  std::optional<Facilities> Fac;
 };
 
 /// A FeatureModuleSet is a collection of feature modules installed in clangd.
 ///
-/// Modules can be looked up by type, or used via the FeatureModule interface.
-/// This allows individual modules to expose a public API.
-/// For this reason, there can be only one feature module of each type.
+/// Modules added with explicit type specification can be looked up by type, or
+/// used via the FeatureModule interface. This allows individual modules to
+/// expose a public API. For this reason, there can be only one feature module
+/// of each type.
+///
+/// Modules added using a base class pointer can be used only via the
+/// FeatureModule interface and can't be looked up by type, thus custom public
+/// API (if provided by the module) can't be used.
 ///
 /// The set owns the modules. It is itself owned by main, not ClangdServer.
 class FeatureModuleSet {
@@ -158,6 +170,8 @@ class FeatureModuleSet {
 public:
   FeatureModuleSet() = default;
 
+  static FeatureModuleSet fromRegistry();
+
   using iterator = llvm::pointee_iterator<decltype(Modules)::iterator>;
   using const_iterator =
       llvm::pointee_iterator<decltype(Modules)::const_iterator>;
@@ -166,6 +180,7 @@ public:
   const_iterator begin() const { return const_iterator(Modules.begin()); }
   const_iterator end() const { return const_iterator(Modules.end()); }
 
+  void add(std::unique_ptr<FeatureModule> M);
   template <typename Mod> bool add(std::unique_ptr<Mod> M) {
     return addImpl(&ID<Mod>::Key, std::move(M), LLVM_PRETTY_FUNCTION);
   }
@@ -179,6 +194,13 @@ public:
 
 template <typename Mod> int FeatureModuleSet::ID<Mod>::Key;
 
+using FeatureModuleRegistry = llvm::Registry<FeatureModule>;
+
 } // namespace clangd
 } // namespace clang
+
+namespace llvm {
+extern template class Registry<clang::clangd::FeatureModule>;
+} // namespace llvm
+
 #endif

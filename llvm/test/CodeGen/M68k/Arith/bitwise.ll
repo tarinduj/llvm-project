@@ -117,7 +117,7 @@ define i32 @eorl(i32 %a, i32 %b) nounwind {
 ; op reg, imm
 ; For type i8 and i16, value is loaded from memory to avoid optimizing it to *.l
 
-define void @andib(i8* %a) nounwind {
+define void @andib(ptr %a) nounwind {
 ; CHECK-LABEL: andib:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    move.l (4,%sp), %a0
@@ -125,13 +125,13 @@ define void @andib(i8* %a) nounwind {
 ; CHECK-NEXT:    and.b #18, %d0
 ; CHECK-NEXT:    move.b %d0, (%a0)
 ; CHECK-NEXT:    rts
-  %1 = load i8, i8* %a
+  %1 = load i8, ptr %a
   %2 = and i8 %1, 18
-  store i8 %2, i8* %a
+  store i8 %2, ptr %a
   ret void
 }
 
-define void @andiw(i16* %a) nounwind {
+define void @andiw(ptr %a) nounwind {
 ; CHECK-LABEL: andiw:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    move.l (4,%sp), %a0
@@ -139,9 +139,9 @@ define void @andiw(i16* %a) nounwind {
 ; CHECK-NEXT:    and.w #4660, %d0
 ; CHECK-NEXT:    move.w %d0, (%a0)
 ; CHECK-NEXT:    rts
-  %1 = load i16, i16* %a
+  %1 = load i16, ptr %a
   %2 = and i16 %1, 4660
-  store i16 %2, i16* %a
+  store i16 %2, ptr %a
   ret void
 }
 
@@ -155,7 +155,7 @@ define i32 @andil(i32 %a) nounwind {
   ret i32 %1
 }
 
-define void @orib(i8* %a) nounwind {
+define void @orib(ptr %a) nounwind {
 ; CHECK-LABEL: orib:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    move.l (4,%sp), %a0
@@ -163,13 +163,13 @@ define void @orib(i8* %a) nounwind {
 ; CHECK-NEXT:    or.b #18, %d0
 ; CHECK-NEXT:    move.b %d0, (%a0)
 ; CHECK-NEXT:    rts
-  %1 = load i8, i8* %a
+  %1 = load i8, ptr %a
   %2 = or i8 %1, 18
-  store i8 %2, i8* %a
+  store i8 %2, ptr %a
   ret void
 }
 
-define void @oriw(i16* %a) nounwind {
+define void @oriw(ptr %a) nounwind {
 ; CHECK-LABEL: oriw:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    move.l (4,%sp), %a0
@@ -177,9 +177,9 @@ define void @oriw(i16* %a) nounwind {
 ; CHECK-NEXT:    or.w #4660, %d0
 ; CHECK-NEXT:    move.w %d0, (%a0)
 ; CHECK-NEXT:    rts
-  %1 = load i16, i16* %a
+  %1 = load i16, ptr %a
   %2 = or i16 %1, 4660
-  store i16 %2, i16* %a
+  store i16 %2, ptr %a
   ret void
 }
 
@@ -193,7 +193,7 @@ define i32 @oril(i32 %a) nounwind {
   ret i32 %1
 }
 
-define void @eorib(i8* %a) nounwind {
+define void @eorib(ptr %a) nounwind {
 ; CHECK-LABEL: eorib:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    move.l (4,%sp), %a0
@@ -201,13 +201,13 @@ define void @eorib(i8* %a) nounwind {
 ; CHECK-NEXT:    eori.b #18, %d0
 ; CHECK-NEXT:    move.b %d0, (%a0)
 ; CHECK-NEXT:    rts
-  %1 = load i8, i8* %a
+  %1 = load i8, ptr %a
   %2 = xor i8 %1, 18
-  store i8 %2, i8* %a
+  store i8 %2, ptr %a
   ret void
 }
 
-define void @eoriw(i16* %a) nounwind {
+define void @eoriw(ptr %a) nounwind {
 ; CHECK-LABEL: eoriw:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    move.l (4,%sp), %a0
@@ -215,9 +215,9 @@ define void @eoriw(i16* %a) nounwind {
 ; CHECK-NEXT:    eori.w #4660, %d0
 ; CHECK-NEXT:    move.w %d0, (%a0)
 ; CHECK-NEXT:    rts
-  %1 = load i16, i16* %a
+  %1 = load i16, ptr %a
   %2 = xor i16 %1, 4660
-  store i16 %2, i16* %a
+  store i16 %2, ptr %a
   ret void
 }
 
@@ -229,4 +229,124 @@ define i32 @eoril(i32 %a) nounwind {
 ; CHECK-NEXT:    rts
   %1 = xor i32 %a, 305419896
   ret i32 %1
+}
+
+define i64 @lshr64(i64 %a, i64 %b) nounwind {
+; CHECK-LABEL: lshr64:
+; CHECK:       ; %bb.0:
+; CHECK-NEXT:    suba.l #12, %sp
+; CHECK-NEXT:    movem.l %d2-%d4, (0,%sp) ; 16-byte Folded Spill
+; CHECK-NEXT:    move.l (28,%sp), %d3
+; CHECK-NEXT:    move.l (16,%sp), %d2
+; CHECK-NEXT:    move.l %d3, %d1
+; CHECK-NEXT:    add.l #-32, %d1
+; CHECK-NEXT:    bmi .LBB18_1
+; CHECK-NEXT:  ; %bb.2:
+; CHECK-NEXT:    moveq #0, %d0
+; CHECK-NEXT:    bra .LBB18_3
+; CHECK-NEXT:  .LBB18_1:
+; CHECK-NEXT:    move.l %d2, %d0
+; CHECK-NEXT:    lsr.l %d3, %d0
+; CHECK-NEXT:  .LBB18_3:
+; CHECK-NEXT:    move.l %d3, %d4
+; CHECK-NEXT:    add.l #-32, %d4
+; CHECK-NEXT:    bmi .LBB18_4
+; CHECK-NEXT:  ; %bb.5:
+; CHECK-NEXT:    lsr.l %d1, %d2
+; CHECK-NEXT:    move.l %d2, %d1
+; CHECK-NEXT:    bra .LBB18_6
+; CHECK-NEXT:  .LBB18_4:
+; CHECK-NEXT:    move.l %d3, %d4
+; CHECK-NEXT:    eori.l #31, %d4
+; CHECK-NEXT:    lsl.l #1, %d2
+; CHECK-NEXT:    move.l (20,%sp), %d1
+; CHECK-NEXT:    lsl.l %d4, %d2
+; CHECK-NEXT:    lsr.l %d3, %d1
+; CHECK-NEXT:    or.l %d2, %d1
+; CHECK-NEXT:  .LBB18_6:
+; CHECK-NEXT:    movem.l (0,%sp), %d2-%d4 ; 16-byte Folded Reload
+; CHECK-NEXT:    adda.l #12, %sp
+; CHECK-NEXT:    rts
+  %1 = lshr i64 %a, %b
+  ret i64 %1
+}
+
+define i64 @ashr64(i64 %a, i64 %b) nounwind {
+; CHECK-LABEL: ashr64:
+; CHECK:       ; %bb.0:
+; CHECK-NEXT:    suba.l #8, %sp
+; CHECK-NEXT:    movem.l %d2-%d3, (0,%sp) ; 12-byte Folded Spill
+; CHECK-NEXT:    move.l (24,%sp), %d2
+; CHECK-NEXT:    move.l (12,%sp), %d0
+; CHECK-NEXT:    move.l %d2, %d3
+; CHECK-NEXT:    add.l #-32, %d3
+; CHECK-NEXT:    move.l %d2, %d1
+; CHECK-NEXT:    add.l #-32, %d1
+; CHECK-NEXT:    bmi .LBB19_1
+; CHECK-NEXT:  ; %bb.2:
+; CHECK-NEXT:    move.l %d0, %d1
+; CHECK-NEXT:    asr.l %d3, %d1
+; CHECK-NEXT:    bra .LBB19_3
+; CHECK-NEXT:  .LBB19_1:
+; CHECK-NEXT:    move.l %d2, %d1
+; CHECK-NEXT:    eori.l #31, %d1
+; CHECK-NEXT:    move.l %d0, %d3
+; CHECK-NEXT:    lsl.l #1, %d3
+; CHECK-NEXT:    lsl.l %d1, %d3
+; CHECK-NEXT:    move.l (16,%sp), %d1
+; CHECK-NEXT:    lsr.l %d2, %d1
+; CHECK-NEXT:    or.l %d3, %d1
+; CHECK-NEXT:  .LBB19_3:
+; CHECK-NEXT:    move.l %d2, %d3
+; CHECK-NEXT:    add.l #-32, %d3
+; CHECK-NEXT:    bmi .LBB19_5
+; CHECK-NEXT:  ; %bb.4:
+; CHECK-NEXT:    moveq #31, %d2
+; CHECK-NEXT:  .LBB19_5:
+; CHECK-NEXT:    asr.l %d2, %d0
+; CHECK-NEXT:    movem.l (0,%sp), %d2-%d3 ; 12-byte Folded Reload
+; CHECK-NEXT:    adda.l #8, %sp
+; CHECK-NEXT:    rts
+  %1 = ashr i64 %a, %b
+  ret i64 %1
+}
+
+define i64 @shl64(i64 %a, i64 %b) nounwind {
+; CHECK-LABEL: shl64:
+; CHECK:       ; %bb.0:
+; CHECK-NEXT:    suba.l #12, %sp
+; CHECK-NEXT:    movem.l %d2-%d4, (0,%sp) ; 16-byte Folded Spill
+; CHECK-NEXT:    move.l (28,%sp), %d3
+; CHECK-NEXT:    move.l (20,%sp), %d2
+; CHECK-NEXT:    move.l %d3, %d0
+; CHECK-NEXT:    add.l #-32, %d0
+; CHECK-NEXT:    bmi .LBB20_1
+; CHECK-NEXT:  ; %bb.2:
+; CHECK-NEXT:    moveq #0, %d1
+; CHECK-NEXT:    bra .LBB20_3
+; CHECK-NEXT:  .LBB20_1:
+; CHECK-NEXT:    move.l %d2, %d1
+; CHECK-NEXT:    lsl.l %d3, %d1
+; CHECK-NEXT:  .LBB20_3:
+; CHECK-NEXT:    move.l %d3, %d4
+; CHECK-NEXT:    add.l #-32, %d4
+; CHECK-NEXT:    bmi .LBB20_4
+; CHECK-NEXT:  ; %bb.5:
+; CHECK-NEXT:    lsl.l %d0, %d2
+; CHECK-NEXT:    move.l %d2, %d0
+; CHECK-NEXT:    bra .LBB20_6
+; CHECK-NEXT:  .LBB20_4:
+; CHECK-NEXT:    move.l %d3, %d4
+; CHECK-NEXT:    eori.l #31, %d4
+; CHECK-NEXT:    lsr.l #1, %d2
+; CHECK-NEXT:    move.l (16,%sp), %d0
+; CHECK-NEXT:    lsr.l %d4, %d2
+; CHECK-NEXT:    lsl.l %d3, %d0
+; CHECK-NEXT:    or.l %d2, %d0
+; CHECK-NEXT:  .LBB20_6:
+; CHECK-NEXT:    movem.l (0,%sp), %d2-%d4 ; 16-byte Folded Reload
+; CHECK-NEXT:    adda.l #12, %sp
+; CHECK-NEXT:    rts
+  %1 = shl i64 %a, %b
+  ret i64 %1
 }

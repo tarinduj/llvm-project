@@ -11,28 +11,38 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/LoopAnalysis.h"
-#include "mlir/Analysis/Utils.h"
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Passes.h"
+
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/Passes.h.inc"
 #include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Transforms/LoopUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "llvm/Support/Debug.h"
-#include <deque>
+
+namespace mlir {
+namespace affine {
+#define GEN_PASS_DEF_AFFINEPARALLELIZE
+#include "mlir/Dialect/Affine/Passes.h.inc"
+} // namespace affine
+} // namespace mlir
 
 #define DEBUG_TYPE "affine-parallel"
 
 using namespace mlir;
+using namespace mlir::affine;
 
 namespace {
 /// Convert all parallel affine.for op into 1-D affine.parallel op.
-struct AffineParallelize : public AffineParallelizeBase<AffineParallelize> {
-  void runOnFunction() override;
+struct AffineParallelize
+    : public affine::impl::AffineParallelizeBase<AffineParallelize> {
+  using AffineParallelizeBase<AffineParallelize>::AffineParallelizeBase;
+
+  void runOnOperation() override;
 };
 
 /// Descriptor of a potentially parallelizable loop.
@@ -47,8 +57,8 @@ struct ParallelizationCandidate {
 };
 } // namespace
 
-void AffineParallelize::runOnFunction() {
-  FuncOp f = getFunction();
+void AffineParallelize::runOnOperation() {
+  func::FuncOp f = getOperation();
 
   // The walker proceeds in pre-order to process the outer loops first
   // and control the number of outer parallel loops.
@@ -56,7 +66,7 @@ void AffineParallelize::runOnFunction() {
   f.walk<WalkOrder::PreOrder>([&](AffineForOp loop) {
     SmallVector<LoopReduction> reductions;
     if (isLoopParallel(loop, parallelReductions ? &reductions : nullptr))
-      parallelizableLoops.push_back({loop, std::move(reductions)});
+      parallelizableLoops.emplace_back(loop, std::move(reductions));
   });
 
   for (const ParallelizationCandidate &candidate : parallelizableLoops) {
@@ -79,8 +89,4 @@ void AffineParallelize::runOnFunction() {
                               << loop);
     }
   }
-}
-
-std::unique_ptr<OperationPass<FuncOp>> mlir::createAffineParallelizePass() {
-  return std::make_unique<AffineParallelize>();
 }

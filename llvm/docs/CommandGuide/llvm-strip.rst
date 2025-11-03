@@ -37,9 +37,10 @@ multiple file formats.
 
 .. option:: --discard-all, -x
 
- Remove most local symbols from the output. Different file formats may limit
- this to a subset of the local symbols. For example, file and section symbols in
- ELF objects will not be discarded. Additionally, remove all debug sections.
+ Remove most local symbols not referenced by relocations from the output.
+ Different file formats may limit this to a subset of the local symbols. For
+ example, file and section symbols in ELF objects will not be discarded.
+ Additionally, remove all debug sections.
 
 .. option::  --enable-deterministic-archives, -D
 
@@ -58,6 +59,15 @@ multiple file formats.
 
  Write output to <file>. Multiple input files cannot be used in combination
  with -o.
+
+.. option:: --only-keep-debug
+
+ Produce a debug file as the output that only preserves contents of sections
+ useful for debugging purposes.
+
+ For ELF objects, this removes the contents of `SHF_ALLOC` sections that are not
+ `SHT_NOTE` by making them `SHT_NOBITS` and shrinking the program headers where
+ possible.
 
 .. option:: --regex
 
@@ -129,18 +139,6 @@ multiple file formats.
 
  Read command-line options and commands from response file `<FILE>`.
 
-COFF-SPECIFIC OPTIONS
----------------------
-
-The following options are implemented only for COFF objects. If used with other
-objects, :program:`llvm-strip` will either emit an error or silently ignore
-them.
-
-.. option:: --only-keep-debug
-
- Remove the contents of non-debug sections from the output, but keep the section
- headers.
-
 ELF-SPECIFIC OPTIONS
 --------------------
 
@@ -155,7 +153,7 @@ them.
 
 .. option:: --discard-locals, -X
 
- Remove local symbols starting with ".L" from the output.
+ Remove local symbols starting with ".L" not referenced by relocations from the output.
 
 .. option:: --keep-file-symbols
 
@@ -194,7 +192,7 @@ Otherwise, it exits with code 0.
 BUGS
 ----
 
-To report bugs, please visit <https://bugs.llvm.org/>.
+To report bugs, please visit <https://github.com/llvm/llvm-project/labels/tools:llvm-objcopy%2Fstrip>.
 
 SEE ALSO
 --------

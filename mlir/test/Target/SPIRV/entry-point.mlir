@@ -1,27 +1,32 @@
-// RUN: mlir-translate -test-spirv-roundtrip -split-input-file %s | FileCheck %s
+// RUN: mlir-translate -no-implicit-module -test-spirv-roundtrip -split-input-file %s | FileCheck %s
 
-spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
-  spv.func @noop() -> () "None" {
-    spv.Return
+// RUN: %if spirv-tools %{ rm -rf %t %}
+// RUN: %if spirv-tools %{ mkdir %t %}
+// RUN: %if spirv-tools %{ mlir-translate --no-implicit-module --serialize-spirv --split-input-file --spirv-save-validation-files-with-prefix=%t/module %s %}
+// RUN: %if spirv-tools %{ spirv-val %t %}
+
+spirv.module Logical OpenCL requires #spirv.vce<v1.0, [Kernel], []> {
+  spirv.func @noop() -> () "None" {
+    spirv.Return
   }
-  // CHECK:      spv.EntryPoint "GLCompute" @noop
-  // CHECK-NEXT: spv.ExecutionMode @noop "ContractionOff"
-  spv.EntryPoint "GLCompute" @noop
-  spv.ExecutionMode @noop "ContractionOff"
+  // CHECK:      spirv.EntryPoint "Kernel" @noop
+  // CHECK-NEXT: spirv.ExecutionMode @noop "ContractionOff"
+  spirv.EntryPoint "Kernel" @noop
+  spirv.ExecutionMode @noop "ContractionOff"
 }
 
 // -----
 
-spv.module Logical GLSL450 requires #spv.vce<v1.0, [Shader], []> {
-  // CHECK:       spv.GlobalVariable @var2 : !spv.ptr<f32, Input>
-  // CHECK-NEXT:  spv.GlobalVariable @var3 : !spv.ptr<f32, Output>
-  // CHECK-NEXT:  spv.func @noop({{%.*}}: !spv.ptr<f32, Input>, {{%.*}}: !spv.ptr<f32, Output>) "None"
-  // CHECK:       spv.EntryPoint "GLCompute" @noop, @var2, @var3
-  spv.GlobalVariable @var2 : !spv.ptr<f32, Input>
-  spv.GlobalVariable @var3 : !spv.ptr<f32, Output>
-  spv.func @noop(%arg0 : !spv.ptr<f32, Input>, %arg1 : !spv.ptr<f32, Output>) -> () "None" {
-    spv.Return
+spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader], []> {
+  // CHECK:       spirv.GlobalVariable @var2 : !spirv.ptr<f32, Input>
+  // CHECK-NEXT:  spirv.GlobalVariable @var3 : !spirv.ptr<f32, Output>
+  // CHECK-NEXT:  spirv.func @noop() "None"
+  // CHECK:       spirv.EntryPoint "GLCompute" @noop, @var2, @var3
+  spirv.GlobalVariable @var2 : !spirv.ptr<f32, Input>
+  spirv.GlobalVariable @var3 : !spirv.ptr<f32, Output>
+  spirv.func @noop() -> () "None" {
+    spirv.Return
   }
-  spv.EntryPoint "GLCompute" @noop, @var2, @var3
-  spv.ExecutionMode @noop "ContractionOff"
+  spirv.EntryPoint "GLCompute" @noop, @var2, @var3
+  spirv.ExecutionMode @noop "LocalSize", 1, 1, 1
 }

@@ -12,9 +12,9 @@
 
 %struct.large = type { [4096 x i8] }
 
-declare void @foo(%struct.large* align 8 byval(%struct.large)) nounwind
+declare void @foo(ptr align 8 byval(%struct.large)) nounwind
 
-define void @test1(%struct.large* nocapture %x) nounwind {
+define void @test1(ptr nocapture %x) nounwind {
 ; NOFAST32-LABEL: test1:
 ; NOFAST32:       # %bb.0:
 ; NOFAST32-NEXT:    pushl %edi
@@ -66,21 +66,21 @@ define void @test1(%struct.large* nocapture %x) nounwind {
 ; FAST-NEXT:    callq foo@PLT
 ; FAST-NEXT:    addq $4104, %rsp # imm = 0x1008
 ; FAST-NEXT:    retq
-  call void @foo(%struct.large* align 8 byval(%struct.large) %x)
+  call void @foo(ptr align 8 byval(%struct.large) %x)
   ret void
 
 }
 
-define void @test2(%struct.large* nocapture %x) nounwind minsize {
+define void @test2(ptr nocapture %x) nounwind minsize {
 ; NOFAST32-LABEL: test2:
 ; NOFAST32:       # %bb.0:
 ; NOFAST32-NEXT:    pushl %edi
 ; NOFAST32-NEXT:    pushl %esi
 ; NOFAST32-NEXT:    subl $4100, %esp # imm = 0x1004
 ; NOFAST32-NEXT:    movl {{[0-9]+}}(%esp), %esi
-; NOFAST32-NEXT:    movl $1024, %ecx # imm = 0x400
+; NOFAST32-NEXT:    movl $4096, %ecx # imm = 0x1000
 ; NOFAST32-NEXT:    movl %esp, %edi
-; NOFAST32-NEXT:    rep;movsl (%esi), %es:(%edi)
+; NOFAST32-NEXT:    rep;movsb (%esi), %es:(%edi)
 ; NOFAST32-NEXT:    calll foo@PLT
 ; NOFAST32-NEXT:    addl $4100, %esp # imm = 0x1004
 ; NOFAST32-NEXT:    popl %esi
@@ -106,9 +106,9 @@ define void @test2(%struct.large* nocapture %x) nounwind minsize {
 ; NOFAST:       # %bb.0:
 ; NOFAST-NEXT:    subq $4104, %rsp # imm = 0x1008
 ; NOFAST-NEXT:    movq %rdi, %rsi
-; NOFAST-NEXT:    movl $512, %ecx # imm = 0x200
+; NOFAST-NEXT:    movl $4096, %ecx # imm = 0x1000
 ; NOFAST-NEXT:    movq %rsp, %rdi
-; NOFAST-NEXT:    rep;movsq (%rsi), %es:(%rdi)
+; NOFAST-NEXT:    rep;movsb (%rsi), %es:(%rdi)
 ; NOFAST-NEXT:    callq foo@PLT
 ; NOFAST-NEXT:    addq $4104, %rsp # imm = 0x1008
 ; NOFAST-NEXT:    retq
@@ -123,16 +123,16 @@ define void @test2(%struct.large* nocapture %x) nounwind minsize {
 ; FAST-NEXT:    callq foo@PLT
 ; FAST-NEXT:    addq $4104, %rsp # imm = 0x1008
 ; FAST-NEXT:    retq
-  call void @foo(%struct.large* align 8 byval(%struct.large) %x)
+  call void @foo(ptr align 8 byval(%struct.large) %x)
   ret void
 
 }
 
 %struct.large_oddsize = type { [4095 x i8] }
 
-declare void @foo_oddsize(%struct.large_oddsize* align 8 byval(%struct.large_oddsize)) nounwind
+declare void @foo_oddsize(ptr align 8 byval(%struct.large_oddsize)) nounwind
 
-define void @test3(%struct.large_oddsize* nocapture %x) nounwind minsize {
+define void @test3(ptr nocapture %x) nounwind minsize {
 ; NOFAST32-LABEL: test3:
 ; NOFAST32:       # %bb.0:
 ; NOFAST32-NEXT:    pushl %edi
@@ -184,7 +184,7 @@ define void @test3(%struct.large_oddsize* nocapture %x) nounwind minsize {
 ; FAST-NEXT:    callq foo_oddsize@PLT
 ; FAST-NEXT:    addq $4104, %rsp # imm = 0x1008
 ; FAST-NEXT:    retq
-  call void @foo_oddsize(%struct.large_oddsize* align 8 byval(%struct.large_oddsize) %x)
+  call void @foo_oddsize(ptr align 8 byval(%struct.large_oddsize) %x)
   ret void
 
 }

@@ -8,6 +8,8 @@
 
 // <locale>
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS -D_LIBCPP_ENABLE_CXX26_REMOVED_CODECVT -D_LIBCPP_ENABLE_CXX26_REMOVED_WSTRING_CONVERT
+
 // wstring_convert<Codecvt, Elem, Wide_alloc, Byte_alloc>
 
 // wstring_convert(Codecvt* pcvt = new Codecvt);          // before C++14
@@ -15,9 +17,12 @@
 // wstring_convert() : wstring_convert(new Codecvt) {}    // C++20
 // explicit wstring_convert(Codecvt* pcvt);               // C++20
 
+// XFAIL: no-wide-characters
+
 #include <locale>
-#include <codecvt>
 #include <cassert>
+#include <codecvt>
+#include <type_traits>
 
 #include "test_macros.h"
 #if TEST_STD_VER >= 11

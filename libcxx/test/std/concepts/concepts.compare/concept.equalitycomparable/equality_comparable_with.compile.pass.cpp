@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<class T, class U>
 // concept equality_comparable_with = // see below
@@ -15,17 +14,19 @@
 #include <concepts>
 
 #include <array>
+#include <cstddef>
 #include <deque>
 #include <forward_list>
 #include <list>
 #include <map>
-#include <memory>
-#include <mutex>
 #include <optional>
-#include <set>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
+
+#include "test_macros.h"
+
+#ifndef TEST_HAS_NO_THREADS
+#  include <mutex>
+#endif
 
 #include "compare_types.h"
 
@@ -106,7 +107,12 @@ static_assert(!check_equality_comparable_with < int,
               int (S::*)() const volatile&& noexcept > ());
 
 static_assert(check_equality_comparable_with<int*, int*>());
+// Array comparisons are ill-formed in C++26, but Clang doesn't implement this yet.
+#if TEST_STD_VER <= 23 || defined(TEST_COMPILER_CLANG)
 static_assert(check_equality_comparable_with<int*, int[5]>());
+#else
+static_assert(!check_equality_comparable_with<int*, int[5]>());
+#endif
 static_assert(!check_equality_comparable_with<int*, int (*)()>());
 static_assert(!check_equality_comparable_with<int*, int (&)()>());
 static_assert(!check_equality_comparable_with<int*, int (S::*)()>());
@@ -147,7 +153,12 @@ static_assert(
 static_assert(!check_equality_comparable_with < int*,
               int (S::*)() const volatile&& noexcept > ());
 
+// Array comparisons are ill-formed in C++26, but Clang doesn't implement this yet.
+#if TEST_STD_VER <= 23 || defined(TEST_COMPILER_CLANG)
 static_assert(check_equality_comparable_with<int[5], int[5]>());
+#else
+static_assert(!check_equality_comparable_with<int[5], int[5]>());
+#endif
 static_assert(!check_equality_comparable_with<int[5], int (*)()>());
 static_assert(!check_equality_comparable_with<int[5], int (&)()>());
 static_assert(!check_equality_comparable_with<int[5], int (S::*)()>());
@@ -941,7 +952,12 @@ static_assert(
 
 static_assert(!check_equality_comparable_with<std::nullptr_t, int>());
 static_assert(check_equality_comparable_with<std::nullptr_t, int*>());
+// Array comparisons are ill-formed in C++26, but Clang doesn't implement this yet.
+#if TEST_STD_VER <= 23 || defined(TEST_COMPILER_CLANG)
 static_assert(check_equality_comparable_with<std::nullptr_t, int[5]>());
+#else
+static_assert(!check_equality_comparable_with<std::nullptr_t, int[5]>());
+#endif
 static_assert(check_equality_comparable_with<std::nullptr_t, int (*)()>());
 static_assert(check_equality_comparable_with<std::nullptr_t, int (&)()>());
 static_assert(check_equality_comparable_with<std::nullptr_t, int (S::*)()>());
@@ -1055,7 +1071,7 @@ static_assert(
 static_assert(
     !check_equality_comparable_with<std::list<int>, std::vector<int> >());
 
-#ifndef _LIBCPP_HAS_NO_THREADS
+#ifndef TEST_HAS_NO_THREADS
 static_assert(!check_equality_comparable_with<std::lock_guard<std::mutex>,
                                               std::lock_guard<std::mutex> >());
 static_assert(!check_equality_comparable_with<std::lock_guard<std::mutex>,
@@ -1116,5 +1132,3 @@ static_assert(
 static_assert(
     !check_equality_comparable_with<one_way_ne, explicit_operators>());
 } // namespace types_fit_for_purpose
-
-int main(int, char**) { return 0; }

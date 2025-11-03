@@ -11,11 +11,24 @@
 
 #include "lldb/Core/AddressRange.h"
 #include "lldb/Core/Mangled.h"
+#include "lldb/Core/Section.h"
 #include "lldb/Symbol/SymbolContextScope.h"
+#include "lldb/Utility/Stream.h"
 #include "lldb/Utility/UserID.h"
+#include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-private.h"
+#include "llvm/Support/JSON.h"
 
 namespace lldb_private {
+
+struct JSONSymbol {
+  std::optional<uint64_t> address;
+  std::optional<uint64_t> value;
+  std::optional<uint64_t> size;
+  std::optional<uint64_t> id;
+  std::optional<lldb::SymbolType> type;
+  std::string name;
+};
 
 class Symbol : public SymbolContextScope {
 public:
@@ -38,6 +51,9 @@ public:
   Symbol(const Symbol &rhs);
 
   const Symbol &operator=(const Symbol &rhs);
+
+  static llvm::Expected<Symbol> FromJSON(const JSONSymbol &symbol,
+                                         SectionList *section_list);
 
   void Clear();
 
@@ -83,6 +99,16 @@ public:
       return m_addr_range.GetBaseAddress();
     else
       return Address();
+  }
+
+  /// Get the raw value of the symbol from the symbol table.
+  ///
+  /// If the symbol's value is an address, return the file address, else return
+  /// the raw value that is stored in the m_addr_range. If the base address has
+  /// no section, then getting the file address will return the correct value
+  /// as it will return the offset in the base address which is the value.
+  uint64_t GetRawValue() const {
+    return m_addr_range.GetBaseAddress().GetFileAddress();
   }
 
   // When a symbol's value isn't an address, we need to access the raw value.
@@ -142,7 +168,7 @@ public:
 
   lldb::SymbolType GetType() const { return (lldb::SymbolType)m_type; }
 
-  void SetType(lldb::SymbolType type) { m_type = (lldb::SymbolType)type; }
+  void SetType(lldb::SymbolType type) { m_type = type; }
 
   const char *GetTypeAsString() const;
 
@@ -150,8 +176,9 @@ public:
 
   void SetFlags(uint32_t flags) { m_flags = flags; }
 
-  void GetDescription(Stream *s, lldb::DescriptionLevel level,
-                      Target *target) const;
+  void GetDescription(
+      Stream *s, lldb::DescriptionLevel level, Target *target,
+      std::optional<Stream::HighlightSettings> settings = std::nullopt) const;
 
   bool IsSynthetic() const { return m_is_synthetic; }
 
@@ -177,7 +204,7 @@ public:
 
   bool IsWeak() const { return m_is_weak; }
 
-  void SetIsWeak (bool b) { m_is_weak = b; }
+  void SetIsWeak(bool b) { m_is_weak = b; }
 
   bool GetByteSizeIsValid() const { return m_size_is_valid; }
 
@@ -232,8 +259,52 @@ public:
   bool ContainsFileAddress(lldb::addr_t file_addr) const;
 
   static llvm::StringRef GetSyntheticSymbolPrefix() {
-    return "___lldb_unnamed_symbol";
+    return "___lldb_unnamed_symbol_";
   }
+
+  /// Decode a serialized version of this object from data.
+  ///
+  /// \param data
+  ///   The decoder object that references the serialized data.
+  ///
+  /// \param offset_ptr
+  ///   A pointer that contains the offset from which the data will be decoded
+  ///   from that gets updated as data gets decoded.
+  ///
+  /// \param section_list
+  ///   A section list that allows lldb_private::Address objects to be filled
+  ///   in. The address information for symbols are serilized as file addresses
+  ///   and must be converted into Address objects with the right section and
+  ///   offset.
+  ///
+  /// \param strtab
+  ///   All strings in cache files are put into string tables for efficiency
+  ///   and cache file size reduction. Strings are stored as uint32_t string
+  ///   table offsets in the cache data.
+  ///
+  /// \return
+  ///   True if the symbol is successfully decoded, false otherwise.
+  bool Decode(const DataExtractor &data, lldb::offset_t *offset_ptr,
+              const SectionList *section_list, const StringTableReader &strtab);
+
+  /// Encode this object into a data encoder object.
+  ///
+  /// This allows this object to be serialized to disk.
+  ///
+  /// \param encoder
+  ///   A data encoder object that serialized bytes will be encoded into.
+  ///
+  /// \param strtab
+  ///   All strings in cache files are put into string tables for efficiency
+  ///   and cache file size reduction. Strings are stored as uint32_t string
+  ///   table offsets in the cache data.
+  void Encode(DataEncoder &encoder, ConstStringTable &strtab) const;
+
+  bool operator==(const Symbol &rhs) const;
+
+  static const char *GetTypeAsString(lldb::SymbolType symbol_type);
+
+  static lldb::SymbolType GetTypeFromString(const char *str);
 
 protected:
   // This is the internal guts of ResolveReExportedSymbol, it assumes
@@ -281,5 +352,17 @@ protected:
 };
 
 } // namespace lldb_private
+
+namespace llvm {
+namespace json {
+
+bool fromJSON(const llvm::json::Value &value, lldb_private::JSONSymbol &symbol,
+              llvm::json::Path path);
+
+bool fromJSON(const llvm::json::Value &value, lldb::SymbolType &type,
+              llvm::json::Path path);
+
+} // namespace json
+} // namespace llvm
 
 #endif // LLDB_SYMBOL_SYMBOL_H

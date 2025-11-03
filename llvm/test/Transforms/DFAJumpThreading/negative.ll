@@ -1,6 +1,6 @@
-; RUN: opt -dfa-jump-threading -dfa-cost-threshold=25 -pass-remarks-missed='dfa-jump-threading' -pass-remarks-output=%t -disable-output %s
+; RUN: opt -passes=dfa-jump-threading -dfa-cost-threshold=25 -pass-remarks-missed='dfa-jump-threading' -pass-remarks-output=%t -disable-output %s
 ; RUN: FileCheck --input-file %t --check-prefix=REMARK %s
-; RUN: opt -S -dfa-jump-threading %s | FileCheck %s
+; RUN: opt -S -passes=dfa-jump-threading %s | FileCheck %s
 
 ; This negative test case checks that the optimization doesn't trigger
 ; when the code size cost is too high.
@@ -212,5 +212,90 @@ for.inc:
   br i1 %cmp.exit, label %for.body, label %for.end
 
 for.end:
+  ret i32 0
+}
+
+declare i32 @arbitrary_function()
+
+; Don't confuse %state.2 for the initial switch value.
+; [ 3, %case2 ] can still be threaded.
+define i32 @negative6(i32 %init) {
+; CHECK-LABEL: define i32 @negative6(
+; CHECK-SAME: i32 [[INIT:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[INIT]], 0
+; CHECK-NEXT:    br label %[[LOOP_2:.*]]
+; CHECK:       [[LOOP_2]]:
+; CHECK-NEXT:    [[STATE_2:%.*]] = call i32 @arbitrary_function()
+; CHECK-NEXT:    br label %[[LOOP_3:.*]]
+; CHECK:       [[LOOP_3]]:
+; CHECK-NEXT:    [[STATE:%.*]] = phi i32 [ [[STATE_2]], %[[LOOP_2]] ]
+; CHECK-NEXT:    switch i32 [[STATE]], label %[[INFLOOP_I:.*]] [
+; CHECK-NEXT:      i32 2, label %[[CASE2:.*]]
+; CHECK-NEXT:      i32 3, label %[[CASE3:.*]]
+; CHECK-NEXT:      i32 4, label %[[CASE4:.*]]
+; CHECK-NEXT:      i32 0, label %[[CASE0:.*]]
+; CHECK-NEXT:      i32 1, label %[[CASE1:.*]]
+; CHECK-NEXT:    ]
+; CHECK:       [[LOOP_3_JT3:.*]]:
+; CHECK-NEXT:    [[STATE_JT3:%.*]] = phi i32 [ 3, %[[CASE2]] ]
+; CHECK-NEXT:    br label %[[CASE3]]
+; CHECK:       [[CASE2]]:
+; CHECK-NEXT:    br label %[[LOOP_3_JT3]]
+; CHECK:       [[CASE3]]:
+; CHECK-NEXT:    br i1 [[CMP]], label %[[LOOP_2_BACKEDGE:.*]], label %[[CASE4]]
+; CHECK:       [[CASE4]]:
+; CHECK-NEXT:    br label %[[LOOP_2_BACKEDGE]]
+; CHECK:       [[LOOP_2_BACKEDGE]]:
+; CHECK-NEXT:    br label %[[LOOP_2]]
+; CHECK:       [[CASE0]]:
+; CHECK-NEXT:    br label %[[EXIT:.*]]
+; CHECK:       [[CASE1]]:
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[INFLOOP_I]]:
+; CHECK-NEXT:    br label %[[INFLOOP_I]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    ret i32 0
+;
+entry:
+  %cmp = icmp eq i32 %init, 0
+  br label %loop.2
+
+loop.2:
+  %state.2 = call i32 @arbitrary_function()
+  br label %loop.3
+
+loop.3:
+  %state = phi i32 [ %state.2, %loop.2 ], [ 3, %case2 ]
+  switch i32 %state, label %infloop.i [
+    i32 2, label %case2
+    i32 3, label %case3
+    i32 4, label %case4
+    i32 0, label %case0
+    i32 1, label %case1
+  ]
+
+case2:
+  br label %loop.3
+
+case3:
+  br i1 %cmp, label %loop.2.backedge, label %case4
+
+case4:
+  br label %loop.2.backedge
+
+loop.2.backedge:
+  br label %loop.2
+
+case0:
+  br label %exit
+
+case1:
+  br label %exit
+
+infloop.i:
+  br label %infloop.i
+
+exit:
   ret i32 0
 }

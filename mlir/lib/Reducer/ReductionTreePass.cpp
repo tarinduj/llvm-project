@@ -15,8 +15,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/DialectInterface.h"
-#include "mlir/IR/OpDefinition.h"
-#include "mlir/Reducer/PassDetail.h"
 #include "mlir/Reducer/Passes.h"
 #include "mlir/Reducer/ReductionNode.h"
 #include "mlir/Reducer/ReductionPatternInterface.h"
@@ -25,9 +23,12 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/ManagedStatic.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_REDUCTIONTREEPASS
+#include "mlir/Reducer/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -41,7 +42,7 @@ static void applyPatterns(Region &region,
   std::vector<Operation *> opsNotInRange;
   std::vector<Operation *> opsInRange;
   size_t keepIndex = 0;
-  for (auto op : enumerate(region.getOps())) {
+  for (const auto &op : enumerate(region.getOps())) {
     int index = op.index();
     if (keepIndex < rangeToKeep.size() &&
         index == rangeToKeep[keepIndex].second)
@@ -52,14 +53,18 @@ static void applyPatterns(Region &region,
       opsInRange.push_back(&op.value());
   }
 
-  // `applyOpPatternsAndFold` may erase the ops so we can't do the pattern
-  // matching in above iteration. Besides, erase op not-in-range may end up in
-  // invalid module, so `applyOpPatternsAndFold` should come before that
-  // transform.
-  for (Operation *op : opsInRange)
-    // `applyOpPatternsAndFold` returns whether the op is convered. Omit it
-    // because we don't have expectation this reduction will be success or not.
-    (void)applyOpPatternsAndFold(op, patterns);
+  // `applyOpPatternsGreedily` with folding may erase the ops so we can't do the
+  // pattern matching in above iteration. Besides, erase op not-in-range may end
+  // up in invalid module, so `applyOpPatternsGreedily` with folding should come
+  // before that transform.
+  for (Operation *op : opsInRange) {
+    // `applyOpPatternsGreedily` with folding returns whether the op is
+    // converted. Omit it because we don't have expectation this reduction will
+    // be success or not.
+    (void)applyOpPatternsGreedily(op, patterns,
+                                  GreedyRewriteConfig().setStrictness(
+                                      GreedyRewriteStrictness::ExistingOps));
+  }
 
   if (eraseOpNotInRange)
     for (Operation *op : opsNotInRange) {
@@ -92,7 +97,7 @@ static LogicalResult findOptimal(ModuleOp module, Region &region,
       {0, std::distance(region.op_begin(), region.op_end())}};
 
   ReductionNode *root = allocator.Allocate();
-  new (root) ReductionNode(nullptr, std::move(ranges), allocator);
+  new (root) ReductionNode(nullptr, ranges, allocator);
   // Duplicate the module for root node and locate the region in the copy.
   if (failed(root->initialize(module, region)))
     llvm_unreachable("unexpected initialization failure");
@@ -183,10 +188,10 @@ public:
 /// This class defines the Reduction Tree Pass. It provides a framework to
 /// to implement a reduction pass using a tree structure to keep track of the
 /// generated reduced variants.
-class ReductionTreePass : public ReductionTreeBase<ReductionTreePass> {
+class ReductionTreePass
+    : public impl::ReductionTreePassBase<ReductionTreePass> {
 public:
-  ReductionTreePass() = default;
-  ReductionTreePass(const ReductionTreePass &pass) = default;
+  using Base::Base;
 
   LogicalResult initialize(MLIRContext *context) override;
 
@@ -199,7 +204,7 @@ private:
   FrozenRewritePatternSet reducerPatterns;
 };
 
-} // end anonymous namespace
+} // namespace
 
 LogicalResult ReductionTreePass::initialize(MLIRContext *context) {
   RewritePatternSet patterns(context);
@@ -213,7 +218,12 @@ void ReductionTreePass::runOnOperation() {
   Operation *topOperation = getOperation();
   while (topOperation->getParentOp() != nullptr)
     topOperation = topOperation->getParentOp();
-  ModuleOp module = cast<ModuleOp>(topOperation);
+  ModuleOp module = dyn_cast<ModuleOp>(topOperation);
+  if (!module) {
+    emitError(getOperation()->getLoc())
+        << "top-level op must be 'builtin.module'";
+    return signalPassFailure();
+  }
 
   SmallVector<Operation *, 8> workList;
   workList.push_back(getOperation());
@@ -242,8 +252,4 @@ LogicalResult ReductionTreePass::reduceOp(ModuleOp module, Region &region) {
   default:
     return module.emitError() << "unsupported traversal mode detected";
   }
-}
-
-std::unique_ptr<Pass> mlir::createReductionTreePass() {
-  return std::make_unique<ReductionTreePass>();
 }

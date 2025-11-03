@@ -8,10 +8,12 @@
 
 #include "CommandObjectMemoryTag.h"
 #include "lldb/Host/OptionParser.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/OptionGroupFormat.h"
 #include "lldb/Interpreter/OptionValueString.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Target/Process.h"
 
 using namespace lldb;
@@ -40,33 +42,33 @@ public:
   ~CommandObjectMemoryTagRead() override = default;
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     if ((command.GetArgumentCount() < 1) || (command.GetArgumentCount() > 2)) {
       result.AppendError(
           "wrong number of arguments; expected at least <address-expression>, "
           "at most <address-expression> <end-address-expression>");
-      return false;
+      return;
     }
 
     Status error;
-    addr_t start_addr = OptionArgParser::ToAddress(
+    addr_t start_addr = OptionArgParser::ToRawAddress(
         &m_exe_ctx, command[0].ref(), LLDB_INVALID_ADDRESS, &error);
     if (start_addr == LLDB_INVALID_ADDRESS) {
       result.AppendErrorWithFormatv("Invalid address expression, {0}",
                                     error.AsCString());
-      return false;
+      return;
     }
 
     // Default 1 byte beyond start, rounds up to at most 1 granule later
     addr_t end_addr = start_addr + 1;
 
     if (command.GetArgumentCount() > 1) {
-      end_addr = OptionArgParser::ToAddress(&m_exe_ctx, command[1].ref(),
-                                            LLDB_INVALID_ADDRESS, &error);
+      end_addr = OptionArgParser::ToRawAddress(&m_exe_ctx, command[1].ref(),
+                                               LLDB_INVALID_ADDRESS, &error);
       if (end_addr == LLDB_INVALID_ADDRESS) {
         result.AppendErrorWithFormatv("Invalid end address expression, {0}",
                                       error.AsCString());
-        return false;
+        return;
       }
     }
 
@@ -75,8 +77,8 @@ protected:
         process->GetMemoryTagManager();
 
     if (!tag_manager_or_err) {
-      result.SetError(Status(tag_manager_or_err.takeError()));
-      return false;
+      result.SetError(Status::FromError(tag_manager_or_err.takeError()));
+      return;
     }
 
     const MemoryTagManager *tag_manager = *tag_manager_or_err;
@@ -85,23 +87,33 @@ protected:
     // If this fails the list of regions is cleared, so we don't need to read
     // the return status here.
     process->GetMemoryRegions(memory_regions);
+
+    lldb::addr_t logical_tag = tag_manager->GetLogicalTag(start_addr);
+
+    // The tag manager only removes tag bits. These addresses may include other
+    // non-address bits that must also be ignored.
+    ABISP abi = process->GetABI();
+    if (abi) {
+      start_addr = abi->FixDataAddress(start_addr);
+      end_addr = abi->FixDataAddress(end_addr);
+    }
+
     llvm::Expected<MemoryTagManager::TagRange> tagged_range =
         tag_manager->MakeTaggedRange(start_addr, end_addr, memory_regions);
 
     if (!tagged_range) {
-      result.SetError(Status(tagged_range.takeError()));
-      return false;
+      result.SetError(Status::FromError(tagged_range.takeError()));
+      return;
     }
 
     llvm::Expected<std::vector<lldb::addr_t>> tags = process->ReadMemoryTags(
         tagged_range->GetRangeBase(), tagged_range->GetByteSize());
 
     if (!tags) {
-      result.SetError(Status(tags.takeError()));
-      return false;
+      result.SetError(Status::FromError(tags.takeError()));
+      return;
     }
 
-    lldb::addr_t logical_tag = tag_manager->GetLogicalTag(start_addr);
     result.AppendMessageWithFormatv("Logical tag: {0:x}", logical_tag);
     result.AppendMessage("Allocation tags:");
 
@@ -116,7 +128,6 @@ protected:
     }
 
     result.SetStatus(eReturnStatusSuccessFinishResult);
-    return true;
   }
 };
 
@@ -127,12 +138,12 @@ class CommandObjectMemoryTagWrite : public CommandObjectParsed {
 public:
   class OptionGroupTagWrite : public OptionGroup {
   public:
-    OptionGroupTagWrite() : OptionGroup(), m_end_addr(LLDB_INVALID_ADDRESS) {}
+    OptionGroupTagWrite() = default;
 
     ~OptionGroupTagWrite() override = default;
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_memory_tag_write_options);
+      return llvm::ArrayRef(g_memory_tag_write_options);
     }
 
     Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_value,
@@ -143,8 +154,8 @@ public:
 
       switch (short_option) {
       case 'e':
-        m_end_addr = OptionArgParser::ToAddress(execution_context, option_value,
-                                                LLDB_INVALID_ADDRESS, &status);
+        m_end_addr = OptionArgParser::ToRawAddress(
+            execution_context, option_value, LLDB_INVALID_ADDRESS, &status);
         break;
       default:
         llvm_unreachable("Unimplemented option");
@@ -157,7 +168,7 @@ public:
       m_end_addr = LLDB_INVALID_ADDRESS;
     }
 
-    lldb::addr_t m_end_addr;
+    lldb::addr_t m_end_addr = LLDB_INVALID_ADDRESS;
   };
 
   CommandObjectMemoryTagWrite(CommandInterpreter &interpreter)
@@ -166,8 +177,7 @@ public:
                             "contains the given address.",
                             nullptr,
                             eCommandRequiresTarget | eCommandRequiresProcess |
-                                eCommandProcessMustBePaused),
-        m_option_group(), m_tag_write_options() {
+                                eCommandProcessMustBePaused) {
     // Address
     m_arguments.push_back(
         CommandArgumentEntry{CommandArgumentData(eArgTypeAddressOrExpression)});
@@ -184,20 +194,20 @@ public:
   Options *GetOptions() override { return &m_option_group; }
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     if (command.GetArgumentCount() < 2) {
       result.AppendError("wrong number of arguments; expected "
                          "<address-expression> <tag> [<tag> [...]]");
-      return false;
+      return;
     }
 
     Status error;
-    addr_t start_addr = OptionArgParser::ToAddress(
+    addr_t start_addr = OptionArgParser::ToRawAddress(
         &m_exe_ctx, command[0].ref(), LLDB_INVALID_ADDRESS, &error);
     if (start_addr == LLDB_INVALID_ADDRESS) {
       result.AppendErrorWithFormatv("Invalid address expression, {0}",
                                     error.AsCString());
-      return false;
+      return;
     }
 
     command.Shift(); // shift off start address
@@ -210,7 +220,7 @@ protected:
         result.AppendErrorWithFormat(
             "'%s' is not a valid unsigned decimal string value.\n",
             entry.c_str());
-        return false;
+        return;
       }
       tags.push_back(tag_value);
     }
@@ -220,8 +230,8 @@ protected:
         process->GetMemoryTagManager();
 
     if (!tag_manager_or_err) {
-      result.SetError(Status(tag_manager_or_err.takeError()));
-      return false;
+      result.SetError(Status::FromError(tag_manager_or_err.takeError()));
+      return;
     }
 
     const MemoryTagManager *tag_manager = *tag_manager_or_err;
@@ -230,6 +240,12 @@ protected:
     // If this fails the list of regions is cleared, so we don't need to read
     // the return status here.
     process->GetMemoryRegions(memory_regions);
+
+    // The tag manager only removes tag bits. These addresses may include other
+    // non-address bits that must also be ignored.
+    ABISP abi = process->GetABI();
+    if (abi)
+      start_addr = abi->FixDataAddress(start_addr);
 
     // We have to assume start_addr is not granule aligned.
     // So if we simply made a range:
@@ -254,6 +270,10 @@ protected:
       end_addr =
           aligned_start_addr + (tags.size() * tag_manager->GetGranuleSize());
 
+    // Remove non-address bits that aren't memory tags
+    if (abi)
+      end_addr = abi->FixDataAddress(end_addr);
+
     // Now we've aligned the start address so if we ask for another range
     // using the number of tags N, we'll get back a range that is also N
     // granules in size.
@@ -262,20 +282,19 @@ protected:
                                      memory_regions);
 
     if (!tagged_range) {
-      result.SetError(Status(tagged_range.takeError()));
-      return false;
+      result.SetError(Status::FromError(tagged_range.takeError()));
+      return;
     }
 
     Status status = process->WriteMemoryTags(tagged_range->GetRangeBase(),
                                              tagged_range->GetByteSize(), tags);
 
     if (status.Fail()) {
-      result.SetError(status);
-      return false;
+      result.SetError(std::move(status));
+      return;
     }
 
     result.SetStatus(eReturnStatusSuccessFinishResult);
-    return true;
   }
 
   OptionGroupOptions m_option_group;

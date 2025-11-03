@@ -14,10 +14,10 @@
 // parse tree construction so as to avoid any need for representing
 // state in static data.
 
-#include "flang/Common/Fortran-features.h"
 #include "flang/Common/idioms.h"
 #include "flang/Parser/char-block.h"
 #include "flang/Parser/parse-tree.h"
+#include "flang/Support/Fortran-features.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cinttypes>
 #include <optional>
@@ -139,6 +139,11 @@ struct OldStructureComponentName {
 struct StructureComponents {
   using resultType = DataComponentDefStmt;
   static std::optional<DataComponentDefStmt> Parse(ParseState &);
+};
+
+struct NestedStructureStmt {
+  using resultType = StructureStmt;
+  static std::optional<StructureStmt> Parse(ParseState &);
 };
 } // namespace Fortran::parser
 #endif // FORTRAN_PARSER_USER_STATE_H_

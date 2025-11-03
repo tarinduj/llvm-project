@@ -60,6 +60,17 @@ The address of a global value.
 
   %0(p0) = G_GLOBAL_VALUE @var_local
 
+G_PTRAUTH_GLOBAL_VALUE
+^^^^^^^^^^^^^^^^^^^^^^
+
+The signed address of a global value. Operands: address to be signed (pointer),
+key (32-bit imm), address for address discrimination (zero if not needed) and
+an extra discriminator (64-bit imm).
+
+.. code-block:: none
+
+  %0:_(p0) = G_PTRAUTH_GLOBAL_VALUE %1:_(p0), s32, %2:_(p0), s64
+
 G_BLOCK_ADDR
 ^^^^^^^^^^^^
 
@@ -68,6 +79,15 @@ The address of a basic block.
 .. code-block:: none
 
   %0:_(p0) = G_BLOCK_ADDR blockaddress(@test_blockaddress, %ir-block.block)
+
+G_CONSTANT_POOL
+^^^^^^^^^^^^^^^
+
+The address of an object in the constant pool.
+
+.. code-block:: none
+
+  %0:_(p0) = G_CONSTANT_POOL %const.0
 
 Integer Extension and Truncation
 --------------------------------
@@ -127,6 +147,33 @@ G_EXTRACT for scalar types, but acts elementwise on vectors.
 .. code-block:: none
 
   %1:_(s16) = G_TRUNC %0:_(s32)
+
+G_TRUNC_SSAT_S
+^^^^^^^^^^^^^^
+
+Truncate a signed input to a signed result with saturation.
+
+.. code-block:: none
+
+  %1:_(s16) = G_TRUNC_SSAT_S %0:_(s32)
+
+G_TRUNC_SSAT_U
+^^^^^^^^^^^^^^
+
+Truncate a signed input to an unsigned result with saturation.
+
+.. code-block:: none
+
+  %1:_(s16) = G_TRUNC_SSAT_U %0:_(s32)
+
+G_TRUNC_USAT_U
+^^^^^^^^^^^^^^
+
+Truncate a unsigned input to an unsigned result with saturation.
+
+.. code-block:: none
+
+  %1:_(s16) = G_TRUNC_USAT_U %0:_(s32)
 
 Type Conversions
 ----------------
@@ -292,7 +339,7 @@ These each perform their respective integer arithmetic on a scalar.
 
   %dst:_(s32) = G_ADD %src0:_(s32), %src1:_(s32)
 
-The above exmaple adds %src1 to %src0 and stores the result in %dst.
+The above example adds %src1 to %src0 and stores the result in %dst.
 
 G_SDIVREM, G_UDIVREM
 ^^^^^^^^^^^^^^^^^^^^
@@ -327,6 +374,26 @@ G_ICMP
 
 Perform integer comparison producing non-zero (true) or zero (false). It's
 target specific whether a true value is 1, ~0U, or some other non-zero value.
+
+G_SCMP
+^^^^^^
+
+Perform signed 3-way integer comparison producing -1 (smaller), 0 (equal), or 1 (larger).
+
+.. code-block:: none
+
+  %5:_(s32) = G_SCMP %6, %2
+
+
+G_UCMP
+^^^^^^
+
+Perform unsigned 3-way integer comparison producing -1 (smaller), 0 (equal), or 1 (larger).
+
+.. code-block:: none
+
+  %7:_(s32) = G_UCMP %2, %6
+
 
 G_SELECT
 ^^^^^^^^
@@ -405,8 +472,8 @@ normal input. Also produce a carry output in addition to the normal result.
 G_UMULH, G_SMULH
 ^^^^^^^^^^^^^^^^
 
-Multiply two numbers at twice the incoming bit width (signed) and return
-the high half of the result.
+Multiply two numbers at twice the incoming bit width (unsigned or signed) and
+return the high half of the result.
 
 .. code-block:: none
 
@@ -433,6 +500,16 @@ undefined.
 
   %2:_(s33) = G_CTLZ_ZERO_UNDEF %1
   %2:_(s33) = G_CTTZ_ZERO_UNDEF %1
+
+G_ABDS, G_ABDU
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Compute the absolute difference (signed and unsigned), e.g. trunc(abs(ext(x)-ext(y)).
+
+.. code-block:: none
+
+  %0:_(s33) = G_ABDS %2, %3
+  %1:_(s33) = G_ABDU %4, %5
 
 Floating Point Operations
 -------------------------
@@ -464,6 +541,11 @@ G_FPTOSI, G_FPTOUI, G_SITOFP, G_UITOFP
 
 Convert between integer and floating point.
 
+G_FPTOSI_SAT, G_FPTOUI_SAT
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Saturating convert between integer and floating point.
+
 G_FABS
 ^^^^^^
 
@@ -479,6 +561,15 @@ G_FCANONICALIZE
 ^^^^^^^^^^^^^^^
 
 See :ref:`i_intr_llvm_canonicalize`.
+
+G_IS_FPCLASS
+^^^^^^^^^^^^
+
+Tests if the first operand, which must be floating-point scalar or vector, has
+floating-point class specified by the second operand. Returns non-zero (true)
+or zero (false). It's target specific whether a true value is 1, ~0U, or some
+other non-zero value. If the first operand is a vector, the returned value is a
+vector of the same length.
 
 G_FMINNUM
 ^^^^^^^^^
@@ -503,30 +594,56 @@ The return value of (FMAXNUM 0.0, -0.0) could be either 0.0 or -0.0.
 G_FMINNUM_IEEE
 ^^^^^^^^^^^^^^
 
-Perform floating-point minimum on two values, following the IEEE-754 2008
-definition. This differs from FMINNUM in the handling of signaling NaNs. If one
-input is a signaling NaN, returns a quiet NaN.
+Perform floating-point minimum on two values, following IEEE-754
+definitions. This differs from FMINNUM in the handling of signaling
+NaNs.
+
+If one input is a signaling NaN, returns a quiet NaN. This matches
+IEEE-754 2008's minnum/maxnum for signaling NaNs (which differs from
+2019).
+
+These treat -0 as ordered less than +0, matching the behavior of
+IEEE-754 2019's minimumNumber/maximumNumber (which was unspecified in
+2008).
 
 G_FMAXNUM_IEEE
 ^^^^^^^^^^^^^^
 
-Perform floating-point maximum on two values, following the IEEE-754 2008
-definition. This differs from FMAXNUM in the handling of signaling NaNs. If one
-input is a signaling NaN, returns a quiet NaN.
+Perform floating-point maximum on two values, following IEEE-754
+definitions. This differs from FMAXNUM in the handling of signaling
+NaNs.
+
+If one input is a signaling NaN, returns a quiet NaN. This matches
+IEEE-754 2008's minnum/maxnum for signaling NaNs (which differs from
+2019).
+
+These treat -0 as ordered less than +0, matching the behavior of
+IEEE-754 2019's minimumNumber/maximumNumber (which was unspecified in
+2008).
 
 G_FMINIMUM
 ^^^^^^^^^^
 
 NaN-propagating minimum that also treat -0.0 as less than 0.0. While
-FMINNUM_IEEE follow IEEE 754-2008 semantics, FMINIMUM follows IEEE 754-2018
-draft semantics.
+FMINNUM_IEEE follow IEEE 754-2008 semantics, FMINIMUM follows IEEE
+754-2019 semantics.
 
 G_FMAXIMUM
 ^^^^^^^^^^
 
 NaN-propagating maximum that also treat -0.0 as less than 0.0. While
-FMAXNUM_IEEE follow IEEE 754-2008 semantics, FMAXIMUM follows IEEE 754-2018
-draft semantics.
+FMAXNUM_IEEE follow IEEE 754-2008 semantics, FMAXIMUM follows IEEE
+754-2019 semantics.
+
+G_FMINIMUMNUM
+^^^^^^^^^^^^^
+
+IEEE-754 2019 minimumNumber
+
+G_FMAXIMUMNUM
+^^^^^^^^^^^^^
+
+IEEE-754 2019 maximumNumber
 
 G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FREM
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -558,10 +675,15 @@ G_FLOG, G_FLOG2, G_FLOG10
 
 Calculate the base-e, base-2, or base-10 respectively.
 
-G_FCEIL, G_FCOS, G_FSIN, G_FSQRT, G_FFLOOR, G_FRINT, G_FNEARBYINT
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+G_FCEIL, G_FSQRT, G_FFLOOR, G_FRINT, G_FNEARBYINT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 These correspond to the standard C functions of the same name.
+
+G_FCOS, G_FSIN, G_FSINCOS, G_FTAN, G_FACOS, G_FASIN, G_FATAN, G_FATAN2, G_FCOSH, G_FSINH, G_FTANH
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These correspond to the standard C trigonometry functions of the same name.
 
 G_INTRINSIC_TRUNC
 ^^^^^^^^^^^^^^^^^
@@ -573,13 +695,80 @@ G_INTRINSIC_ROUND
 
 Returns the operand rounded to the nearest integer.
 
+G_LROUND, G_LLROUND
+^^^^^^^^^^^^^^^^^^^
+
+Returns the source operand rounded to the nearest integer with ties away from
+zero.
+
+See the LLVM LangRef entry on '``llvm.lround.*'`` for details on behaviour.
+
+.. code-block:: none
+
+  %rounded_32:_(s32) = G_LROUND %round_me:_(s64)
+  %rounded_64:_(s64) = G_LLROUND %round_me:_(s64)
+
 Vector Specific Operations
 --------------------------
+
+G_VSCALE
+^^^^^^^^
+
+Puts the value of the runtime ``vscale`` multiplied by the value in the source
+operand into the destination register. This can be useful in determining the
+actual runtime number of elements in a vector.
+
+.. code-block::
+
+  %0:_(s32) = G_VSCALE 4
+
+G_INSERT_SUBVECTOR
+^^^^^^^^^^^^^^^^^^
+
+Insert the second source vector into the first source vector. The index operand
+represents the starting index in the first source vector at which the second
+source vector should be inserted into.
+
+The index must be a constant multiple of the second source vector's minimum
+vector length. If the vectors are scalable, then the index is first scaled by
+the runtime scaling factor. The indices inserted in the source vector must be
+valid indices of that vector. If this condition cannot be determined statically
+but is false at runtime, then the result vector is undefined.
+
+.. code-block:: none
+
+  %2:_(<vscale x 4 x i64>) = G_INSERT_SUBVECTOR %0:_(<vscale x 4 x i64>), %1:_(<vscale x 2 x i64>), 0
+
+G_EXTRACT_SUBVECTOR
+^^^^^^^^^^^^^^^^^^^
+
+Extract a vector of destination type from the source vector. The index operand
+represents the starting index from which a subvector is extracted from
+the source vector.
+
+The index must be a constant multiple of the source vector's minimum vector
+length. If the source vector is a scalable vector, then the index is first
+scaled by the runtime scaling factor. The indices extracted from the source
+vector must be valid indices of that vector. If this condition cannot be
+determined statically but is false at runtime, then the result vector is
+undefined.
+
+Mixing scalable vectors and fixed vectors are not allowed.
+
+.. code-block:: none
+
+  %3:_(<vscale x 4 x i64>) = G_EXTRACT_SUBVECTOR %2:_(<vscale x 8 x i64>), 2
 
 G_CONCAT_VECTORS
 ^^^^^^^^^^^^^^^^
 
-Concatenate two vectors to form a longer vector.
+Concatenate vectors to form a longer vector.
+
+.. code-block:: none
+
+  %4:_(<16 x i32>) = G_CONCAT_VECTORS %0:_(<4 x i32>), %1:_(<4 x i32>),
+                                      %2:_(<4 x i32>), %3:_(<4 x i32>)
+
 
 G_BUILD_VECTOR, G_BUILD_VECTOR_TRUNC
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -591,15 +780,33 @@ same as all source operands)
 The _TRUNC version truncates the larger operand types to fit the
 destination vector elt type.
 
+.. code-block:: none
+
+  %4:_(<4 x i32>) = G_BUILD_VECTOR %0:_(i32), %1:_(i32), %2:_(i32), %3:_(i32)
+
+  %4:_(<4 x i32>) = G_BUILD_VECTOR_TRUNC %0:_(i64), %1:_(i64), %2:_(i64), %3:_(i64)
+
+
 G_INSERT_VECTOR_ELT
 ^^^^^^^^^^^^^^^^^^^
 
 Insert an element into a vector
 
+.. code-block:: none
+
+  %4:_(<16 x i32>) = G_INSERT_VECTOR_ELT %vec:_(<16 x i32>), %elt:_(i32), %idx:_(s64)
+
+
+
 G_EXTRACT_VECTOR_ELT
 ^^^^^^^^^^^^^^^^^^^^
 
 Extract an element from a vector
+
+.. code-block:: none
+
+  %elt:_(i32) = G_EXTRACT_VECTOR_ELT %vec:_(<16 x i32>), %idx:_(s64)
+
 
 G_SHUFFLE_VECTOR
 ^^^^^^^^^^^^^^^^
@@ -607,6 +814,40 @@ G_SHUFFLE_VECTOR
 Concatenate two vectors and shuffle the elements according to the mask operand.
 The mask operand should be an IR Constant which exactly matches the
 corresponding mask for the IR shufflevector instruction.
+
+G_SPLAT_VECTOR
+^^^^^^^^^^^^^^^^
+
+Create a vector where all elements are the scalar from the source operand.
+
+The type of the operand must be equal to or larger than the vector element
+type. If the operand is larger than the vector element type, the scalar is
+implicitly truncated to the vector element type.
+
+G_STEP_VECTOR
+^^^^^^^^^^^^^
+
+Create a scalable vector where all lanes are linear sequences starting at 0
+with a given unsigned step.
+
+The type of the operand must be equal to the vector element type. Arithmetic
+is performed modulo the bitwidth of the element. The step must be > 0.
+Otherwise the vector is zero.
+
+.. code-block::
+
+  %0:_(<vscale x 2 x s64>) = G_STEP_VECTOR i64 4
+
+  %1:_(<vscale x s32>) = G_STEP_VECTOR i32 4
+
+  0, 1*Step, 2*Step, 3*Step, 4*Step, ...
+
+G_VECTOR_COMPRESS
+^^^^^^^^^^^^^^^^^
+
+Given an input vector, a mask vector, and a passthru vector, continuously place
+all selected (i.e., where mask[i] = true) input lanes in an output vector. All
+remaining lanes in the output are taken from passthru, which may be undef.
 
 Vector Reduction Operations
 ---------------------------
@@ -624,10 +865,10 @@ G_VECREDUCE_FADD, G_VECREDUCE_FMUL
 
 These reductions are relaxed variants which may reduce the elements in any order.
 
-G_VECREDUCE_FMAX, G_VECREDUCE_FMIN
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+G_VECREDUCE_FMAX, G_VECREDUCE_FMIN, G_VECREDUCE_FMAXIMUM, G_VECREDUCE_FMINIMUM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-FMIN/FMAX nodes can have flags, for NaN/NoNaN variants.
+FMIN/FMAX/FMINIMUM/FMAXIMUM nodes can have flags, for NaN/NoNaN variants.
 
 
 Integer/bitwise reductions
@@ -660,6 +901,10 @@ high bits are undefined, sign-extended, or zero-extended respectively.
 Only G_LOAD is valid if the result is a vector type. If the result is larger
 than the memory size, the high elements are undefined (i.e. this is not a
 per-element, vector anyextload)
+
+Unlike in SelectionDAG, atomic loads are expressed with the same
+opcodes as regular loads. G_LOAD, G_SEXTLOAD and G_ZEXTLOAD may all
+have atomic memory operands.
 
 G_INDEXED_LOAD
 ^^^^^^^^^^^^^^
@@ -704,8 +949,20 @@ G_ATOMIC_CMPXCHG
 Generic atomic cmpxchg. Expects a MachineMemOperand in addition to explicit
 operands.
 
-G_ATOMICRMW_XCHG, G_ATOMICRMW_ADD, G_ATOMICRMW_SUB, G_ATOMICRMW_AND, G_ATOMICRMW_NAND, G_ATOMICRMW_OR, G_ATOMICRMW_XOR, G_ATOMICRMW_MAX, G_ATOMICRMW_MIN, G_ATOMICRMW_UMAX, G_ATOMICRMW_UMIN, G_ATOMICRMW_FADD, G_ATOMICRMW_FSUB
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+|all_g_atomicrmw|
+^^^^^^^^^^^^^^^^^
+
+.. |all_g_atomicrmw| replace:: G_ATOMICRMW_XCHG, G_ATOMICRMW_ADD,
+                               G_ATOMICRMW_SUB, G_ATOMICRMW_AND,
+                               G_ATOMICRMW_NAND, G_ATOMICRMW_OR,
+                               G_ATOMICRMW_XOR, G_ATOMICRMW_MAX,
+                               G_ATOMICRMW_MIN, G_ATOMICRMW_UMAX,
+                               G_ATOMICRMW_UMIN, G_ATOMICRMW_FADD,
+                               G_ATOMICRMW_FSUB, G_ATOMICRMW_FMAX,
+                               G_ATOMICRMW_FMIN, G_ATOMICRMW_FMAXIMUM,
+                               G_ATOMICRMW_FMINIMUM, G_ATOMICRMW_UINC_WRAP,
+			       G_ATOMICRMW_UDEC_WRAP, G_ATOMICRMW_USUB_COND,
+			       G_ATOMICRMW_USUB_SAT
 
 Generic atomicrmw. Expects a MachineMemOperand in addition to explicit
 operands.
@@ -713,9 +970,10 @@ operands.
 G_FENCE
 ^^^^^^^
 
-.. caution::
+Generic fence. The first operand is the memory ordering. The second operand is
+the syncscope.
 
-  I couldn't find any documentation on this at the time of writing.
+See the LLVM LangRef entry on the '``fence'`` instruction for more details.
 
 G_MEMCPY
 ^^^^^^^^
@@ -798,22 +1056,69 @@ Indirect branch to jump table entry
 G_JUMP_TABLE
 ^^^^^^^^^^^^
 
-.. caution::
+Generates a pointer to the address of the jump table specified by the source
+operand. The source operand is a jump table index.
+G_JUMP_TABLE can be used in conjunction with G_BRJT to support jump table
+codegen with GlobalISel.
 
-  I found no documentation for this instruction at the time of writing.
+.. code-block:: none
 
-G_INTRINSIC, G_INTRINSIC_W_SIDE_EFFECTS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  %dst:_(p0) = G_JUMP_TABLE %jump-table.0
 
-Call an intrinsic
+The above example generates a pointer to the source jump table index.
 
-The _W_SIDE_EFFECTS version is considered to have unknown side-effects and
-as such cannot be reordered across other side-effecting instructions.
+G_INVOKE_REGION_START
+^^^^^^^^^^^^^^^^^^^^^
+
+A marker instruction that acts as a pseudo-terminator for regions of code that may
+throw exceptions. Being a terminator, it prevents code from being inserted after
+it during passes like legalization. This is needed because calls to exception
+throw routines do not return, so no code that must be on an executable path must
+be placed after throwing.
+
+G_INTRINSIC, G_INTRINSIC_CONVERGENT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Call an intrinsic that has no side-effects.
+
+The _CONVERGENT variant corresponds to an LLVM IR intrinsic marked `convergent`.
 
 .. note::
 
   Unlike SelectionDAG, there is no _VOID variant. Both of these are permitted
   to have zero, one, or multiple results.
+
+G_INTRINSIC_W_SIDE_EFFECTS, G_INTRINSIC_CONVERGENT_W_SIDE_EFFECTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Call an intrinsic that is considered to have unknown side-effects and as such
+cannot be reordered across other side-effecting instructions.
+
+The _CONVERGENT variant corresponds to an LLVM IR intrinsic marked `convergent`.
+
+.. note::
+
+  Unlike SelectionDAG, there is no _VOID variant. Both of these are permitted
+  to have zero, one, or multiple results.
+
+G_TRAP, G_DEBUGTRAP, G_UBSANTRAP
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Represents :ref:`llvm.trap <llvm.trap>`, :ref:`llvm.debugtrap <llvm.debugtrap>`
+and :ref:`llvm.ubsantrap <llvm.ubsantrap>` that generate a target-dependent
+trap instructions.
+
+.. code-block:: none
+
+  G_TRAP
+
+.. code-block:: none
+
+  G_DEBUGTRAP
+
+.. code-block:: none
+
+  G_UBSANTRAP 12
 
 Variadic Arguments
 ------------------
@@ -844,6 +1149,15 @@ An alignment value of `0` or `1` means no specific alignment.
 .. code-block:: none
 
   %8:_(p0) = G_DYN_STACKALLOC %7(s64), 32
+
+G_FREEZE
+^^^^^^^^
+
+G_FREEZE is used to stop propagation of undef and poison values.
+
+.. code-block:: none
+
+  %1:_(s32) = G_FREEZE %0(s32)
 
 Optimization Hints
 ------------------
@@ -880,3 +1194,17 @@ It should always be safe to
 
 - Look through the source register
 - Replace the destination register with the source register
+
+
+Miscellaneous
+-------------
+
+G_CONSTANT_FOLD_BARRIER
+^^^^^^^^^^^^^^^^^^^^^^^
+
+This operation is used as an opaque barrier to prevent constant folding. Combines
+and other transformations should not look through this. These have no other
+semantics and can be safely eliminated if a target chooses.
+
+
+Unlisted: G_STACKSAVE, G_STACKRESTORE, G_FSHL, G_FSHR, G_SMULFIX, G_UMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_SDIVFIX, G_UDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FPOWI, G_FEXP10, G_FLDEXP, G_FFREXP, G_GET_FPENV, G_SET_FPENV, G_RESET_FPENV, G_GET_FPMODE, G_SET_FPMODE, G_RESET_FPMODE, G_INTRINSIC_FPTRUNC_ROUND, G_INTRINSIC_LRINT, G_INTRINSIC_LLRINT, G_INTRINSIC_ROUNDEVEN, G_READCYCLECOUNTER, G_READSTEADYCOUNTER, G_PREFETCH, G_READ_REGISTER, G_WRITE_REGISTER, G_STRICT_FADD, G_STRICT_FSUB, G_STRICT_FMUL, G_STRICT_FDIV, G_STRICT_FREM, G_STRICT_FMA, G_STRICT_FSQRT, G_STRICT_FLDEXP, G_ASSERT_ALIGN

@@ -4,6 +4,7 @@
 """BUILD extensions for MLIR table generation."""
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 
 TdInfo = provider(
     "Holds TableGen files and the dependencies and include paths necessary to" +
@@ -61,20 +62,6 @@ def _get_transitive_includes(includes, deps):
         transitive = [_get_dep_transitive_includes(dep) for dep in deps],
     )
 
-def _prefix_roots(ctx, includes):
-    """Map the given includes to be relative to all root directories.
-
-    This will expand them to be relative to all the root directories available
-    in the execution environment for ctx.run (bin and genfiles in addition to
-    the normal source root)
-    """
-    prefixed_includes = []
-    for include in includes:
-        prefixed_includes.append(include)
-        prefixed_includes.append(paths.join(ctx.genfiles_dir.path, include))
-        prefixed_includes.append(paths.join(ctx.bin_dir.path, include))
-    return prefixed_includes
-
 def _resolve_includes(ctx, includes):
     """Resolves include paths to paths relative to the execution root.
 
@@ -91,7 +78,7 @@ def _resolve_includes(ctx, includes):
         else:
             include = paths.join(package, include)
         include = paths.join(workspace_root, include)
-        resolved_includes.extend(_prefix_roots(ctx, [include]))
+        resolved_includes.append(include)
     return resolved_includes
 
 def _td_library_impl(ctx):
@@ -139,6 +126,9 @@ td_library = rule(
     },
 )
 
+def _format_includes(output):
+    return lambda x: ["-I", x, "-I", paths.join(output.root.path, x)]
+
 def _gentbl_rule_impl(ctx):
     td_file = ctx.file.td_file
 
@@ -147,32 +137,31 @@ def _gentbl_rule_impl(ctx):
         ctx.attr.deps,
     )
 
-    # Note that we have two types of includes here. The deprecated ones expanded
-    # only by "_prefix_roots" are already relative to the execution root, i.e.
-    # may contain an `external/<workspace_name>` prefix if the current workspace
-    # is not the main workspace (where workspace_name is something configured
-    # per-project and therefore generally not known). Note that dirname also
-    # already includes this prefix. The new style of includes have it prepended
-    # automatically by `_resolve_includes` to avoid BUILD files having to depend
-    # on project specific configurations and Bazel implementation details.
+    # Note that the td_file.dirname is already relative to the execution root,
+    # i.e. may contain an `external/<workspace_name>` prefix if the current
+    # workspace is not the main workspace. Therefore it is not included in the
+    # _resolve_includes call that prepends this prefix.
     trans_includes = _get_transitive_includes(
-        _resolve_includes(ctx, ctx.attr.includes + ["/"]) +
-        _prefix_roots(ctx, ctx.attr.td_includes + [td_file.dirname]),
+        _resolve_includes(ctx, ctx.attr.includes + ["/"]) + [td_file.dirname],
         ctx.attr.deps,
     )
 
     args = ctx.actions.args()
     args.add_all(ctx.attr.opts)
     args.add(td_file)
-    args.add_all(trans_includes, before_each = "-I")
-
-    args.add("-o", ctx.outputs.out.path)
+    args.add_all(trans_includes, map_each = _format_includes(ctx.outputs.out), allow_closure = True)
+    args.add("-o", ctx.outputs.out)
 
     ctx.actions.run(
         outputs = [ctx.outputs.out],
         inputs = trans_srcs,
         executable = ctx.executable.tblgen,
+        execution_requirements = {"supports-path-mapping": "1"},
         arguments = [args],
+        # Make sure action_env settings are honored so the env is the same as
+        # when the tool was built. Important for locating shared libraries with
+        # a custom LD_LIBRARY_PATH.
+        use_default_shell_env = True,
         mnemonic = "TdGenerate",
     )
 
@@ -181,8 +170,6 @@ def _gentbl_rule_impl(ctx):
 gentbl_rule = rule(
     _gentbl_rule_impl,
     doc = "Generates tabular code from a table definition file.",
-    # Match genrule behavior
-    output_to_genfiles = True,
     attrs = {
         "tblgen": attr.label(
             doc = "The TableGen executable with which to generate `out`.",
@@ -223,13 +210,6 @@ gentbl_rule = rule(
                   " directories). The execution roots themselves and the " +
                   " directory of td_file are always added.",
         ),
-        "td_includes": attr.string_list(
-            doc = "Include paths to add to the TableGen invocation. Paths are" +
-                  " interpreted as relative to the current label's workspace" +
-                  " root and applied from all roots available in the" +
-                  " execution environment (source, genfiles, and bin" +
-                  " directories). Deprecated. Use `includes` instead.",
-        ),
     },
 )
 
@@ -237,24 +217,23 @@ gentbl_rule = rule(
 def _gentbl_test_impl(ctx):
     td_file = ctx.file.td_file
 
-    # Note that we have two types of includes here. The deprecated ones expanded
-    # only by "_prefix_roots" are already relative to the execution root, i.e.
-    # may contain an `external/<workspace_name>` prefix if the current workspace
-    # is not the main workspace (where workspace_name is something configured
-    # per-project and therefore generally not known). Note that dirname also
-    # already includes this prefix. The new style of includes have it prepended
-    # automatically by `_resolve_includes` to avoid BUILD files having to depend
-    # on project specific configurations and Bazel implementation details.
+    # Note that the td_file.dirname is already relative to the execution root,
+    # i.e. may contain an `external/<workspace_name>` prefix if the current
+    # workspace is not the main workspace. Therefore it is not included in the
+    # _resolve_includes call that prepends this prefix.
     trans_includes = _get_transitive_includes(
-        _resolve_includes(ctx, ctx.attr.includes + ["/"]) +
-        _prefix_roots(ctx, ctx.attr.td_includes + [td_file.dirname]),
+        _resolve_includes(ctx, ctx.attr.includes + ["/"]) + [td_file.dirname],
         ctx.attr.deps,
     )
 
     test_args = [ctx.executable.tblgen.short_path]
     test_args.extend(ctx.attr.opts)
     test_args.append(td_file.path)
-    test_args.extend(["-I " + include for include in trans_includes.to_list()])
+    test_args.extend([
+        arg
+        for include in trans_includes.to_list()
+        for arg in ["-I", include, "-I", paths.join(ctx.bin_dir.path, include)]
+    ])
 
     test_args.extend(["-o", "/dev/null"])
 
@@ -312,7 +291,6 @@ gentbl_test = rule(
         "deps": attr.label_list(doc = "See gentbl_rule.deps"),
         "opts": attr.string_list(doc = "See gentbl_rule.opts"),
         "includes": attr.string_list(doc = "See gentbl_rule.includes"),
-        "td_includes": attr.string_list(doc = "See gentbl_rule.td_includes"),
     },
 )
 
@@ -322,7 +300,6 @@ def gentbl_filegroup(
         td_file,
         tbl_outs,
         td_srcs = [],
-        td_includes = [],
         includes = [],
         deps = [],
         test = False,
@@ -336,12 +313,11 @@ def gentbl_filegroup(
       name: The name of the generated filegroup rule for use in dependencies.
       tblgen: The binary used to produce the output.
       td_file: The primary table definitions file.
-      tbl_outs: A list of tuples ([opts], out), where each 'opts' is a list of
-        options passed to tblgen, each option being a string, and 'out' is the
-        corresponding output file produced.
+      tbl_outs: Either a dict {out: [opts]} or a list of tuples ([opts], out),
+        where each 'opts' is a list of options passed to tblgen, each option
+        being a string, and 'out' is the corresponding output file produced.
       td_srcs: See gentbl_rule.td_srcs
       includes: See gentbl_rule.includes
-      td_includes: See gentbl_rule.td_includes
       deps: See gentbl_rule.deps
       test: Whether to create a shell test that invokes the tool too.
       skip_opts: Files generated using these opts in tbl_outs will be excluded
@@ -349,14 +325,8 @@ def gentbl_filegroup(
       **kwargs: Extra keyword arguments to pass to all generated rules.
     """
 
-    llvm_project_execroot_path = Label("//mlir:tblgen.bzl").workspace_root
-
-    # TODO(gcmn): Update callers to td_library and explicit includes and drop
-    # this hardcoded include.
-    hardcoded_includes = [
-        paths.join(llvm_project_execroot_path, "mlir/include"),
-    ]
-
+    if type(tbl_outs) == type({}):
+        tbl_outs = [(v, k) for k, v in tbl_outs.items()]
     for (opts, out) in tbl_outs:
         first_opt = opts[0] if opts else ""
         rule_suffix = "_{}_{}".format(
@@ -372,7 +342,6 @@ def gentbl_filegroup(
             td_srcs = td_srcs,
             deps = deps,
             includes = includes,
-            td_includes = td_includes + hardcoded_includes,
             out = out,
             **kwargs
         )
@@ -389,7 +358,6 @@ def gentbl_filegroup(
                 td_srcs = td_srcs,
                 deps = deps,
                 includes = includes,
-                td_includes = td_includes + hardcoded_includes,
                 # Shell files not executable on Windows.
                 # TODO(gcmn): Support windows.
                 tags = ["no_windows"],
@@ -409,11 +377,11 @@ def gentbl_cc_library(
         td_file,
         tbl_outs,
         td_srcs = [],
-        td_includes = [],
         includes = [],
         deps = [],
         strip_include_prefix = None,
         test = False,
+        copts = None,
         **kwargs):
     """Create multiple TableGen generated files using the same tool and input.
 
@@ -423,15 +391,15 @@ def gentbl_cc_library(
       name: The name of the generated cc_library rule for use in dependencies.
       tblgen: The binary used to produce the output.
       td_file: The primary table definitions file.
-      tbl_outs: A list of tuples ([opts], out), where each 'opts' is a list of
-        options passed to tblgen, each option being a string, and 'out' is the
-        corresponding output file produced.
+      tbl_outs: Either a dict {out: [opts]} or a list of tuples ([opts], out),
+        where each 'opts' is a list of options passed to tblgen, each option
+        being a string, and 'out' is the corresponding output file produced.
       td_srcs: See gentbl_rule.td_srcs
       includes: See gentbl_rule.includes
-      td_includes: See gentbl_rule.td_includes
       deps: See gentbl_rule.deps
       strip_include_prefix: attribute to pass through to cc_library.
       test: whether to create a shell test that invokes the tool too.
+      copts: list of copts to pass to cc_library.
       **kwargs: Extra keyword arguments to pass to all generated rules.
     """
 
@@ -442,19 +410,155 @@ def gentbl_cc_library(
         td_file = td_file,
         tbl_outs = tbl_outs,
         td_srcs = td_srcs,
-        td_includes = td_includes,
         includes = includes,
         deps = deps,
         test = test,
         skip_opts = ["-gen-op-doc"],
         **kwargs
     )
-    native.cc_library(
+    cc_library(
         name = name,
         # strip_include_prefix does not apply to textual_hdrs.
         # https://github.com/bazelbuild/bazel/issues/12424
         hdrs = [":" + filegroup_name] if strip_include_prefix else [],
         strip_include_prefix = strip_include_prefix,
         textual_hdrs = [":" + filegroup_name],
+        copts = copts,
         **kwargs
     )
+
+def _gentbl_shard_impl(ctx):
+    args = ctx.actions.args()
+    args.add(ctx.file.src_file)
+    args.add("-op-shard-index", ctx.attr.index)
+    args.add("-o", ctx.outputs.out)
+    ctx.actions.run(
+        outputs = [ctx.outputs.out],
+        inputs = [ctx.file.src_file],
+        executable = ctx.executable.sharder,
+        execution_requirements = {"supports-path-mapping": "1"},
+        arguments = [args],
+        use_default_shell_env = True,
+        mnemonic = "ShardGenerate",
+    )
+
+gentbl_shard_rule = rule(
+    _gentbl_shard_impl,
+    doc = "",
+    output_to_genfiles = True,
+    attrs = {
+        "index": attr.int(mandatory = True, doc = ""),
+        "sharder": attr.label(
+            doc = "",
+            executable = True,
+            cfg = "exec",
+        ),
+        "src_file": attr.label(
+            doc = "",
+            allow_single_file = True,
+            mandatory = True,
+        ),
+        "out": attr.output(
+            doc = "",
+            mandatory = True,
+        ),
+    },
+)
+
+def gentbl_sharded_ops(
+        name,
+        tblgen,
+        sharder,
+        td_file,
+        shard_count,
+        src_file,
+        src_out,
+        hdr_out,
+        test = False,
+        includes = [],
+        strip_include_prefix = None,
+        deps = [],
+        **kwargs):
+    """Generate sharded op declarations and definitions.
+
+    This special build rule shards op definitions in a TableGen file and generates multiple copies
+    of a template source file for including and compiling each shard. The rule defines a filegroup
+    consisting of the source shards, the generated source file, and the generated header file.
+
+    Args:
+      name: The name of the filegroup.
+      tblgen: The binary used to produce the output.
+      sharder: The source file sharder to use.
+      td_file: The primary table definitions file.
+      shard_count: The number of op definition shards to produce.
+      src_file: The source file template.
+      src_out: The generated source file.
+      hdr_out: The generated header file.
+      test: Whether this is a test target.
+      includes: See gentbl_rule.includes
+      deps: See gentbl_rule.deps
+      strip_include_prefix: Attribute to pass through to cc_library.
+      **kwargs: Passed through to all generated rules.
+    """
+    cc_lib_name = name + "__gentbl_cc_lib"
+    gentbl_cc_library(
+        name = cc_lib_name,
+        strip_include_prefix = strip_include_prefix,
+        includes = includes,
+        tbl_outs = {
+            src_out: [
+                "-gen-op-defs",
+                "-op-shard-count=" + str(shard_count),
+            ],
+            hdr_out: [
+                "-gen-op-decls",
+                "-op-shard-count=" + str(shard_count),
+            ],
+        },
+        tblgen = tblgen,
+        td_file = td_file,
+        test = test,
+        deps = deps,
+        **kwargs
+    )
+    all_files = [hdr_out, src_out]
+    for i in range(0, shard_count):
+        out_file = "shard_copy_" + str(i) + "_" + src_file
+        gentbl_shard_rule(
+            index = i,
+            name = name + "__src_shard" + str(i),
+            testonly = test,
+            out = out_file,
+            sharder = sharder,
+            src_file = src_file,
+            **kwargs
+        )
+        all_files.append(out_file)
+    native.filegroup(
+        name = name,
+        srcs = all_files,
+        **kwargs
+    )
+
+def gentbl_sharded_op_defs(name, source_file, shard_count):
+    """Generates multiple copies of a source file that includes sharded op definitions.
+
+    Args:
+      name: The name of the rule.
+      source_file: The source to copy.
+      shard_count: The number of shards.
+
+    Returns:
+      A list of the copied filenames to be included in the dialect library.
+    """
+    copies = []
+    for i in range(0, shard_count):
+        out_file = "shard_copy_" + str(i) + "_" + source_file
+        copies.append(out_file)
+        native.genrule(
+            name = name + "_shard_" + str(i),
+            srcs = [source_file],
+            outs = [out_file],
+            cmd = "echo -e \"#define GET_OP_DEFS_" + str(i) + "\n$$(cat $(SRCS))\" > $(OUTS)",
+        )
+    return copies

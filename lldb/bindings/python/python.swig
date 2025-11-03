@@ -52,10 +52,6 @@ except ImportError:
     # Relative import should work if we are being loaded by Python.
     from . import $module"
 %enddef
-// These versions will not generate working python modules, so error out early.
-#if SWIG_VERSION >= 0x030009 && SWIG_VERSION < 0x030011
-#error Swig versions 3.0.9 and 3.0.10 are incompatible with lldb.
-#endif
 
 // The name of the module to be created.
 %module(docstring=DOCSTRING, moduleimport=MODULEIMPORT) lldb
@@ -63,29 +59,10 @@ except ImportError:
 // Parameter types will be used in the autodoc string.
 %feature("autodoc", "1");
 
-%define ARRAYHELPER(type,name)
-%inline %{
-type *new_ ## name (int nitems) {
-   return (type *) malloc(sizeof(type)*nitems);
-}
-void delete_ ## name(type *t) {
-   free(t);
-}
-type name ## _get(type *t, int index) {
-   return t[index];
-}
-void name ## _set(type *t, int index, type val) {
-   t[index] = val;
-}
-%}
-%enddef
-
 %pythoncode%{
 import uuid
 import re
 import os
-
-import six
 %}
 
 // Include the version of swig that was used to generate this interface.
@@ -121,6 +98,7 @@ def lldb_iter(obj, getsize, getelem):
 
 %{
 #include "../source/Plugins/ScriptInterpreter/Python/PythonDataObjects.h"
+#include "../source/Plugins/ScriptInterpreter/Python/SWIGPythonBridge.h"
 #include "../bindings/python/python-swigsafecast.swig"
 using namespace lldb_private;
 using namespace lldb_private::python;
@@ -132,15 +110,8 @@ using namespace lldb;
 %include "python-wrapper.swig"
 
 %pythoncode%{
-_initialize = True
-try:
-   import lldbconfig
-   _initialize = lldbconfig.INITIALIZE
-except ImportError:
-   pass
 debugger_unique_id = 0
-if _initialize:
-   SBDebugger.Initialize()
+SBDebugger.Initialize()
 debugger = None
 target = None
 process = None

@@ -17,11 +17,10 @@
 
 #include "llvm-c/Core.h"
 #include "llvm-c/Error.h"
-#include "llvm-c/Initialization.h"
 #include "llvm-c/LLJIT.h"
 #include "llvm-c/Support.h"
 #include "llvm-c/Target.h"
-#include "llvm-c/Transforms/Scalar.h"
+#include "llvm-c/Transforms/PassBuilder.h"
 
 #include <stdio.h>
 
@@ -32,9 +31,8 @@ int handleError(LLVMErrorRef Err) {
   return 1;
 }
 
-LLVMOrcThreadSafeModuleRef createDemoModule() {
-  LLVMOrcThreadSafeContextRef TSCtx = LLVMOrcCreateNewThreadSafeContext();
-  LLVMContextRef Ctx = LLVMOrcThreadSafeContextGetContext(TSCtx);
+LLVMOrcThreadSafeModuleRef createDemoModule(void) {
+  LLVMContextRef Ctx = LLVMContextCreate();
   LLVMModuleRef M = LLVMModuleCreateWithNameInContext("demo", Ctx);
   LLVMTypeRef ParamTypes[] = {LLVMInt32Type(), LLVMInt32Type()};
   LLVMTypeRef SumFunctionType =
@@ -47,17 +45,19 @@ LLVMOrcThreadSafeModuleRef createDemoModule() {
   LLVMValueRef SumArg1 = LLVMGetParam(SumFunction, 1);
   LLVMValueRef Result = LLVMBuildAdd(Builder, SumArg0, SumArg1, "result");
   LLVMBuildRet(Builder, Result);
+  LLVMDisposeBuilder(Builder);
+  LLVMOrcThreadSafeContextRef TSCtx =
+      LLVMOrcCreateNewThreadSafeContextFromLLVMContext(Ctx);
   LLVMOrcThreadSafeModuleRef TSM = LLVMOrcCreateNewThreadSafeModule(M, TSCtx);
   LLVMOrcDisposeThreadSafeContext(TSCtx);
   return TSM;
 }
 
 LLVMErrorRef myModuleTransform(void *Ctx, LLVMModuleRef Mod) {
-  LLVMPassManagerRef PM = LLVMCreatePassManager();
-  LLVMAddInstructionCombiningPass(PM);
-  LLVMRunPassManager(PM, Mod);
-  LLVMDisposePassManager(PM);
-  return LLVMErrorSuccess;
+  LLVMPassBuilderOptionsRef Options = LLVMCreatePassBuilderOptions();
+  LLVMErrorRef E = LLVMRunPasses(Mod, "instcombine", NULL, Options);
+  LLVMDisposePassBuilderOptions(Options);
+  return E;
 }
 
 LLVMErrorRef transform(void *Ctx, LLVMOrcThreadSafeModuleRef *ModInOut,
@@ -65,12 +65,11 @@ LLVMErrorRef transform(void *Ctx, LLVMOrcThreadSafeModuleRef *ModInOut,
   return LLVMOrcThreadSafeModuleWithModuleDo(*ModInOut, myModuleTransform, Ctx);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
 
   int MainResult = 0;
 
-  LLVMParseCommandLineOptions(argc, (const char **)argv, "");
-  LLVMInitializeCore(LLVMGetGlobalPassRegistry());
+  LLVMParseCommandLineOptions(argc, argv, "");
 
   LLVMInitializeNativeTarget();
   LLVMInitializeNativeAsmPrinter();

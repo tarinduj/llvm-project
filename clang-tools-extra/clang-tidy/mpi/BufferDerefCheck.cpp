@@ -1,4 +1,4 @@
-//===--- BufferDerefCheck.cpp - clang-tidy---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace mpi {
+namespace clang::tidy::mpi {
 
 void BufferDerefCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(callExpr().bind("CE"), this);
@@ -128,6 +126,4 @@ void BufferDerefCheck::checkBuffers(ArrayRef<const Type *> BufferTypes,
 }
 
 void BufferDerefCheck::onEndOfTranslationUnit() { FuncClassifier.reset(); }
-} // namespace mpi
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::mpi

@@ -68,12 +68,12 @@ bool UnwindAssembly_x86::AugmentUnwindPlanFromCallSite(
     AddressRange &func, Thread &thread, UnwindPlan &unwind_plan) {
   bool do_augment_unwindplan = true;
 
-  UnwindPlan::RowSP first_row = unwind_plan.GetRowForFunctionOffset(0);
-  UnwindPlan::RowSP last_row = unwind_plan.GetRowForFunctionOffset(-1);
+  const UnwindPlan::Row *first_row = unwind_plan.GetRowForFunctionOffset(0);
+  const UnwindPlan::Row *last_row = unwind_plan.GetLastRow();
 
   int wordsize = 8;
   ProcessSP process_sp(thread.GetProcess());
-  if (process_sp.get() == nullptr)
+  if (!process_sp || !first_row || !last_row)
     return false;
 
   wordsize = process_sp->GetTarget().GetArchitecture().GetAddressByteSize();
@@ -97,7 +97,7 @@ bool UnwindAssembly_x86::AugmentUnwindPlanFromCallSite(
       first_row->GetCFAValue().GetOffset() != wordsize) {
     return false;
   }
-  UnwindPlan::Row::RegisterLocation first_row_pc_loc;
+  UnwindPlan::Row::AbstractRegisterLocation first_row_pc_loc;
   if (!first_row->GetRegisterInfo(
           pc_regnum.GetAsKind(unwind_plan.GetRegisterKind()),
           first_row_pc_loc) ||
@@ -126,7 +126,7 @@ bool UnwindAssembly_x86::AugmentUnwindPlanFromCallSite(
       // Get the register locations for eip/rip from the first & last rows. Are
       // they both CFA plus an offset?  Is it the same offset?
 
-      UnwindPlan::Row::RegisterLocation last_row_pc_loc;
+      UnwindPlan::Row::AbstractRegisterLocation last_row_pc_loc;
       if (last_row->GetRegisterInfo(
               pc_regnum.GetAsKind(unwind_plan.GetRegisterKind()),
               last_row_pc_loc)) {
@@ -193,9 +193,11 @@ bool UnwindAssembly_x86::GetFastUnwindPlan(AddressRange &func, Thread &thread,
               0 ||
           memcmp(opcode_data.data(), x86_64_push_mov,
                  sizeof(x86_64_push_mov)) == 0) {
-        ABISP abi_sp = process_sp->GetABI();
-        if (abi_sp) {
-          return abi_sp->CreateDefaultUnwindPlan(unwind_plan);
+        if (ABISP abi_sp = process_sp->GetABI()) {
+          if (UnwindPlanSP plan_sp = abi_sp->CreateDefaultUnwindPlan()) {
+            unwind_plan = std::move(*plan_sp);
+            return true;
+          }
         }
       }
     }
@@ -239,14 +241,6 @@ UnwindAssembly *UnwindAssembly_x86::CreateInstance(const ArchSpec &arch) {
   return nullptr;
 }
 
-// PluginInterface protocol in UnwindAssemblyParser_x86
-
-ConstString UnwindAssembly_x86::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t UnwindAssembly_x86::GetPluginVersion() { return 1; }
-
 void UnwindAssembly_x86::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                 GetPluginDescriptionStatic(), CreateInstance);
@@ -256,11 +250,6 @@ void UnwindAssembly_x86::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString UnwindAssembly_x86::GetPluginNameStatic() {
-  static ConstString g_name("x86");
-  return g_name;
-}
-
-const char *UnwindAssembly_x86::GetPluginDescriptionStatic() {
+llvm::StringRef UnwindAssembly_x86::GetPluginDescriptionStatic() {
   return "i386 and x86_64 assembly language profiler plugin.";
 }

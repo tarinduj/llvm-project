@@ -1,5 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1
-! REQUIRES: shell
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Check for semantic errors in ALLOCATE statements
 
 subroutine C941_C942b_C950(xsrc, x1, a2, b2, cx1, ca2, cb1, cb2, c1, c2)
@@ -113,6 +112,7 @@ subroutine C941_C942b_C950(xsrc, x1, a2, b2, cx1, ca2, cb1, cb2, c1, c2)
   ! Valid construct
   allocate(c1%ct2(2,5)%t1(2)%t0%array(10))
 
+  !ERROR: cosubscript 2 is less than lower cobound 5 for codimension 1 of array
   !ERROR: Allocatable object must not be coindexed in ALLOCATE
   allocate(b1%x, b2(1)%x, cb1[2]%x, SOURCE=xsrc)
   !ERROR: Allocatable object must not be coindexed in ALLOCATE

@@ -6,21 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "utils/FPUtil/BasicOperations.h"
-#include "utils/FPUtil/TestHelpers.h"
+#include "src/__support/FPUtil/BasicOperations.h"
+#include "test/UnitTest/FEnvSafeTest.h"
+#include "test/UnitTest/FPMatcher.h"
+#include "test/UnitTest/Test.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
-#include "utils/UnitTest/Test.h"
 
-#include <math.h>
+#include "hdr/math_macros.h"
 
-namespace mpfr = __llvm_libc::testing::mpfr;
+namespace mpfr = LIBC_NAMESPACE::testing::mpfr;
 
-template <typename T> class FrexpTest : public __llvm_libc::testing::Test {
+template <typename T>
+class FrexpTest : public LIBC_NAMESPACE::testing::FEnvSafeTest {
 
   DECLARE_SPECIAL_CONSTANTS(T)
 
-  static constexpr UIntType HiddenBit =
-      UIntType(1) << __llvm_libc::fputil::MantissaWidth<T>::value;
+  static constexpr StorageType HIDDEN_BIT =
+      StorageType(1) << LIBC_NAMESPACE::fputil::FPBits<T>::FRACTION_LEN;
 
 public:
   typedef T (*FrexpFunc)(T, int *);
@@ -29,12 +31,12 @@ public:
     int exponent;
     ASSERT_FP_EQ(aNaN, func(aNaN, &exponent));
     ASSERT_FP_EQ(inf, func(inf, &exponent));
-    ASSERT_FP_EQ(negInf, func(negInf, &exponent));
+    ASSERT_FP_EQ(neg_inf, func(neg_inf, &exponent));
 
-    ASSERT_FP_EQ(0.0, func(0.0, &exponent));
+    ASSERT_FP_EQ(zero, func(zero, &exponent));
     ASSERT_EQ(exponent, 0);
 
-    ASSERT_FP_EQ(-0.0, func(-0.0, &exponent));
+    ASSERT_FP_EQ(neg_zero, func(neg_zero, &exponent));
     ASSERT_EQ(exponent, 0);
   }
 
@@ -92,19 +94,19 @@ public:
   }
 
   void testRange(FrexpFunc func) {
-    using UIntType = typename FPBits::UIntType;
-    constexpr UIntType count = 10000000;
-    constexpr UIntType step = UIntType(-1) / count;
-    for (UIntType i = 0, v = 0; i <= count; ++i, v += step) {
-      T x = static_cast<T>(FPBits(v));
-      if (isnan(x) || isinf(x) || x == 0.0l)
+    using StorageType = typename FPBits::StorageType;
+    constexpr StorageType COUNT = 100'000;
+    constexpr StorageType STEP = STORAGE_MAX / COUNT;
+    for (StorageType i = 0, v = 0; i <= COUNT; ++i, v += STEP) {
+      T x = FPBits(v).get_val();
+      if (FPBits(v).is_nan() || FPBits(v).is_inf() || x == 0.0l)
         continue;
 
       mpfr::BinaryOutput<T> result;
       result.f = func(x, &result.i);
 
-      ASSERT_TRUE(__llvm_libc::fputil::abs(result.f) < 1.0);
-      ASSERT_TRUE(__llvm_libc::fputil::abs(result.f) >= 0.5);
+      ASSERT_TRUE(LIBC_NAMESPACE::fputil::abs(result.f) < 1.0);
+      ASSERT_TRUE(LIBC_NAMESPACE::fputil::abs(result.f) >= 0.5);
       ASSERT_MPFR_MATCH(mpfr::Operation::Frexp, x, result, 0.0);
     }
   }

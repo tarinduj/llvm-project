@@ -1,19 +1,24 @@
-========================
-lld 14.0.0 Release Notes
-========================
+.. If you want to modify sections/contents permanently, you should modify both
+   ReleaseNotes.rst and ReleaseNotesTemplate.txt.
+
+===========================
+lld |release| Release Notes
+===========================
 
 .. contents::
     :local:
 
-.. warning::
-   These are in-progress notes for the upcoming LLVM 14.0.0 release.
-   Release notes for previous releases can be found on
-   `the Download Page <https://releases.llvm.org/download.html>`_.
+.. only:: PreRelease
+
+  .. warning::
+     These are in-progress notes for the upcoming LLVM |release| release.
+     Release notes for previous releases can be found on
+     `the Download Page <https://releases.llvm.org/download.html>`_.
 
 Introduction
 ============
 
-This document contains the release notes for the lld linker, release 14.0.0.
+This document contains the release notes for the lld linker, release |release|.
 Here we describe the status of lld, including major improvements
 from the previous release. All lld releases may be downloaded
 from the `LLVM releases web site <https://llvm.org/releases/>`_.
@@ -24,29 +29,28 @@ Non-comprehensive list of changes in this release
 ELF Improvements
 ----------------
 
-* ``-Bsymbolic-non-weak-functions`` has been added as a ``STB_GLOBAL`` subset of ``-Bsymbolic-functions``.
-  (`D102570 <https://reviews.llvm.org/D102570>`_)
+* ``--print-gc-sections=<file>`` prints garbage collection section listing to a file.
+  (`#159706 <https://github.com/llvm/llvm-project/pull/159706>`_)
 
 Breaking changes
 ----------------
 
-* ...
-
 COFF Improvements
 -----------------
-
-* ...
 
 MinGW Improvements
 ------------------
 
-* ...
-
 MachO Improvements
 ------------------
 
-* Item 1.
+* ``--separate-cstring-literal-sections`` emits cstring literal sections into sections defined by their section name.
+  (`#158720 <https://github.com/llvm/llvm-project/pull/158720>`_)
+* ``--tail-merge-strings`` enables tail merging of cstring literals.
+  (`#161262 <https://github.com/llvm/llvm-project/pull/161262>`_)
 
 WebAssembly Improvements
 ------------------------
 
+Fixes
+#####

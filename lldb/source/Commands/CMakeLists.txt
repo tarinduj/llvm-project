@@ -2,13 +2,15 @@ lldb_tablegen(CommandOptions.inc -gen-lldb-option-defs
   SOURCE Options.td
   TARGET LLDBOptionsGen)
 
-add_lldb_library(lldbCommands
+add_lldb_library(lldbCommands NO_PLUGIN_DEPENDENCIES
   CommandCompletions.cpp
   CommandObjectApropos.cpp
   CommandObjectBreakpoint.cpp
   CommandObjectBreakpointCommand.cpp
   CommandObjectCommands.cpp
+  CommandObjectDiagnostics.cpp
   CommandObjectDisassemble.cpp
+  CommandObjectDWIMPrint.cpp
   CommandObjectExpression.cpp
   CommandObjectFrame.cpp
   CommandObjectGUI.cpp
@@ -21,11 +23,11 @@ add_lldb_library(lldbCommands
   CommandObjectPlatform.cpp
   CommandObjectPlugin.cpp
   CommandObjectProcess.cpp
+  CommandObjectProtocolServer.cpp
   CommandObjectQuit.cpp
   CommandObjectRegexCommand.cpp
   CommandObjectRegister.cpp
-  CommandObjectReproducer.cpp
-  CommandObjectScript.cpp
+  CommandObjectScripting.cpp
   CommandObjectSession.cpp
   CommandObjectSettings.cpp
   CommandObjectSource.cpp
@@ -38,10 +40,13 @@ add_lldb_library(lldbCommands
   CommandObjectVersion.cpp
   CommandObjectWatchpoint.cpp
   CommandObjectWatchpointCommand.cpp
+  CommandOptionArgumentTable.cpp
+  CommandOptionsProcessAttach.cpp
   CommandOptionsProcessLaunch.cpp
 
+  LINK_COMPONENTS
+    Support
   LINK_LIBS
-    lldbBase
     lldbBreakpoint
     lldbCore
     lldbDataFormatters
@@ -51,9 +56,8 @@ add_lldb_library(lldbCommands
     lldbSymbol
     lldbTarget
     lldbUtility
-
-  LINK_COMPONENTS
-    Support
+    lldbValueObject
+    lldbVersion
   )
 
 add_dependencies(lldbCommands LLDBOptionsGen)

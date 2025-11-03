@@ -200,8 +200,7 @@ static inline MemOpKey getMemOpKey(const MachineInstr &MI, unsigned N) {
 
 static inline bool isIdenticalOp(const MachineOperand &MO1,
                                  const MachineOperand &MO2) {
-  return MO1.isIdenticalTo(MO2) &&
-         (!MO1.isReg() || !Register::isPhysicalRegister(MO1.getReg()));
+  return MO1.isIdenticalTo(MO2) && (!MO1.isReg() || !MO1.getReg().isPhysical());
 }
 
 #ifndef NDEBUG
@@ -295,8 +294,8 @@ private:
   /// Replace debug value MI with a new debug value instruction using register
   /// VReg with an appropriate offset and DIExpression to incorporate the
   /// address displacement AddrDispShift. Return new debug value instruction.
-  MachineInstr *replaceDebugValue(MachineInstr &MI, unsigned OldReg,
-                                  unsigned NewReg, int64_t AddrDispShift);
+  MachineInstr *replaceDebugValue(MachineInstr &MI, Register OldReg,
+                                  Register NewReg, int64_t AddrDispShift);
 
   /// Removes LEAs which calculate similar addresses.
   bool removeRedundantLEAs(MemOpMap &LEAs);
@@ -322,8 +321,7 @@ int X86OptimizeLEAPass::calcInstrDist(const MachineInstr &First,
   // presented in InstrPos.
   assert(Last.getParent() == First.getParent() &&
          "Instructions are in different basic blocks");
-  assert(InstrPos.find(&First) != InstrPos.end() &&
-         InstrPos.find(&Last) != InstrPos.end() &&
+  assert(InstrPos.contains(&First) && InstrPos.contains(&Last) &&
          "Instructions' positions are undefined");
 
   return InstrPos[&Last] - InstrPos[&First];
@@ -341,7 +339,6 @@ int X86OptimizeLEAPass::calcInstrDist(const MachineInstr &First,
 bool X86OptimizeLEAPass::chooseBestLEA(
     const SmallVectorImpl<MachineInstr *> &List, const MachineInstr &MI,
     MachineInstr *&BestLEA, int64_t &AddrDispShift, int &Dist) {
-  const MachineFunction *MF = MI.getParent()->getParent();
   const MCInstrDesc &Desc = MI.getDesc();
   int MemOpNo = X86II::getMemoryOperandNo(Desc.TSFlags) +
                 X86II::getOperandBias(Desc);
@@ -349,7 +346,7 @@ bool X86OptimizeLEAPass::chooseBestLEA(
   BestLEA = nullptr;
 
   // Loop over all LEA instructions.
-  for (auto DefMI : List) {
+  for (auto *DefMI : List) {
     // Get new address displacement.
     int64_t AddrDispShiftTemp = getAddrDispShift(MI, MemOpNo, *DefMI, 1);
 
@@ -362,7 +359,7 @@ bool X86OptimizeLEAPass::chooseBestLEA(
     // example MOV8mr_NOREX. We could constrain the register class of the LEA
     // def to suit MI, however since this case is very rare and hard to
     // reproduce in a test it's just more reliable to skip the LEA.
-    if (TII->getRegClass(Desc, MemOpNo + X86::AddrBaseReg, TRI, *MF) !=
+    if (TII->getRegClass(Desc, MemOpNo + X86::AddrBaseReg, TRI) !=
         MRI->getRegClass(DefMI->getOperand(0).getReg()))
       continue;
 
@@ -503,9 +500,7 @@ bool X86OptimizeLEAPass::removeRedundantAddrCalc(MemOpMap &LEAs) {
   MachineBasicBlock *MBB = (*LEAs.begin()->second.begin())->getParent();
 
   // Process all instructions in basic block.
-  for (auto I = MBB->begin(), E = MBB->end(); I != E;) {
-    MachineInstr &MI = *I++;
-
+  for (MachineInstr &MI : llvm::make_early_inc_range(*MBB)) {
     // Instruction must be load or store.
     if (!MI.mayLoadOrStore())
       continue;
@@ -576,8 +571,8 @@ bool X86OptimizeLEAPass::removeRedundantAddrCalc(MemOpMap &LEAs) {
 }
 
 MachineInstr *X86OptimizeLEAPass::replaceDebugValue(MachineInstr &MI,
-                                                    unsigned OldReg,
-                                                    unsigned NewReg,
+                                                    Register OldReg,
+                                                    Register NewReg,
                                                     int64_t AddrDispShift) {
   const DIExpression *Expr = MI.getDebugExpression();
   if (AddrDispShift != 0) {
@@ -612,7 +607,7 @@ MachineInstr *X86OptimizeLEAPass::replaceDebugValue(MachineInstr &MI,
   auto replaceOldReg = [OldReg, NewReg](const MachineOperand &Op) {
     if (Op.isReg() && Op.getReg() == OldReg)
       return MachineOperand::CreateReg(NewReg, false, false, false, false,
-                                       false, false, false, false, 0,
+                                       false, false, false, false, false,
                                        /*IsRenamable*/ true);
     return Op;
   };
@@ -655,9 +650,12 @@ bool X86OptimizeLEAPass::removeRedundantLEAs(MemOpMap &LEAs) {
         // isReplaceable function.
         Register FirstVReg = First.getOperand(0).getReg();
         Register LastVReg = Last.getOperand(0).getReg();
-        for (auto UI = MRI->use_begin(LastVReg), UE = MRI->use_end();
-             UI != UE;) {
-          MachineOperand &MO = *UI++;
+        // We use MRI->use_empty here instead of the combination of
+        // llvm::make_early_inc_range and MRI->use_operands because we could
+        // replace two or more uses in a debug instruction in one iteration, and
+        // that would deeply confuse llvm::make_early_inc_range.
+        while (!MRI->use_empty(LastVReg)) {
+          MachineOperand &MO = *MRI->use_begin(LastVReg);
           MachineInstr &MI = *MO.getParent();
 
           if (MI.isDebugValue()) {
@@ -742,9 +740,7 @@ bool X86OptimizeLEAPass::runOnMachineFunction(MachineFunction &MF) {
 
     // Remove redundant address calculations. Do it only for -Os/-Oz since only
     // a code size gain is expected from this part of the pass.
-    bool OptForSize = MF.getFunction().hasOptSize() ||
-                      llvm::shouldOptimizeForSize(&MBB, PSI, MBFI);
-    if (OptForSize)
+    if (llvm::shouldOptimizeForSize(&MBB, PSI, MBFI))
       Changed |= removeRedundantAddrCalc(LEAs);
   }
 

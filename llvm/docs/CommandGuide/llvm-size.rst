@@ -41,6 +41,13 @@ OPTIONS
  as a separate section entry for ``sysv`` output. If not specified, these
  symbols are ignored.
 
+.. option:: --exclude-pagezero
+
+ Do not include the ``__PAGEZERO`` segment when calculating size information
+ for Mach-O files. The ``__PAGEZERO`` segment is a virtual memory region used
+ for memory protection that does not contribute to actual size, and excluding
+ can provide a better representation of actual size.
+
 .. option:: -d
 
  Equivalent to :option:`--radix` with a value of ``10``.
@@ -191,4 +198,4 @@ Otherwise, it exits with code 0.
 BUGS
 ----
 
-To report bugs, please visit <https://bugs.llvm.org/>.
+To report bugs, please visit <https://github.com/llvm/llvm-project/labels/tools:llvm-size/>.

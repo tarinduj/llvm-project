@@ -18,8 +18,6 @@ In February 2017, the C++ standard committee approved this draft, and sent it to
 
 This page shows the status of libc++; the status of clang's support of the language features is `here <https://clang.llvm.org/cxx_status.html#cxx17>`__.
 
-.. attention:: Features in unreleased drafts of the standard are subject to change.
-
 The groups that have contributed papers:
 
 -  CWG - Core Language Working group
@@ -27,8 +25,6 @@ The groups that have contributed papers:
 -  SG1 - Study group #1 (Concurrency working group)
 
 .. note:: "Nothing to do" means that no library changes were needed to implement this change.
-
-.. _paper-status-cxx17:
 
 Paper Status
 ====================================
@@ -38,14 +34,6 @@ Paper Status
    :header-rows: 1
    :widths: auto
 
-.. note::
-
-   .. [#note-P0433] P0433: So far, only the ``<string>``, sequence containers, container adaptors and ``<regex>`` portions of P0433 have been implemented.
-   .. [#note-P0607] P0607: The parts of P0607 that are not done are the ``<regex>`` bits.
-
-
-.. _issues-status-cxx17:
-
 Library Working Group Issues Status
 ====================================
 
@@ -53,5 +41,3 @@ Library Working Group Issues Status
    :file: Cxx17Issues.csv
    :header-rows: 1
    :widths: auto
-
-Last Updated: 17-Nov-2020

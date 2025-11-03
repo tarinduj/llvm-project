@@ -18,16 +18,16 @@
 @dst = external global [131072 x i32]
 @xsrc = external global [32 x i32]
 @xdst = external global [32 x i32]
-@ptr = external global i32*
+@ptr = external global ptr
 @dsrc = dso_local global [131072 x i32] zeroinitializer, align 32
 @ddst = dso_local global [131072 x i32] zeroinitializer, align 32
-@dptr = dso_local global i32* null
+@dptr = dso_local global ptr null
 @lsrc = internal global [131072 x i32] zeroinitializer
 @ldst = internal global [131072 x i32] zeroinitializer
-@lptr = internal global i32* null
-@ifunc = external global void ()*
-@difunc = dso_local global void ()* null
-@lifunc = internal global void ()* null
+@lptr = internal global ptr null
+@ifunc = external global ptr
+@difunc = dso_local global ptr null
+@lifunc = internal global ptr null
 @lxsrc = internal global [32 x i32] zeroinitializer, align 32
 @lxdst = internal global [32 x i32] zeroinitializer, align 32
 @dxsrc = dso_local global [32 x i32] zeroinitializer, align 32
@@ -119,8 +119,8 @@ define dso_local void @foo00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @src, i32 0, i64 0), align 4
-	store i32 %0, i32* getelementptr ([131072 x i32], [131072 x i32]* @dst, i32 0, i64 0), align 4
+	%0 = load i32, ptr @src, align 4
+	store i32 %0, ptr @dst, align 4
 	ret void
 
 }
@@ -211,8 +211,8 @@ define dso_local void @fxo00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([32 x i32], [32 x i32]* @xsrc, i32 0, i64 0), align 4
-	store i32 %0, i32* getelementptr ([32 x i32], [32 x i32]* @xdst, i32 0, i64 0), align 4
+	%0 = load i32, ptr @xsrc, align 4
+	store i32 %0, ptr @xdst, align 4
 	ret void
 
 }
@@ -293,7 +293,7 @@ define dso_local void @foo01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([131072 x i32], [131072 x i32]* @dst, i32 0, i32 0), i32** @ptr, align 8
+	store ptr @dst, ptr @ptr, align 8
 	ret void
 }
 
@@ -373,7 +373,7 @@ define dso_local void @fxo01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([32 x i32], [32 x i32]* @xdst, i32 0, i32 0), i32** @ptr, align 8
+	store ptr @xdst, ptr @ptr, align 8
 	ret void
 }
 
@@ -473,9 +473,9 @@ define dso_local void @foo02() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @src, i32 0, i64 0), align 4
-	store i32 %1, i32* %0, align 4
+	%0 = load ptr, ptr @ptr, align 8
+	%1 = load i32, ptr @src, align 4
+	store i32 %1, ptr %0, align 4
 	ret void
 }
 
@@ -575,9 +575,9 @@ define dso_local void @fxo02() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = load i32, i32* getelementptr ([32 x i32], [32 x i32]* @xsrc, i32 0, i64 0), align 4
-	store i32 %1, i32* %0, align 4
+	%0 = load ptr, ptr @ptr, align 8
+	%1 = load i32, ptr @xsrc, align 4
+	store i32 %1, ptr %0, align 4
 	ret void
 }
 
@@ -651,8 +651,8 @@ define dso_local void @foo03() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @dsrc, i32 0, i64 0), align 32
-	store i32 %0, i32* getelementptr ([131072 x i32], [131072 x i32]* @ddst, i32 0, i64 0), align 32
+	%0 = load i32, ptr @dsrc, align 32
+	store i32 %0, ptr @ddst, align 32
 	ret void
 }
 
@@ -722,7 +722,7 @@ define dso_local void @foo04() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([131072 x i32], [131072 x i32]* @ddst, i32 0, i32 0), i32** @dptr, align 8
+	store ptr @ddst, ptr @dptr, align 8
 	ret void
 }
 
@@ -806,9 +806,9 @@ define dso_local void @foo05() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
-	%1 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @dsrc, i32 0, i64 0), align 32
-	store i32 %1, i32* %0, align 4
+	%0 = load ptr, ptr @dptr, align 8
+	%1 = load i32, ptr @dsrc, align 32
+	store i32 %1, ptr %0, align 4
 	ret void
 }
 
@@ -882,8 +882,8 @@ define dso_local void @foo06() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @lsrc, i32 0, i64 0), align 4
-	store i32 %0, i32* getelementptr ([131072 x i32], [131072 x i32]* @ldst, i32 0, i64 0), align 4
+	%0 = load i32, ptr @lsrc, align 4
+	store i32 %0, ptr @ldst, align 4
 	ret void
 }
 
@@ -953,7 +953,7 @@ define dso_local void @foo07() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([131072 x i32], [131072 x i32]* @ldst, i32 0, i32 0), i32** @lptr, align 8
+	store ptr @ldst, ptr @lptr, align 8
 	ret void
 }
 
@@ -1037,9 +1037,9 @@ define dso_local void @foo08() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
-	%1 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @lsrc, i32 0, i64 0), align 4
-	store i32 %1, i32* %0, align 4
+	%0 = load ptr, ptr @lptr, align 8
+	%1 = load i32, ptr @lsrc, align 4
+	store i32 %1, ptr %0, align 4
 	ret void
 }
 
@@ -1129,8 +1129,8 @@ define dso_local void @qux00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @src, i32 0, i64 16), align 4
-	store i32 %0, i32* getelementptr ([131072 x i32], [131072 x i32]* @dst, i32 0, i64 16), align 4
+	%0 = load i32, ptr getelementptr ([131072 x i32], ptr @src, i32 0, i64 16), align 4
+	store i32 %0, ptr getelementptr ([131072 x i32], ptr @dst, i32 0, i64 16), align 4
 	ret void
 }
 
@@ -1220,8 +1220,8 @@ define dso_local void @qxx00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([32 x i32], [32 x i32]* @xsrc, i32 0, i64 16), align 4
-	store i32 %0, i32* getelementptr ([32 x i32], [32 x i32]* @xdst, i32 0, i64 16), align 4
+	%0 = load i32, ptr getelementptr ([32 x i32], ptr @xsrc, i32 0, i64 16), align 4
+	store i32 %0, ptr getelementptr ([32 x i32], ptr @xdst, i32 0, i64 16), align 4
 	ret void
 }
 
@@ -1310,7 +1310,7 @@ define dso_local void @qux01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([131072 x i32], [131072 x i32]* @dst, i32 0, i64 16), i32** @ptr, align 8
+	store ptr getelementptr ([131072 x i32], ptr @dst, i32 0, i64 16), ptr @ptr, align 8
 	ret void
 }
 
@@ -1399,7 +1399,7 @@ define dso_local void @qxx01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([32 x i32], [32 x i32]* @xdst, i32 0, i64 16), i32** @ptr, align 8
+	store ptr getelementptr ([32 x i32], ptr @xdst, i32 0, i64 16), ptr @ptr, align 8
 	ret void
 }
 
@@ -1499,10 +1499,10 @@ define dso_local void @qux02() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @src, i32 0, i64 16), align 4
-	%2 = getelementptr i32, i32* %0, i64 16
-	store i32 %1, i32* %2, align 4
+	%0 = load ptr, ptr @ptr, align 8
+	%1 = load i32, ptr getelementptr ([131072 x i32], ptr @src, i32 0, i64 16), align 4
+	%2 = getelementptr i32, ptr %0, i64 16
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -1602,10 +1602,10 @@ define dso_local void @qxx02() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = load i32, i32* getelementptr ([32 x i32], [32 x i32]* @xsrc, i32 0, i64 16), align 4
-	%2 = getelementptr i32, i32* %0, i64 16
-	store i32 %1, i32* %2, align 4
+	%0 = load ptr, ptr @ptr, align 8
+	%1 = load i32, ptr getelementptr ([32 x i32], ptr @xsrc, i32 0, i64 16), align 4
+	%2 = getelementptr i32, ptr %0, i64 16
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -1656,8 +1656,8 @@ define dso_local void @qux03() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L18$pb
 ; DARWIN-32-PIC-NEXT:  L18$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    movl (_dsrc-L18$pb)+64(%eax), %ecx
-; DARWIN-32-PIC-NEXT:    movl %ecx, (_ddst-L18$pb)+64(%eax)
+; DARWIN-32-PIC-NEXT:    movl _dsrc-L18$pb+64(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    movl %ecx, _ddst-L18$pb+64(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: qux03:
@@ -1679,8 +1679,8 @@ define dso_local void @qux03() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @dsrc, i32 0, i64 16), align 32
-	store i32 %0, i32* getelementptr ([131072 x i32], [131072 x i32]* @ddst, i32 0, i64 16), align 32
+	%0 = load i32, ptr getelementptr ([131072 x i32], ptr @dsrc, i32 0, i64 16), align 32
+	store i32 %0, ptr getelementptr ([131072 x i32], ptr @ddst, i32 0, i64 16), align 32
 	ret void
 }
 
@@ -1727,7 +1727,7 @@ define dso_local void @qux04() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L19$pb
 ; DARWIN-32-PIC-NEXT:  L19$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_ddst-L19$pb)+64(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    leal _ddst-L19$pb+64(%eax), %ecx
 ; DARWIN-32-PIC-NEXT:    movl %ecx, _dptr-L19$pb(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
@@ -1750,7 +1750,7 @@ define dso_local void @qux04() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([131072 x i32], [131072 x i32]* @ddst, i32 0, i64 16), i32** @dptr, align 8
+	store ptr getelementptr ([131072 x i32], ptr @ddst, i32 0, i64 16), ptr @dptr, align 8
 	ret void
 }
 
@@ -1807,7 +1807,7 @@ define dso_local void @qux05() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L20$pb
 ; DARWIN-32-PIC-NEXT:  L20$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    movl (_dsrc-L20$pb)+64(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    movl _dsrc-L20$pb+64(%eax), %ecx
 ; DARWIN-32-PIC-NEXT:    movl _dptr-L20$pb(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    movl %ecx, 64(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
@@ -1834,10 +1834,10 @@ define dso_local void @qux05() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
-	%1 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @dsrc, i32 0, i64 16), align 32
-	%2 = getelementptr i32, i32* %0, i64 16
-	store i32 %1, i32* %2, align 4
+	%0 = load ptr, ptr @dptr, align 8
+	%1 = load i32, ptr getelementptr ([131072 x i32], ptr @dsrc, i32 0, i64 16), align 32
+	%2 = getelementptr i32, ptr %0, i64 16
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -1888,8 +1888,8 @@ define dso_local void @qux06() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L21$pb
 ; DARWIN-32-PIC-NEXT:  L21$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    movl (_lsrc-L21$pb)+64(%eax), %ecx
-; DARWIN-32-PIC-NEXT:    movl %ecx, (_ldst-L21$pb)+64(%eax)
+; DARWIN-32-PIC-NEXT:    movl _lsrc-L21$pb+64(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    movl %ecx, _ldst-L21$pb+64(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: qux06:
@@ -1911,8 +1911,8 @@ define dso_local void @qux06() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @lsrc, i32 0, i64 16), align 4
-	store i32 %0, i32* getelementptr ([131072 x i32], [131072 x i32]* @ldst, i32 0, i64 16), align 4
+	%0 = load i32, ptr getelementptr ([131072 x i32], ptr @lsrc, i32 0, i64 16), align 4
+	store i32 %0, ptr getelementptr ([131072 x i32], ptr @ldst, i32 0, i64 16), align 4
 	ret void
 }
 
@@ -1959,7 +1959,7 @@ define dso_local void @qux07() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L22$pb
 ; DARWIN-32-PIC-NEXT:  L22$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_ldst-L22$pb)+64(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    leal _ldst-L22$pb+64(%eax), %ecx
 ; DARWIN-32-PIC-NEXT:    movl %ecx, _lptr-L22$pb(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
@@ -1982,7 +1982,7 @@ define dso_local void @qux07() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([131072 x i32], [131072 x i32]* @ldst, i32 0, i64 16), i32** @lptr, align 8
+	store ptr getelementptr ([131072 x i32], ptr @ldst, i32 0, i64 16), ptr @lptr, align 8
 	ret void
 }
 
@@ -2039,7 +2039,7 @@ define dso_local void @qux08() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L23$pb
 ; DARWIN-32-PIC-NEXT:  L23$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    movl (_lsrc-L23$pb)+64(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    movl _lsrc-L23$pb+64(%eax), %ecx
 ; DARWIN-32-PIC-NEXT:    movl _lptr-L23$pb(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    movl %ecx, 64(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
@@ -2066,10 +2066,10 @@ define dso_local void @qux08() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
-	%1 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @lsrc, i32 0, i64 16), align 4
-	%2 = getelementptr i32, i32* %0, i64 16
-	store i32 %1, i32* %2, align 4
+	%0 = load ptr, ptr @lptr, align 8
+	%1 = load i32, ptr getelementptr ([131072 x i32], ptr @lsrc, i32 0, i64 16), align 4
+	%2 = getelementptr i32, ptr %0, i64 16
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -2164,10 +2164,10 @@ define dso_local void @ind00(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @src, i64 0, i64 %i
-	%1 = load i32, i32* %0, align 4
-	%2 = getelementptr [131072 x i32], [131072 x i32]* @dst, i64 0, i64 %i
-	store i32 %1, i32* %2, align 4
+	%0 = getelementptr [131072 x i32], ptr @src, i64 0, i64 %i
+	%1 = load i32, ptr %0, align 4
+	%2 = getelementptr [131072 x i32], ptr @dst, i64 0, i64 %i
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -2262,10 +2262,10 @@ define dso_local void @ixd00(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = getelementptr [32 x i32], [32 x i32]* @xsrc, i64 0, i64 %i
-	%1 = load i32, i32* %0, align 4
-	%2 = getelementptr [32 x i32], [32 x i32]* @xdst, i64 0, i64 %i
-	store i32 %1, i32* %2, align 4
+	%0 = getelementptr [32 x i32], ptr @xsrc, i64 0, i64 %i
+	%1 = load i32, ptr %0, align 4
+	%2 = getelementptr [32 x i32], ptr @xdst, i64 0, i64 %i
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -2360,8 +2360,8 @@ define dso_local void @ind01(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @dst, i64 0, i64 %i
-	store i32* %0, i32** @ptr, align 8
+	%0 = getelementptr [131072 x i32], ptr @dst, i64 0, i64 %i
+	store ptr %0, ptr @ptr, align 8
 	ret void
 }
 
@@ -2456,8 +2456,8 @@ define dso_local void @ixd01(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = getelementptr [32 x i32], [32 x i32]* @xdst, i64 0, i64 %i
-	store i32* %0, i32** @ptr, align 8
+	%0 = getelementptr [32 x i32], ptr @xdst, i64 0, i64 %i
+	store ptr %0, ptr @ptr, align 8
 	ret void
 }
 
@@ -2562,11 +2562,11 @@ define dso_local void @ind02(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @src, i64 0, i64 %i
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr i32, i32* %0, i64 %i
-	store i32 %2, i32* %3, align 4
+	%0 = load ptr, ptr @ptr, align 8
+	%1 = getelementptr [131072 x i32], ptr @src, i64 0, i64 %i
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr i32, ptr %0, i64 %i
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -2671,11 +2671,11 @@ define dso_local void @ixd02(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = getelementptr [32 x i32], [32 x i32]* @xsrc, i64 0, i64 %i
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr i32, i32* %0, i64 %i
-	store i32 %2, i32* %3, align 4
+	%0 = load ptr, ptr @ptr, align 8
+	%1 = getelementptr [32 x i32], ptr @xsrc, i64 0, i64 %i
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr i32, ptr %0, i64 %i
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -2762,10 +2762,10 @@ define dso_local void @ind03(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @dsrc, i64 0, i64 %i
-	%1 = load i32, i32* %0, align 4
-	%2 = getelementptr [131072 x i32], [131072 x i32]* @ddst, i64 0, i64 %i
-	store i32 %1, i32* %2, align 4
+	%0 = getelementptr [131072 x i32], ptr @dsrc, i64 0, i64 %i
+	%1 = load i32, ptr %0, align 4
+	%2 = getelementptr [131072 x i32], ptr @ddst, i64 0, i64 %i
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -2848,8 +2848,8 @@ define dso_local void @ind04(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @ddst, i64 0, i64 %i
-	store i32* %0, i32** @dptr, align 8
+	%0 = getelementptr [131072 x i32], ptr @ddst, i64 0, i64 %i
+	store ptr %0, ptr @dptr, align 8
 	ret void
 }
 
@@ -2942,11 +2942,11 @@ define dso_local void @ind05(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @dsrc, i64 0, i64 %i
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr i32, i32* %0, i64 %i
-	store i32 %2, i32* %3, align 4
+	%0 = load ptr, ptr @dptr, align 8
+	%1 = getelementptr [131072 x i32], ptr @dsrc, i64 0, i64 %i
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr i32, ptr %0, i64 %i
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -3033,10 +3033,10 @@ define dso_local void @ind06(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @lsrc, i64 0, i64 %i
-	%1 = load i32, i32* %0, align 4
-	%2 = getelementptr [131072 x i32], [131072 x i32]* @ldst, i64 0, i64 %i
-	store i32 %1, i32* %2, align 4
+	%0 = getelementptr [131072 x i32], ptr @lsrc, i64 0, i64 %i
+	%1 = load i32, ptr %0, align 4
+	%2 = getelementptr [131072 x i32], ptr @ldst, i64 0, i64 %i
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -3119,8 +3119,8 @@ define dso_local void @ind07(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @ldst, i64 0, i64 %i
-	store i32* %0, i32** @lptr, align 8
+	%0 = getelementptr [131072 x i32], ptr @ldst, i64 0, i64 %i
+	store ptr %0, ptr @lptr, align 8
 	ret void
 }
 
@@ -3213,11 +3213,11 @@ define dso_local void @ind08(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @lsrc, i64 0, i64 %i
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr i32, i32* %0, i64 %i
-	store i32 %2, i32* %3, align 4
+	%0 = load ptr, ptr @lptr, align 8
+	%1 = getelementptr [131072 x i32], ptr @lsrc, i64 0, i64 %i
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr i32, ptr %0, i64 %i
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -3313,10 +3313,10 @@ define dso_local void @off00(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @src, i64 0, i64 %0
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr [131072 x i32], [131072 x i32]* @dst, i64 0, i64 %0
-	store i32 %2, i32* %3, align 4
+	%1 = getelementptr [131072 x i32], ptr @src, i64 0, i64 %0
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr [131072 x i32], ptr @dst, i64 0, i64 %0
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -3412,10 +3412,10 @@ define dso_local void @oxf00(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [32 x i32], [32 x i32]* @xsrc, i64 0, i64 %0
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr [32 x i32], [32 x i32]* @xdst, i64 0, i64 %0
-	store i32 %2, i32* %3, align 4
+	%1 = getelementptr [32 x i32], ptr @xsrc, i64 0, i64 %0
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr [32 x i32], ptr @xdst, i64 0, i64 %0
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -3511,8 +3511,8 @@ define dso_local void @off01(i64 %i) nounwind {
 
 entry:
 	%.sum = add i64 %i, 16
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @dst, i64 0, i64 %.sum
-	store i32* %0, i32** @ptr, align 8
+	%0 = getelementptr [131072 x i32], ptr @dst, i64 0, i64 %.sum
+	store ptr %0, ptr @ptr, align 8
 	ret void
 }
 
@@ -3608,8 +3608,8 @@ define dso_local void @oxf01(i64 %i) nounwind {
 
 entry:
 	%.sum = add i64 %i, 16
-	%0 = getelementptr [32 x i32], [32 x i32]* @xdst, i64 0, i64 %.sum
-	store i32* %0, i32** @ptr, align 8
+	%0 = getelementptr [32 x i32], ptr @xdst, i64 0, i64 %.sum
+	store ptr %0, ptr @ptr, align 8
 	ret void
 }
 
@@ -3714,12 +3714,12 @@ define dso_local void @off02(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
+	%0 = load ptr, ptr @ptr, align 8
 	%1 = add i64 %i, 16
-	%2 = getelementptr [131072 x i32], [131072 x i32]* @src, i64 0, i64 %1
-	%3 = load i32, i32* %2, align 4
-	%4 = getelementptr i32, i32* %0, i64 %1
-	store i32 %3, i32* %4, align 4
+	%2 = getelementptr [131072 x i32], ptr @src, i64 0, i64 %1
+	%3 = load i32, ptr %2, align 4
+	%4 = getelementptr i32, ptr %0, i64 %1
+	store i32 %3, ptr %4, align 4
 	ret void
 }
 
@@ -3824,12 +3824,12 @@ define dso_local void @oxf02(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
+	%0 = load ptr, ptr @ptr, align 8
 	%1 = add i64 %i, 16
-	%2 = getelementptr [32 x i32], [32 x i32]* @xsrc, i64 0, i64 %1
-	%3 = load i32, i32* %2, align 4
-	%4 = getelementptr i32, i32* %0, i64 %1
-	store i32 %3, i32* %4, align 4
+	%2 = getelementptr [32 x i32], ptr @xsrc, i64 0, i64 %1
+	%3 = load i32, ptr %2, align 4
+	%4 = getelementptr i32, ptr %0, i64 %1
+	store i32 %3, ptr %4, align 4
 	ret void
 }
 
@@ -3887,8 +3887,8 @@ define dso_local void @off03(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L42$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    movl (_dsrc-L42$pb)+64(%eax,%ecx,4), %edx
-; DARWIN-32-PIC-NEXT:    movl %edx, (_ddst-L42$pb)+64(%eax,%ecx,4)
+; DARWIN-32-PIC-NEXT:    movl _dsrc-L42$pb+64(%eax,%ecx,4), %edx
+; DARWIN-32-PIC-NEXT:    movl %edx, _ddst-L42$pb+64(%eax,%ecx,4)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: off03:
@@ -3917,10 +3917,10 @@ define dso_local void @off03(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @dsrc, i64 0, i64 %0
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr [131072 x i32], [131072 x i32]* @ddst, i64 0, i64 %0
-	store i32 %2, i32* %3, align 4
+	%1 = getelementptr [131072 x i32], ptr @dsrc, i64 0, i64 %0
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr [131072 x i32], ptr @ddst, i64 0, i64 %0
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -3977,7 +3977,7 @@ define dso_local void @off04(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L43$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_ddst-L43$pb)+64(%eax,%ecx,4), %ecx
+; DARWIN-32-PIC-NEXT:    leal _ddst-L43$pb+64(%eax,%ecx,4), %ecx
 ; DARWIN-32-PIC-NEXT:    movl %ecx, _dptr-L43$pb(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
@@ -4004,8 +4004,8 @@ define dso_local void @off04(i64 %i) nounwind {
 
 entry:
 	%.sum = add i64 %i, 16
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @ddst, i64 0, i64 %.sum
-	store i32* %0, i32** @dptr, align 8
+	%0 = getelementptr [131072 x i32], ptr @ddst, i64 0, i64 %.sum
+	store ptr %0, ptr @dptr, align 8
 	ret void
 }
 
@@ -4068,7 +4068,7 @@ define dso_local void @off05(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L44$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    movl (_dsrc-L44$pb)+64(%eax,%ecx,4), %edx
+; DARWIN-32-PIC-NEXT:    movl _dsrc-L44$pb+64(%eax,%ecx,4), %edx
 ; DARWIN-32-PIC-NEXT:    movl _dptr-L44$pb(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    movl %edx, 64(%eax,%ecx,4)
 ; DARWIN-32-PIC-NEXT:    retl
@@ -4098,12 +4098,12 @@ define dso_local void @off05(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
+	%0 = load ptr, ptr @dptr, align 8
 	%1 = add i64 %i, 16
-	%2 = getelementptr [131072 x i32], [131072 x i32]* @dsrc, i64 0, i64 %1
-	%3 = load i32, i32* %2, align 4
-	%4 = getelementptr i32, i32* %0, i64 %1
-	store i32 %3, i32* %4, align 4
+	%2 = getelementptr [131072 x i32], ptr @dsrc, i64 0, i64 %1
+	%3 = load i32, ptr %2, align 4
+	%4 = getelementptr i32, ptr %0, i64 %1
+	store i32 %3, ptr %4, align 4
 	ret void
 }
 
@@ -4161,8 +4161,8 @@ define dso_local void @off06(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L45$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    movl (_lsrc-L45$pb)+64(%eax,%ecx,4), %edx
-; DARWIN-32-PIC-NEXT:    movl %edx, (_ldst-L45$pb)+64(%eax,%ecx,4)
+; DARWIN-32-PIC-NEXT:    movl _lsrc-L45$pb+64(%eax,%ecx,4), %edx
+; DARWIN-32-PIC-NEXT:    movl %edx, _ldst-L45$pb+64(%eax,%ecx,4)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: off06:
@@ -4191,10 +4191,10 @@ define dso_local void @off06(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @lsrc, i64 0, i64 %0
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr [131072 x i32], [131072 x i32]* @ldst, i64 0, i64 %0
-	store i32 %2, i32* %3, align 4
+	%1 = getelementptr [131072 x i32], ptr @lsrc, i64 0, i64 %0
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr [131072 x i32], ptr @ldst, i64 0, i64 %0
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -4251,7 +4251,7 @@ define dso_local void @off07(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L46$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_ldst-L46$pb)+64(%eax,%ecx,4), %ecx
+; DARWIN-32-PIC-NEXT:    leal _ldst-L46$pb+64(%eax,%ecx,4), %ecx
 ; DARWIN-32-PIC-NEXT:    movl %ecx, _lptr-L46$pb(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
@@ -4278,8 +4278,8 @@ define dso_local void @off07(i64 %i) nounwind {
 
 entry:
 	%.sum = add i64 %i, 16
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @ldst, i64 0, i64 %.sum
-	store i32* %0, i32** @lptr, align 8
+	%0 = getelementptr [131072 x i32], ptr @ldst, i64 0, i64 %.sum
+	store ptr %0, ptr @lptr, align 8
 	ret void
 }
 
@@ -4342,7 +4342,7 @@ define dso_local void @off08(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L47$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    movl (_lsrc-L47$pb)+64(%eax,%ecx,4), %edx
+; DARWIN-32-PIC-NEXT:    movl _lsrc-L47$pb+64(%eax,%ecx,4), %edx
 ; DARWIN-32-PIC-NEXT:    movl _lptr-L47$pb(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    movl %edx, 64(%eax,%ecx,4)
 ; DARWIN-32-PIC-NEXT:    retl
@@ -4372,12 +4372,12 @@ define dso_local void @off08(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
+	%0 = load ptr, ptr @lptr, align 8
 	%1 = add i64 %i, 16
-	%2 = getelementptr [131072 x i32], [131072 x i32]* @lsrc, i64 0, i64 %1
-	%3 = load i32, i32* %2, align 4
-	%4 = getelementptr i32, i32* %0, i64 %1
-	store i32 %3, i32* %4, align 4
+	%2 = getelementptr [131072 x i32], ptr @lsrc, i64 0, i64 %1
+	%3 = load i32, ptr %2, align 4
+	%4 = getelementptr i32, ptr %0, i64 %1
+	store i32 %3, ptr %4, align 4
 	ret void
 }
 
@@ -4467,8 +4467,8 @@ define dso_local void @moo00(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @src, i32 0, i64 65536), align 4
-	store i32 %0, i32* getelementptr ([131072 x i32], [131072 x i32]* @dst, i32 0, i64 65536), align 4
+	%0 = load i32, ptr getelementptr ([131072 x i32], ptr @src, i32 0, i64 65536), align 4
+	store i32 %0, ptr getelementptr ([131072 x i32], ptr @dst, i32 0, i64 65536), align 4
 	ret void
 }
 
@@ -4557,7 +4557,7 @@ define dso_local void @moo01(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([131072 x i32], [131072 x i32]* @dst, i32 0, i64 65536), i32** @ptr, align 8
+	store ptr getelementptr ([131072 x i32], ptr @dst, i32 0, i64 65536), ptr @ptr, align 8
 	ret void
 }
 
@@ -4657,10 +4657,10 @@ define dso_local void @moo02(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @src, i32 0, i64 65536), align 4
-	%2 = getelementptr i32, i32* %0, i64 65536
-	store i32 %1, i32* %2, align 4
+	%0 = load ptr, ptr @ptr, align 8
+	%1 = load i32, ptr getelementptr ([131072 x i32], ptr @src, i32 0, i64 65536), align 4
+	%2 = getelementptr i32, ptr %0, i64 65536
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -4711,8 +4711,8 @@ define dso_local void @moo03(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L51$pb
 ; DARWIN-32-PIC-NEXT:  L51$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    movl (_dsrc-L51$pb)+262144(%eax), %ecx
-; DARWIN-32-PIC-NEXT:    movl %ecx, (_ddst-L51$pb)+262144(%eax)
+; DARWIN-32-PIC-NEXT:    movl _dsrc-L51$pb+262144(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    movl %ecx, _ddst-L51$pb+262144(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: moo03:
@@ -4734,8 +4734,8 @@ define dso_local void @moo03(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @dsrc, i32 0, i64 65536), align 32
-	store i32 %0, i32* getelementptr ([131072 x i32], [131072 x i32]* @ddst, i32 0, i64 65536), align 32
+	%0 = load i32, ptr getelementptr ([131072 x i32], ptr @dsrc, i32 0, i64 65536), align 32
+	store i32 %0, ptr getelementptr ([131072 x i32], ptr @ddst, i32 0, i64 65536), align 32
 	ret void
 }
 
@@ -4782,7 +4782,7 @@ define dso_local void @moo04(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L52$pb
 ; DARWIN-32-PIC-NEXT:  L52$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_ddst-L52$pb)+262144(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    leal _ddst-L52$pb+262144(%eax), %ecx
 ; DARWIN-32-PIC-NEXT:    movl %ecx, _dptr-L52$pb(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
@@ -4805,7 +4805,7 @@ define dso_local void @moo04(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([131072 x i32], [131072 x i32]* @ddst, i32 0, i64 65536), i32** @dptr, align 8
+	store ptr getelementptr ([131072 x i32], ptr @ddst, i32 0, i64 65536), ptr @dptr, align 8
 	ret void
 }
 
@@ -4862,7 +4862,7 @@ define dso_local void @moo05(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L53$pb
 ; DARWIN-32-PIC-NEXT:  L53$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    movl (_dsrc-L53$pb)+262144(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    movl _dsrc-L53$pb+262144(%eax), %ecx
 ; DARWIN-32-PIC-NEXT:    movl _dptr-L53$pb(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    movl %ecx, 262144(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
@@ -4889,10 +4889,10 @@ define dso_local void @moo05(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
-	%1 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @dsrc, i32 0, i64 65536), align 32
-	%2 = getelementptr i32, i32* %0, i64 65536
-	store i32 %1, i32* %2, align 4
+	%0 = load ptr, ptr @dptr, align 8
+	%1 = load i32, ptr getelementptr ([131072 x i32], ptr @dsrc, i32 0, i64 65536), align 32
+	%2 = getelementptr i32, ptr %0, i64 65536
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -4943,8 +4943,8 @@ define dso_local void @moo06(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L54$pb
 ; DARWIN-32-PIC-NEXT:  L54$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    movl (_lsrc-L54$pb)+262144(%eax), %ecx
-; DARWIN-32-PIC-NEXT:    movl %ecx, (_ldst-L54$pb)+262144(%eax)
+; DARWIN-32-PIC-NEXT:    movl _lsrc-L54$pb+262144(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    movl %ecx, _ldst-L54$pb+262144(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: moo06:
@@ -4966,8 +4966,8 @@ define dso_local void @moo06(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @lsrc, i32 0, i64 65536), align 4
-	store i32 %0, i32* getelementptr ([131072 x i32], [131072 x i32]* @ldst, i32 0, i64 65536), align 4
+	%0 = load i32, ptr getelementptr ([131072 x i32], ptr @lsrc, i32 0, i64 65536), align 4
+	store i32 %0, ptr getelementptr ([131072 x i32], ptr @ldst, i32 0, i64 65536), align 4
 	ret void
 }
 
@@ -5014,7 +5014,7 @@ define dso_local void @moo07(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L55$pb
 ; DARWIN-32-PIC-NEXT:  L55$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_ldst-L55$pb)+262144(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    leal _ldst-L55$pb+262144(%eax), %ecx
 ; DARWIN-32-PIC-NEXT:    movl %ecx, _lptr-L55$pb(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
@@ -5037,7 +5037,7 @@ define dso_local void @moo07(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	store i32* getelementptr ([131072 x i32], [131072 x i32]* @ldst, i32 0, i64 65536), i32** @lptr, align 8
+	store ptr getelementptr ([131072 x i32], ptr @ldst, i32 0, i64 65536), ptr @lptr, align 8
 	ret void
 }
 
@@ -5094,7 +5094,7 @@ define dso_local void @moo08(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L56$pb
 ; DARWIN-32-PIC-NEXT:  L56$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    movl (_lsrc-L56$pb)+262144(%eax), %ecx
+; DARWIN-32-PIC-NEXT:    movl _lsrc-L56$pb+262144(%eax), %ecx
 ; DARWIN-32-PIC-NEXT:    movl _lptr-L56$pb(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    movl %ecx, 262144(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
@@ -5121,10 +5121,10 @@ define dso_local void @moo08(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
-	%1 = load i32, i32* getelementptr ([131072 x i32], [131072 x i32]* @lsrc, i32 0, i64 65536), align 4
-	%2 = getelementptr i32, i32* %0, i64 65536
-	store i32 %1, i32* %2, align 4
+	%0 = load ptr, ptr @lptr, align 8
+	%1 = load i32, ptr getelementptr ([131072 x i32], ptr @lsrc, i32 0, i64 65536), align 4
+	%2 = getelementptr i32, ptr %0, i64 65536
+	store i32 %1, ptr %2, align 4
 	ret void
 }
 
@@ -5220,10 +5220,10 @@ define dso_local void @big00(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @src, i64 0, i64 %0
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr [131072 x i32], [131072 x i32]* @dst, i64 0, i64 %0
-	store i32 %2, i32* %3, align 4
+	%1 = getelementptr [131072 x i32], ptr @src, i64 0, i64 %0
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr [131072 x i32], ptr @dst, i64 0, i64 %0
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -5319,8 +5319,8 @@ define dso_local void @big01(i64 %i) nounwind {
 
 entry:
 	%.sum = add i64 %i, 65536
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @dst, i64 0, i64 %.sum
-	store i32* %0, i32** @ptr, align 8
+	%0 = getelementptr [131072 x i32], ptr @dst, i64 0, i64 %.sum
+	store ptr %0, ptr @ptr, align 8
 	ret void
 }
 
@@ -5425,12 +5425,12 @@ define dso_local void @big02(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
+	%0 = load ptr, ptr @ptr, align 8
 	%1 = add i64 %i, 65536
-	%2 = getelementptr [131072 x i32], [131072 x i32]* @src, i64 0, i64 %1
-	%3 = load i32, i32* %2, align 4
-	%4 = getelementptr i32, i32* %0, i64 %1
-	store i32 %3, i32* %4, align 4
+	%2 = getelementptr [131072 x i32], ptr @src, i64 0, i64 %1
+	%3 = load i32, ptr %2, align 4
+	%4 = getelementptr i32, ptr %0, i64 %1
+	store i32 %3, ptr %4, align 4
 	ret void
 }
 
@@ -5488,8 +5488,8 @@ define dso_local void @big03(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L60$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    movl (_dsrc-L60$pb)+262144(%eax,%ecx,4), %edx
-; DARWIN-32-PIC-NEXT:    movl %edx, (_ddst-L60$pb)+262144(%eax,%ecx,4)
+; DARWIN-32-PIC-NEXT:    movl _dsrc-L60$pb+262144(%eax,%ecx,4), %edx
+; DARWIN-32-PIC-NEXT:    movl %edx, _ddst-L60$pb+262144(%eax,%ecx,4)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: big03:
@@ -5518,10 +5518,10 @@ define dso_local void @big03(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @dsrc, i64 0, i64 %0
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr [131072 x i32], [131072 x i32]* @ddst, i64 0, i64 %0
-	store i32 %2, i32* %3, align 4
+	%1 = getelementptr [131072 x i32], ptr @dsrc, i64 0, i64 %0
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr [131072 x i32], ptr @ddst, i64 0, i64 %0
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -5578,7 +5578,7 @@ define dso_local void @big04(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L61$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_ddst-L61$pb)+262144(%eax,%ecx,4), %ecx
+; DARWIN-32-PIC-NEXT:    leal _ddst-L61$pb+262144(%eax,%ecx,4), %ecx
 ; DARWIN-32-PIC-NEXT:    movl %ecx, _dptr-L61$pb(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
@@ -5605,8 +5605,8 @@ define dso_local void @big04(i64 %i) nounwind {
 
 entry:
 	%.sum = add i64 %i, 65536
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @ddst, i64 0, i64 %.sum
-	store i32* %0, i32** @dptr, align 8
+	%0 = getelementptr [131072 x i32], ptr @ddst, i64 0, i64 %.sum
+	store ptr %0, ptr @dptr, align 8
 	ret void
 }
 
@@ -5669,7 +5669,7 @@ define dso_local void @big05(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L62$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    movl (_dsrc-L62$pb)+262144(%eax,%ecx,4), %edx
+; DARWIN-32-PIC-NEXT:    movl _dsrc-L62$pb+262144(%eax,%ecx,4), %edx
 ; DARWIN-32-PIC-NEXT:    movl _dptr-L62$pb(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    movl %edx, 262144(%eax,%ecx,4)
 ; DARWIN-32-PIC-NEXT:    retl
@@ -5699,12 +5699,12 @@ define dso_local void @big05(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
+	%0 = load ptr, ptr @dptr, align 8
 	%1 = add i64 %i, 65536
-	%2 = getelementptr [131072 x i32], [131072 x i32]* @dsrc, i64 0, i64 %1
-	%3 = load i32, i32* %2, align 4
-	%4 = getelementptr i32, i32* %0, i64 %1
-	store i32 %3, i32* %4, align 4
+	%2 = getelementptr [131072 x i32], ptr @dsrc, i64 0, i64 %1
+	%3 = load i32, ptr %2, align 4
+	%4 = getelementptr i32, ptr %0, i64 %1
+	store i32 %3, ptr %4, align 4
 	ret void
 }
 
@@ -5762,8 +5762,8 @@ define dso_local void @big06(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L63$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    movl (_lsrc-L63$pb)+262144(%eax,%ecx,4), %edx
-; DARWIN-32-PIC-NEXT:    movl %edx, (_ldst-L63$pb)+262144(%eax,%ecx,4)
+; DARWIN-32-PIC-NEXT:    movl _lsrc-L63$pb+262144(%eax,%ecx,4), %edx
+; DARWIN-32-PIC-NEXT:    movl %edx, _ldst-L63$pb+262144(%eax,%ecx,4)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: big06:
@@ -5792,10 +5792,10 @@ define dso_local void @big06(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @lsrc, i64 0, i64 %0
-	%2 = load i32, i32* %1, align 4
-	%3 = getelementptr [131072 x i32], [131072 x i32]* @ldst, i64 0, i64 %0
-	store i32 %2, i32* %3, align 4
+	%1 = getelementptr [131072 x i32], ptr @lsrc, i64 0, i64 %0
+	%2 = load i32, ptr %1, align 4
+	%3 = getelementptr [131072 x i32], ptr @ldst, i64 0, i64 %0
+	store i32 %2, ptr %3, align 4
 	ret void
 }
 
@@ -5852,7 +5852,7 @@ define dso_local void @big07(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L64$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_ldst-L64$pb)+262144(%eax,%ecx,4), %ecx
+; DARWIN-32-PIC-NEXT:    leal _ldst-L64$pb+262144(%eax,%ecx,4), %ecx
 ; DARWIN-32-PIC-NEXT:    movl %ecx, _lptr-L64$pb(%eax)
 ; DARWIN-32-PIC-NEXT:    retl
 ;
@@ -5879,8 +5879,8 @@ define dso_local void @big07(i64 %i) nounwind {
 
 entry:
 	%.sum = add i64 %i, 65536
-	%0 = getelementptr [131072 x i32], [131072 x i32]* @ldst, i64 0, i64 %.sum
-	store i32* %0, i32** @lptr, align 8
+	%0 = getelementptr [131072 x i32], ptr @ldst, i64 0, i64 %.sum
+	store ptr %0, ptr @lptr, align 8
 	ret void
 }
 
@@ -5943,7 +5943,7 @@ define dso_local void @big08(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L65$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    movl (_lsrc-L65$pb)+262144(%eax,%ecx,4), %edx
+; DARWIN-32-PIC-NEXT:    movl _lsrc-L65$pb+262144(%eax,%ecx,4), %edx
 ; DARWIN-32-PIC-NEXT:    movl _lptr-L65$pb(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    movl %edx, 262144(%eax,%ecx,4)
 ; DARWIN-32-PIC-NEXT:    retl
@@ -5973,16 +5973,16 @@ define dso_local void @big08(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
+	%0 = load ptr, ptr @lptr, align 8
 	%1 = add i64 %i, 65536
-	%2 = getelementptr [131072 x i32], [131072 x i32]* @lsrc, i64 0, i64 %1
-	%3 = load i32, i32* %2, align 4
-	%4 = getelementptr i32, i32* %0, i64 %1
-	store i32 %3, i32* %4, align 4
+	%2 = getelementptr [131072 x i32], ptr @lsrc, i64 0, i64 %1
+	%3 = load i32, ptr %2, align 4
+	%4 = getelementptr i32, ptr %0, i64 %1
+	store i32 %3, ptr %4, align 4
 	ret void
 }
 
-define dso_local i8* @bar00() nounwind {
+define dso_local ptr @bar00() nounwind {
 ; LINUX-64-STATIC-LABEL: bar00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq src@GOTPCREL(%rip), %rax
@@ -6042,10 +6042,10 @@ define dso_local i8* @bar00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @src to i8*)
+	ret ptr @src
 }
 
-define dso_local i8* @bxr00() nounwind {
+define dso_local ptr @bxr00() nounwind {
 ; LINUX-64-STATIC-LABEL: bxr00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xsrc@GOTPCREL(%rip), %rax
@@ -6105,10 +6105,10 @@ define dso_local i8* @bxr00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([32 x i32]* @xsrc to i8*)
+	ret ptr @xsrc
 }
 
-define dso_local i8* @bar01() nounwind {
+define dso_local ptr @bar01() nounwind {
 ; LINUX-64-STATIC-LABEL: bar01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq dst@GOTPCREL(%rip), %rax
@@ -6168,10 +6168,10 @@ define dso_local i8* @bar01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @dst to i8*)
+	ret ptr @dst
 }
 
-define dso_local i8* @bxr01() nounwind {
+define dso_local ptr @bxr01() nounwind {
 ; LINUX-64-STATIC-LABEL: bxr01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xdst@GOTPCREL(%rip), %rax
@@ -6231,10 +6231,10 @@ define dso_local i8* @bxr01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([32 x i32]* @xdst to i8*)
+	ret ptr @xdst
 }
 
-define dso_local i8* @bar02() nounwind {
+define dso_local ptr @bar02() nounwind {
 ; LINUX-64-STATIC-LABEL: bar02:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq ptr@GOTPCREL(%rip), %rax
@@ -6294,10 +6294,10 @@ define dso_local i8* @bar02() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32** @ptr to i8*)
+	ret ptr @ptr
 }
 
-define dso_local i8* @bar03() nounwind {
+define dso_local ptr @bar03() nounwind {
 ; LINUX-64-STATIC-LABEL: bar03:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $dsrc, %eax
@@ -6357,10 +6357,10 @@ define dso_local i8* @bar03() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @dsrc to i8*)
+	ret ptr @dsrc
 }
 
-define dso_local i8* @bar04() nounwind {
+define dso_local ptr @bar04() nounwind {
 ; LINUX-64-STATIC-LABEL: bar04:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $ddst, %eax
@@ -6420,10 +6420,10 @@ define dso_local i8* @bar04() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @ddst to i8*)
+	ret ptr @ddst
 }
 
-define dso_local i8* @bar05() nounwind {
+define dso_local ptr @bar05() nounwind {
 ; LINUX-64-STATIC-LABEL: bar05:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $dptr, %eax
@@ -6483,10 +6483,10 @@ define dso_local i8* @bar05() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32** @dptr to i8*)
+	ret ptr @dptr
 }
 
-define dso_local i8* @bar06() nounwind {
+define dso_local ptr @bar06() nounwind {
 ; LINUX-64-STATIC-LABEL: bar06:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $lsrc, %eax
@@ -6546,10 +6546,10 @@ define dso_local i8* @bar06() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @lsrc to i8*)
+	ret ptr @lsrc
 }
 
-define dso_local i8* @bar07() nounwind {
+define dso_local ptr @bar07() nounwind {
 ; LINUX-64-STATIC-LABEL: bar07:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $ldst, %eax
@@ -6609,10 +6609,10 @@ define dso_local i8* @bar07() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @ldst to i8*)
+	ret ptr @ldst
 }
 
-define dso_local i8* @bar08() nounwind {
+define dso_local ptr @bar08() nounwind {
 ; LINUX-64-STATIC-LABEL: bar08:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $lptr, %eax
@@ -6672,10 +6672,10 @@ define dso_local i8* @bar08() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32** @lptr to i8*)
+	ret ptr @lptr
 }
 
-define dso_local i8* @har00() nounwind {
+define dso_local ptr @har00() nounwind {
 ; LINUX-64-STATIC-LABEL: har00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq src@GOTPCREL(%rip), %rax
@@ -6735,10 +6735,10 @@ define dso_local i8* @har00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @src to i8*)
+	ret ptr @src
 }
 
-define dso_local i8* @hxr00() nounwind {
+define dso_local ptr @hxr00() nounwind {
 ; LINUX-64-STATIC-LABEL: hxr00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xsrc@GOTPCREL(%rip), %rax
@@ -6798,10 +6798,10 @@ define dso_local i8* @hxr00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([32 x i32]* @xsrc to i8*)
+	ret ptr @xsrc
 }
 
-define dso_local i8* @har01() nounwind {
+define dso_local ptr @har01() nounwind {
 ; LINUX-64-STATIC-LABEL: har01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq dst@GOTPCREL(%rip), %rax
@@ -6861,10 +6861,10 @@ define dso_local i8* @har01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @dst to i8*)
+	ret ptr @dst
 }
 
-define dso_local i8* @hxr01() nounwind {
+define dso_local ptr @hxr01() nounwind {
 ; LINUX-64-STATIC-LABEL: hxr01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xdst@GOTPCREL(%rip), %rax
@@ -6924,10 +6924,10 @@ define dso_local i8* @hxr01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([32 x i32]* @xdst to i8*)
+	ret ptr @xdst
 }
 
-define dso_local i8* @har02() nounwind {
+define dso_local ptr @har02() nounwind {
 ; LINUX-64-STATIC-LABEL: har02:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq ptr@GOTPCREL(%rip), %rax
@@ -6995,12 +6995,11 @@ define dso_local i8* @har02() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = bitcast i32* %0 to i8*
-	ret i8* %1
+	%0 = load ptr, ptr @ptr, align 8
+	ret ptr %0
 }
 
-define dso_local i8* @har03() nounwind {
+define dso_local ptr @har03() nounwind {
 ; LINUX-64-STATIC-LABEL: har03:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $dsrc, %eax
@@ -7060,10 +7059,10 @@ define dso_local i8* @har03() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @dsrc to i8*)
+	ret ptr @dsrc
 }
 
-define dso_local i8* @har04() nounwind {
+define dso_local ptr @har04() nounwind {
 ; LINUX-64-STATIC-LABEL: har04:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $ddst, %eax
@@ -7123,10 +7122,10 @@ define dso_local i8* @har04() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @ddst to i8*)
+	ret ptr @ddst
 }
 
-define dso_local i8* @har05() nounwind {
+define dso_local ptr @har05() nounwind {
 ; LINUX-64-STATIC-LABEL: har05:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq dptr(%rip), %rax
@@ -7186,12 +7185,11 @@ define dso_local i8* @har05() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
-	%1 = bitcast i32* %0 to i8*
-	ret i8* %1
+	%0 = load ptr, ptr @dptr, align 8
+	ret ptr %0
 }
 
-define dso_local i8* @har06() nounwind {
+define dso_local ptr @har06() nounwind {
 ; LINUX-64-STATIC-LABEL: har06:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $lsrc, %eax
@@ -7251,10 +7249,10 @@ define dso_local i8* @har06() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @lsrc to i8*)
+	ret ptr @lsrc
 }
 
-define dso_local i8* @har07() nounwind {
+define dso_local ptr @har07() nounwind {
 ; LINUX-64-STATIC-LABEL: har07:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $ldst, %eax
@@ -7314,10 +7312,10 @@ define dso_local i8* @har07() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast ([131072 x i32]* @ldst to i8*)
+	ret ptr @ldst
 }
 
-define dso_local i8* @har08() nounwind {
+define dso_local ptr @har08() nounwind {
 ; LINUX-64-STATIC-LABEL: har08:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq lptr(%rip), %rax
@@ -7377,12 +7375,11 @@ define dso_local i8* @har08() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
-	%1 = bitcast i32* %0 to i8*
-	ret i8* %1
+	%0 = load ptr, ptr @lptr, align 8
+	ret ptr %0
 }
 
-define dso_local i8* @bat00() nounwind {
+define dso_local ptr @bat00() nounwind {
 ; LINUX-64-STATIC-LABEL: bat00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq src@GOTPCREL(%rip), %rax
@@ -7450,10 +7447,10 @@ define dso_local i8* @bat00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @src, i32 0, i64 16) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @src, i32 0, i64 16)
 }
 
-define dso_local i8* @bxt00() nounwind {
+define dso_local ptr @bxt00() nounwind {
 ; LINUX-64-STATIC-LABEL: bxt00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xsrc@GOTPCREL(%rip), %rax
@@ -7521,10 +7518,10 @@ define dso_local i8* @bxt00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([32 x i32], [32 x i32]* @xsrc, i32 0, i64 16) to i8*)
+	ret ptr getelementptr ([32 x i32], ptr @xsrc, i32 0, i64 16)
 }
 
-define dso_local i8* @bat01() nounwind {
+define dso_local ptr @bat01() nounwind {
 ; LINUX-64-STATIC-LABEL: bat01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq dst@GOTPCREL(%rip), %rax
@@ -7592,10 +7589,10 @@ define dso_local i8* @bat01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @dst, i32 0, i64 16) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @dst, i32 0, i64 16)
 }
 
-define dso_local i8* @bxt01() nounwind {
+define dso_local ptr @bxt01() nounwind {
 ; LINUX-64-STATIC-LABEL: bxt01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xdst@GOTPCREL(%rip), %rax
@@ -7663,10 +7660,10 @@ define dso_local i8* @bxt01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([32 x i32], [32 x i32]* @xdst, i32 0, i64 16) to i8*)
+	ret ptr getelementptr ([32 x i32], ptr @xdst, i32 0, i64 16)
 }
 
-define dso_local i8* @bat02() nounwind {
+define dso_local ptr @bat02() nounwind {
 ; LINUX-64-STATIC-LABEL: bat02:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq ptr@GOTPCREL(%rip), %rax
@@ -7744,13 +7741,12 @@ define dso_local i8* @bat02() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = getelementptr i32, i32* %0, i64 16
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%0 = load ptr, ptr @ptr, align 8
+	%1 = getelementptr i32, ptr %0, i64 16
+	ret ptr %1
 }
 
-define dso_local i8* @bat03() nounwind {
+define dso_local ptr @bat03() nounwind {
 ; LINUX-64-STATIC-LABEL: bat03:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $dsrc+64, %eax
@@ -7791,7 +7787,7 @@ define dso_local i8* @bat03() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L93$pb
 ; DARWIN-32-PIC-NEXT:  L93$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_dsrc-L93$pb)+64(%eax), %eax
+; DARWIN-32-PIC-NEXT:    leal _dsrc-L93$pb+64(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: bat03:
@@ -7810,10 +7806,10 @@ define dso_local i8* @bat03() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @dsrc, i32 0, i64 16) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @dsrc, i32 0, i64 16)
 }
 
-define dso_local i8* @bat04() nounwind {
+define dso_local ptr @bat04() nounwind {
 ; LINUX-64-STATIC-LABEL: bat04:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $ddst+64, %eax
@@ -7854,7 +7850,7 @@ define dso_local i8* @bat04() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L94$pb
 ; DARWIN-32-PIC-NEXT:  L94$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_ddst-L94$pb)+64(%eax), %eax
+; DARWIN-32-PIC-NEXT:    leal _ddst-L94$pb+64(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: bat04:
@@ -7873,10 +7869,10 @@ define dso_local i8* @bat04() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @ddst, i32 0, i64 16) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @ddst, i32 0, i64 16)
 }
 
-define dso_local i8* @bat05() nounwind {
+define dso_local ptr @bat05() nounwind {
 ; LINUX-64-STATIC-LABEL: bat05:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq dptr(%rip), %rax
@@ -7946,13 +7942,12 @@ define dso_local i8* @bat05() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
-	%1 = getelementptr i32, i32* %0, i64 16
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%0 = load ptr, ptr @dptr, align 8
+	%1 = getelementptr i32, ptr %0, i64 16
+	ret ptr %1
 }
 
-define dso_local i8* @bat06() nounwind {
+define dso_local ptr @bat06() nounwind {
 ; LINUX-64-STATIC-LABEL: bat06:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $lsrc+64, %eax
@@ -7993,7 +7988,7 @@ define dso_local i8* @bat06() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L96$pb
 ; DARWIN-32-PIC-NEXT:  L96$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_lsrc-L96$pb)+64(%eax), %eax
+; DARWIN-32-PIC-NEXT:    leal _lsrc-L96$pb+64(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: bat06:
@@ -8012,10 +8007,10 @@ define dso_local i8* @bat06() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @lsrc, i32 0, i64 16) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @lsrc, i32 0, i64 16)
 }
 
-define dso_local i8* @bat07() nounwind {
+define dso_local ptr @bat07() nounwind {
 ; LINUX-64-STATIC-LABEL: bat07:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $ldst+64, %eax
@@ -8056,7 +8051,7 @@ define dso_local i8* @bat07() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L97$pb
 ; DARWIN-32-PIC-NEXT:  L97$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_ldst-L97$pb)+64(%eax), %eax
+; DARWIN-32-PIC-NEXT:    leal _ldst-L97$pb+64(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: bat07:
@@ -8075,10 +8070,10 @@ define dso_local i8* @bat07() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @ldst, i32 0, i64 16) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @ldst, i32 0, i64 16)
 }
 
-define dso_local i8* @bat08() nounwind {
+define dso_local ptr @bat08() nounwind {
 ; LINUX-64-STATIC-LABEL: bat08:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq lptr(%rip), %rax
@@ -8148,13 +8143,12 @@ define dso_local i8* @bat08() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
-	%1 = getelementptr i32, i32* %0, i64 16
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%0 = load ptr, ptr @lptr, align 8
+	%1 = getelementptr i32, ptr %0, i64 16
+	ret ptr %1
 }
 
-define dso_local i8* @bam00() nounwind {
+define dso_local ptr @bam00() nounwind {
 ; LINUX-64-STATIC-LABEL: bam00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $262144, %eax # imm = 0x40000
@@ -8222,10 +8216,10 @@ define dso_local i8* @bam00() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @src, i32 0, i64 65536) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @src, i32 0, i64 65536)
 }
 
-define dso_local i8* @bam01() nounwind {
+define dso_local ptr @bam01() nounwind {
 ; LINUX-64-STATIC-LABEL: bam01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $262144, %eax # imm = 0x40000
@@ -8293,10 +8287,10 @@ define dso_local i8* @bam01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @dst, i32 0, i64 65536) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @dst, i32 0, i64 65536)
 }
 
-define dso_local i8* @bxm01() nounwind {
+define dso_local ptr @bxm01() nounwind {
 ; LINUX-64-STATIC-LABEL: bxm01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $262144, %eax # imm = 0x40000
@@ -8364,10 +8358,10 @@ define dso_local i8* @bxm01() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([32 x i32], [32 x i32]* @xdst, i32 0, i64 65536) to i8*)
+	ret ptr getelementptr ([32 x i32], ptr @xdst, i32 0, i64 65536)
 }
 
-define dso_local i8* @bam02() nounwind {
+define dso_local ptr @bam02() nounwind {
 ; LINUX-64-STATIC-LABEL: bam02:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq ptr@GOTPCREL(%rip), %rcx
@@ -8445,13 +8439,12 @@ define dso_local i8* @bam02() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
-	%1 = getelementptr i32, i32* %0, i64 65536
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%0 = load ptr, ptr @ptr, align 8
+	%1 = getelementptr i32, ptr %0, i64 65536
+	ret ptr %1
 }
 
-define dso_local i8* @bam03() nounwind {
+define dso_local ptr @bam03() nounwind {
 ; LINUX-64-STATIC-LABEL: bam03:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $dsrc+262144, %eax
@@ -8492,7 +8485,7 @@ define dso_local i8* @bam03() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L103$pb
 ; DARWIN-32-PIC-NEXT:  L103$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_dsrc-L103$pb)+262144(%eax), %eax
+; DARWIN-32-PIC-NEXT:    leal _dsrc-L103$pb+262144(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: bam03:
@@ -8511,10 +8504,10 @@ define dso_local i8* @bam03() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @dsrc, i32 0, i64 65536) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @dsrc, i32 0, i64 65536)
 }
 
-define dso_local i8* @bam04() nounwind {
+define dso_local ptr @bam04() nounwind {
 ; LINUX-64-STATIC-LABEL: bam04:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $ddst+262144, %eax
@@ -8555,7 +8548,7 @@ define dso_local i8* @bam04() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L104$pb
 ; DARWIN-32-PIC-NEXT:  L104$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_ddst-L104$pb)+262144(%eax), %eax
+; DARWIN-32-PIC-NEXT:    leal _ddst-L104$pb+262144(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: bam04:
@@ -8574,10 +8567,10 @@ define dso_local i8* @bam04() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @ddst, i32 0, i64 65536) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @ddst, i32 0, i64 65536)
 }
 
-define dso_local i8* @bam05() nounwind {
+define dso_local ptr @bam05() nounwind {
 ; LINUX-64-STATIC-LABEL: bam05:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $262144, %eax # imm = 0x40000
@@ -8647,13 +8640,12 @@ define dso_local i8* @bam05() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
-	%1 = getelementptr i32, i32* %0, i64 65536
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%0 = load ptr, ptr @dptr, align 8
+	%1 = getelementptr i32, ptr %0, i64 65536
+	ret ptr %1
 }
 
-define dso_local i8* @bam06() nounwind {
+define dso_local ptr @bam06() nounwind {
 ; LINUX-64-STATIC-LABEL: bam06:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $lsrc+262144, %eax
@@ -8694,7 +8686,7 @@ define dso_local i8* @bam06() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L106$pb
 ; DARWIN-32-PIC-NEXT:  L106$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_lsrc-L106$pb)+262144(%eax), %eax
+; DARWIN-32-PIC-NEXT:    leal _lsrc-L106$pb+262144(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: bam06:
@@ -8713,10 +8705,10 @@ define dso_local i8* @bam06() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @lsrc, i32 0, i64 65536) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @lsrc, i32 0, i64 65536)
 }
 
-define dso_local i8* @bam07() nounwind {
+define dso_local ptr @bam07() nounwind {
 ; LINUX-64-STATIC-LABEL: bam07:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $ldst+262144, %eax
@@ -8757,7 +8749,7 @@ define dso_local i8* @bam07() nounwind {
 ; DARWIN-32-PIC-NEXT:    calll L107$pb
 ; DARWIN-32-PIC-NEXT:  L107$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
-; DARWIN-32-PIC-NEXT:    leal (_ldst-L107$pb)+262144(%eax), %eax
+; DARWIN-32-PIC-NEXT:    leal _ldst-L107$pb+262144(%eax), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: bam07:
@@ -8776,10 +8768,10 @@ define dso_local i8* @bam07() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret i8* bitcast (i32* getelementptr ([131072 x i32], [131072 x i32]* @ldst, i32 0, i64 65536) to i8*)
+	ret ptr getelementptr ([131072 x i32], ptr @ldst, i32 0, i64 65536)
 }
 
-define dso_local i8* @bam08() nounwind {
+define dso_local ptr @bam08() nounwind {
 ; LINUX-64-STATIC-LABEL: bam08:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $262144, %eax # imm = 0x40000
@@ -8849,13 +8841,12 @@ define dso_local i8* @bam08() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
-	%1 = getelementptr i32, i32* %0, i64 65536
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%0 = load ptr, ptr @lptr, align 8
+	%1 = getelementptr i32, ptr %0, i64 65536
+	ret ptr %1
 }
 
-define dso_local i8* @cat00(i64 %i) nounwind {
+define dso_local ptr @cat00(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cat00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq src@GOTPCREL(%rip), %rax
@@ -8929,12 +8920,11 @@ define dso_local i8* @cat00(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @src, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @src, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cxt00(i64 %i) nounwind {
+define dso_local ptr @cxt00(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cxt00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xsrc@GOTPCREL(%rip), %rax
@@ -9008,12 +8998,11 @@ define dso_local i8* @cxt00(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [32 x i32], [32 x i32]* @xsrc, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [32 x i32], ptr @xsrc, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cat01(i64 %i) nounwind {
+define dso_local ptr @cat01(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cat01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq dst@GOTPCREL(%rip), %rax
@@ -9087,12 +9076,11 @@ define dso_local i8* @cat01(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @dst, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @dst, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cxt01(i64 %i) nounwind {
+define dso_local ptr @cxt01(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cxt01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xdst@GOTPCREL(%rip), %rax
@@ -9166,12 +9154,11 @@ define dso_local i8* @cxt01(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [32 x i32], [32 x i32]* @xdst, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [32 x i32], ptr @xdst, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cat02(i64 %i) nounwind {
+define dso_local ptr @cat02(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cat02:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq ptr@GOTPCREL(%rip), %rax
@@ -9254,14 +9241,13 @@ define dso_local i8* @cat02(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
+	%0 = load ptr, ptr @ptr, align 8
 	%1 = add i64 %i, 16
-	%2 = getelementptr i32, i32* %0, i64 %1
-	%3 = bitcast i32* %2 to i8*
-	ret i8* %3
+	%2 = getelementptr i32, ptr %0, i64 %1
+	ret ptr %2
 }
 
-define dso_local i8* @cat03(i64 %i) nounwind {
+define dso_local ptr @cat03(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cat03:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    leaq dsrc+64(,%rdi,4), %rax
@@ -9308,7 +9294,7 @@ define dso_local i8* @cat03(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L114$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_dsrc-L114$pb)+64(%eax,%ecx,4), %eax
+; DARWIN-32-PIC-NEXT:    leal _dsrc-L114$pb+64(%eax,%ecx,4), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: cat03:
@@ -9331,12 +9317,11 @@ define dso_local i8* @cat03(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @dsrc, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @dsrc, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cat04(i64 %i) nounwind {
+define dso_local ptr @cat04(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cat04:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    leaq ddst+64(,%rdi,4), %rax
@@ -9383,7 +9368,7 @@ define dso_local i8* @cat04(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L115$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_ddst-L115$pb)+64(%eax,%ecx,4), %eax
+; DARWIN-32-PIC-NEXT:    leal _ddst-L115$pb+64(%eax,%ecx,4), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: cat04:
@@ -9406,12 +9391,11 @@ define dso_local i8* @cat04(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @ddst, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @ddst, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cat05(i64 %i) nounwind {
+define dso_local ptr @cat05(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cat05:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq dptr(%rip), %rax
@@ -9486,14 +9470,13 @@ define dso_local i8* @cat05(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
+	%0 = load ptr, ptr @dptr, align 8
 	%1 = add i64 %i, 16
-	%2 = getelementptr i32, i32* %0, i64 %1
-	%3 = bitcast i32* %2 to i8*
-	ret i8* %3
+	%2 = getelementptr i32, ptr %0, i64 %1
+	ret ptr %2
 }
 
-define dso_local i8* @cat06(i64 %i) nounwind {
+define dso_local ptr @cat06(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cat06:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    leaq lsrc+64(,%rdi,4), %rax
@@ -9540,7 +9523,7 @@ define dso_local i8* @cat06(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L117$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_lsrc-L117$pb)+64(%eax,%ecx,4), %eax
+; DARWIN-32-PIC-NEXT:    leal _lsrc-L117$pb+64(%eax,%ecx,4), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: cat06:
@@ -9563,12 +9546,11 @@ define dso_local i8* @cat06(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @lsrc, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @lsrc, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cat07(i64 %i) nounwind {
+define dso_local ptr @cat07(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cat07:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    leaq ldst+64(,%rdi,4), %rax
@@ -9615,7 +9597,7 @@ define dso_local i8* @cat07(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L118$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_ldst-L118$pb)+64(%eax,%ecx,4), %eax
+; DARWIN-32-PIC-NEXT:    leal _ldst-L118$pb+64(%eax,%ecx,4), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: cat07:
@@ -9638,12 +9620,11 @@ define dso_local i8* @cat07(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 16
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @ldst, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @ldst, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cat08(i64 %i) nounwind {
+define dso_local ptr @cat08(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cat08:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq lptr(%rip), %rax
@@ -9718,14 +9699,13 @@ define dso_local i8* @cat08(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
+	%0 = load ptr, ptr @lptr, align 8
 	%1 = add i64 %i, 16
-	%2 = getelementptr i32, i32* %0, i64 %1
-	%3 = bitcast i32* %2 to i8*
-	ret i8* %3
+	%2 = getelementptr i32, ptr %0, i64 %1
+	ret ptr %2
 }
 
-define dso_local i8* @cam00(i64 %i) nounwind {
+define dso_local ptr @cam00(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cam00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq src@GOTPCREL(%rip), %rax
@@ -9799,12 +9779,11 @@ define dso_local i8* @cam00(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @src, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @src, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cxm00(i64 %i) nounwind {
+define dso_local ptr @cxm00(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cxm00:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xsrc@GOTPCREL(%rip), %rax
@@ -9878,12 +9857,11 @@ define dso_local i8* @cxm00(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [32 x i32], [32 x i32]* @xsrc, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [32 x i32], ptr @xsrc, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cam01(i64 %i) nounwind {
+define dso_local ptr @cam01(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cam01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq dst@GOTPCREL(%rip), %rax
@@ -9957,12 +9935,11 @@ define dso_local i8* @cam01(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @dst, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @dst, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cxm01(i64 %i) nounwind {
+define dso_local ptr @cxm01(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cxm01:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq xdst@GOTPCREL(%rip), %rax
@@ -10036,12 +10013,11 @@ define dso_local i8* @cxm01(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [32 x i32], [32 x i32]* @xdst, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [32 x i32], ptr @xdst, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cam02(i64 %i) nounwind {
+define dso_local ptr @cam02(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cam02:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq ptr@GOTPCREL(%rip), %rax
@@ -10124,14 +10100,13 @@ define dso_local i8* @cam02(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @ptr, align 8
+	%0 = load ptr, ptr @ptr, align 8
 	%1 = add i64 %i, 65536
-	%2 = getelementptr i32, i32* %0, i64 %1
-	%3 = bitcast i32* %2 to i8*
-	ret i8* %3
+	%2 = getelementptr i32, ptr %0, i64 %1
+	ret ptr %2
 }
 
-define dso_local i8* @cam03(i64 %i) nounwind {
+define dso_local ptr @cam03(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cam03:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    leaq dsrc+262144(,%rdi,4), %rax
@@ -10178,7 +10153,7 @@ define dso_local i8* @cam03(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L125$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_dsrc-L125$pb)+262144(%eax,%ecx,4), %eax
+; DARWIN-32-PIC-NEXT:    leal _dsrc-L125$pb+262144(%eax,%ecx,4), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: cam03:
@@ -10201,12 +10176,11 @@ define dso_local i8* @cam03(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @dsrc, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @dsrc, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cam04(i64 %i) nounwind {
+define dso_local ptr @cam04(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cam04:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    leaq ddst+262144(,%rdi,4), %rax
@@ -10253,7 +10227,7 @@ define dso_local i8* @cam04(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L126$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_ddst-L126$pb)+262144(%eax,%ecx,4), %eax
+; DARWIN-32-PIC-NEXT:    leal _ddst-L126$pb+262144(%eax,%ecx,4), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: cam04:
@@ -10276,12 +10250,11 @@ define dso_local i8* @cam04(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @ddst, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @ddst, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cam05(i64 %i) nounwind {
+define dso_local ptr @cam05(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cam05:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq dptr(%rip), %rax
@@ -10356,14 +10329,13 @@ define dso_local i8* @cam05(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @dptr, align 8
+	%0 = load ptr, ptr @dptr, align 8
 	%1 = add i64 %i, 65536
-	%2 = getelementptr i32, i32* %0, i64 %1
-	%3 = bitcast i32* %2 to i8*
-	ret i8* %3
+	%2 = getelementptr i32, ptr %0, i64 %1
+	ret ptr %2
 }
 
-define dso_local i8* @cam06(i64 %i) nounwind {
+define dso_local ptr @cam06(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cam06:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    leaq lsrc+262144(,%rdi,4), %rax
@@ -10410,7 +10382,7 @@ define dso_local i8* @cam06(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L128$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_lsrc-L128$pb)+262144(%eax,%ecx,4), %eax
+; DARWIN-32-PIC-NEXT:    leal _lsrc-L128$pb+262144(%eax,%ecx,4), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: cam06:
@@ -10433,12 +10405,11 @@ define dso_local i8* @cam06(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @lsrc, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @lsrc, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cam07(i64 %i) nounwind {
+define dso_local ptr @cam07(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cam07:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    leaq ldst+262144(,%rdi,4), %rax
@@ -10485,7 +10456,7 @@ define dso_local i8* @cam07(i64 %i) nounwind {
 ; DARWIN-32-PIC-NEXT:  L129$pb:
 ; DARWIN-32-PIC-NEXT:    popl %eax
 ; DARWIN-32-PIC-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; DARWIN-32-PIC-NEXT:    leal (_ldst-L129$pb)+262144(%eax,%ecx,4), %eax
+; DARWIN-32-PIC-NEXT:    leal _ldst-L129$pb+262144(%eax,%ecx,4), %eax
 ; DARWIN-32-PIC-NEXT:    retl
 ;
 ; DARWIN-64-STATIC-LABEL: cam07:
@@ -10508,12 +10479,11 @@ define dso_local i8* @cam07(i64 %i) nounwind {
 
 entry:
 	%0 = add i64 %i, 65536
-	%1 = getelementptr [131072 x i32], [131072 x i32]* @ldst, i64 0, i64 %0
-	%2 = bitcast i32* %1 to i8*
-	ret i8* %2
+	%1 = getelementptr [131072 x i32], ptr @ldst, i64 0, i64 %0
+	ret ptr %1
 }
 
-define dso_local i8* @cam08(i64 %i) nounwind {
+define dso_local ptr @cam08(i64 %i) nounwind {
 ; LINUX-64-STATIC-LABEL: cam08:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq lptr(%rip), %rax
@@ -10588,11 +10558,10 @@ define dso_local i8* @cam08(i64 %i) nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load i32*, i32** @lptr, align 8
+	%0 = load ptr, ptr @lptr, align 8
 	%1 = add i64 %i, 65536
-	%2 = getelementptr i32, i32* %0, i64 %1
-	%3 = bitcast i32* %2 to i8*
-	ret i8* %3
+	%2 = getelementptr i32, ptr %0, i64 %1
+	ret ptr %2
 }
 
 define dso_local void @lcallee() nounwind {
@@ -10897,7 +10866,7 @@ entry:
 
 declare void @y()
 
-define dso_local void ()* @address() nounwind {
+define dso_local ptr @address() nounwind {
 ; LINUX-64-STATIC-LABEL: address:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movq callee@GOTPCREL(%rip), %rax
@@ -10957,12 +10926,12 @@ define dso_local void ()* @address() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret void ()* @callee
+	ret ptr @callee
 }
 
 declare void @callee()
 
-define dso_local void ()* @laddress() nounwind {
+define dso_local ptr @laddress() nounwind {
 ; LINUX-64-STATIC-LABEL: laddress:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $lcallee, %eax
@@ -11022,10 +10991,10 @@ define dso_local void ()* @laddress() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret void ()* @lcallee
+	ret ptr @lcallee
 }
 
-define dso_local void ()* @daddress() nounwind {
+define dso_local ptr @daddress() nounwind {
 ; LINUX-64-STATIC-LABEL: daddress:
 ; LINUX-64-STATIC:       # %bb.0: # %entry
 ; LINUX-64-STATIC-NEXT:    movl $dcallee, %eax
@@ -11085,7 +11054,7 @@ define dso_local void ()* @daddress() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	ret void ()* @dcallee
+	ret ptr @dcallee
 }
 
 define dso_local void @caller() nounwind {
@@ -11725,9 +11694,9 @@ define dso_local void @icaller() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load void ()*, void ()** @ifunc, align 8
+	%0 = load ptr, ptr @ifunc, align 8
 	call void %0() nounwind
-	%1 = load void ()*, void ()** @ifunc, align 8
+	%1 = load ptr, ptr @ifunc, align 8
 	call void %1() nounwind
 	ret void
 }
@@ -11826,9 +11795,9 @@ define dso_local void @dicaller() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load void ()*, void ()** @difunc, align 8
+	%0 = load ptr, ptr @difunc, align 8
 	call void %0() nounwind
-	%1 = load void ()*, void ()** @difunc, align 8
+	%1 = load ptr, ptr @difunc, align 8
 	call void %1() nounwind
 	ret void
 }
@@ -11927,9 +11896,9 @@ define dso_local void @licaller() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load void ()*, void ()** @lifunc, align 8
+	%0 = load ptr, ptr @lifunc, align 8
 	call void %0() nounwind
-	%1 = load void ()*, void ()** @lifunc, align 8
+	%1 = load ptr, ptr @lifunc, align 8
 	call void %1() nounwind
 	ret void
 }
@@ -12040,9 +12009,9 @@ define dso_local void @itailcaller() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load void ()*, void ()** @ifunc, align 8
+	%0 = load ptr, ptr @ifunc, align 8
 	call void %0() nounwind
-	%1 = load void ()*, void ()** @ifunc, align 8
+	%1 = load ptr, ptr @ifunc, align 8
 	call void %1() nounwind
 	ret void
 }
@@ -12129,7 +12098,7 @@ define dso_local void @ditailcaller() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load void ()*, void ()** @difunc, align 8
+	%0 = load ptr, ptr @difunc, align 8
 	call void %0() nounwind
 	ret void
 }
@@ -12216,7 +12185,7 @@ define dso_local void @litailcaller() nounwind {
 ; DARWIN-64-PIC-NEXT:    retq
 
 entry:
-	%0 = load void ()*, void ()** @lifunc, align 8
+	%0 = load ptr, ptr @lifunc, align 8
 	call void %0() nounwind
 	ret void
 }

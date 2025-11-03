@@ -1,4 +1,4 @@
-//===--- ReplaceAutoPtrCheck.cpp - clang-tidy------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,9 +16,7 @@
 using namespace clang;
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 namespace {
 static const char AutoPtrTokenId[] = "AutoPrTokenId";
@@ -41,7 +39,8 @@ ReplaceAutoPtrCheck::ReplaceAutoPtrCheck(StringRef Name,
                                          ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       Inserter(Options.getLocalOrGlobal("IncludeStyle",
-                                        utils::IncludeSorter::IS_LLVM)) {}
+                                        utils::IncludeSorter::IS_LLVM),
+               areDiagsSelfContained()) {}
 
 void ReplaceAutoPtrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IncludeStyle", Inserter.getStyle());
@@ -49,7 +48,7 @@ void ReplaceAutoPtrCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 
 void ReplaceAutoPtrCheck::registerMatchers(MatchFinder *Finder) {
   auto AutoPtrDecl = recordDecl(hasName("auto_ptr"), isInStdNamespace());
-  auto AutoPtrType = qualType(hasDeclaration(AutoPtrDecl));
+  auto AutoPtrType = hasCanonicalType(recordType(hasDeclaration(AutoPtrDecl)));
 
   //   std::auto_ptr<int> a;
   //        ^~~~~~~~~~~~~
@@ -59,11 +58,7 @@ void ReplaceAutoPtrCheck::registerMatchers(MatchFinder *Finder) {
   //
   //   std::auto_ptr<int> fn(std::auto_ptr<int>);
   //        ^~~~~~~~~~~~~         ^~~~~~~~~~~~~
-  Finder->addMatcher(typeLoc(loc(qualType(AutoPtrType,
-                                          // Skip elaboratedType() as the named
-                                          // type will match soon thereafter.
-                                          unless(elaboratedType()))))
-                         .bind(AutoPtrTokenId),
+  Finder->addMatcher(typeLoc(loc(qualType(AutoPtrType))).bind(AutoPtrTokenId),
                      this);
 
   //   using std::auto_ptr;
@@ -119,10 +114,13 @@ void ReplaceAutoPtrCheck::check(const MatchFinder::MatchResult &Result) {
   }
 
   SourceLocation AutoPtrLoc;
-  if (const auto *TL = Result.Nodes.getNodeAs<TypeLoc>(AutoPtrTokenId)) {
+  if (const auto *PTL = Result.Nodes.getNodeAs<TypeLoc>(AutoPtrTokenId)) {
+    auto TL = *PTL;
+    if (auto QTL = TL.getAs<QualifiedTypeLoc>())
+      TL = QTL.getUnqualifiedLoc();
     //   std::auto_ptr<int> i;
     //        ^
-    if (auto Loc = TL->getAs<TemplateSpecializationTypeLoc>())
+    if (auto Loc = TL.getAs<TemplateSpecializationTypeLoc>())
       AutoPtrLoc = Loc.getTemplateNameLoc();
   } else if (const auto *D =
                  Result.Nodes.getNodeAs<UsingDecl>(AutoPtrTokenId)) {
@@ -142,13 +140,10 @@ void ReplaceAutoPtrCheck::check(const MatchFinder::MatchResult &Result) {
       "auto_ptr")
     return;
 
-  SourceLocation EndLoc =
-      AutoPtrLoc.getLocWithOffset(strlen("auto_ptr") - 1);
+  SourceLocation EndLoc = AutoPtrLoc.getLocWithOffset(strlen("auto_ptr") - 1);
   diag(AutoPtrLoc, "auto_ptr is deprecated, use unique_ptr instead")
       << FixItHint::CreateReplacement(SourceRange(AutoPtrLoc, EndLoc),
                                       "unique_ptr");
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

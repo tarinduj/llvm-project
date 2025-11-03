@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<class T>
 // concept equality_comparable = // see below
@@ -15,12 +14,11 @@
 #include <concepts>
 
 #include <array>
+#include <cstddef>
 #include <deque>
 #include <forward_list>
 #include <list>
 #include <map>
-#include <memory>
-#include <mutex>
 #include <optional>
 #include <set>
 #include <unordered_map>
@@ -28,6 +26,7 @@
 #include <vector>
 
 #include "compare_types.h"
+#include "test_macros.h"
 
 namespace fundamentals {
 static_assert(std::equality_comparable<int>);
@@ -45,7 +44,12 @@ static_assert(std::equality_comparable<unsigned char&&>);
 static_assert(std::equality_comparable<unsigned short const&&>);
 static_assert(std::equality_comparable<unsigned int volatile&&>);
 static_assert(std::equality_comparable<unsigned long const volatile&&>);
+// Array comparisons are ill-formed in C++26, but Clang doesn't implement this yet.
+#if TEST_STD_VER <= 23 || defined(TEST_COMPILER_CLANG)
 static_assert(std::equality_comparable<int[5]>);
+#else
+static_assert(!std::equality_comparable<int[5]>);
+#endif
 static_assert(std::equality_comparable<int (*)(int)>);
 static_assert(std::equality_comparable<int (&)(int)>);
 static_assert(std::equality_comparable<int (*)(int) noexcept>);
@@ -84,26 +88,17 @@ static_assert(!std::equality_comparable<void>);
 } // namespace fundamentals
 
 namespace standard_types {
-static_assert(std::equality_comparable<std::array<int, 10> >);
-static_assert(std::equality_comparable<std::deque<int> >);
-static_assert(std::equality_comparable<std::forward_list<int> >);
-static_assert(std::equality_comparable<std::list<int> >);
-
-#ifndef _LIBCPP_HAS_NO_THREADS
-static_assert(!std::equality_comparable<std::lock_guard<std::mutex> >);
-static_assert(std::equality_comparable<std::map<int, void*> >);
-static_assert(!std::equality_comparable<std::mutex>);
-static_assert(
-    !std::equality_comparable<std::optional<std::lock_guard<std::mutex> > >);
-static_assert(!std::equality_comparable<std::optional<std::mutex> >);
-#endif
-
-static_assert(std::equality_comparable<std::optional<int> >);
-static_assert(std::equality_comparable<std::set<int> >);
-static_assert(std::equality_comparable<std::unordered_map<int, void*> >);
-static_assert(std::equality_comparable<std::unordered_set<int> >);
-static_assert(std::equality_comparable<std::vector<bool> >);
-static_assert(std::equality_comparable<std::vector<int> >);
+static_assert(std::equality_comparable<std::array<int, 10>>);
+static_assert(std::equality_comparable<std::deque<int>>);
+static_assert(std::equality_comparable<std::forward_list<int>>);
+static_assert(std::equality_comparable<std::list<int>>);
+static_assert(std::equality_comparable<std::map<int, void*>>);
+static_assert(std::equality_comparable<std::optional<int>>);
+static_assert(std::equality_comparable<std::set<int>>);
+static_assert(std::equality_comparable<std::unordered_map<int, void*>>);
+static_assert(std::equality_comparable<std::unordered_set<int>>);
+static_assert(std::equality_comparable<std::vector<bool>>);
+static_assert(std::equality_comparable<std::vector<int>>);
 } // namespace standard_types
 
 namespace types_fit_for_purpose {
@@ -152,5 +147,3 @@ static_assert(std::equality_comparable<ge_returns_explicit_bool>);
 static_assert(std::equality_comparable<returns_true_type>);
 static_assert(std::equality_comparable<returns_int_ptr>);
 } // namespace types_fit_for_purpose
-
-int main(int, char**) { return 0; }

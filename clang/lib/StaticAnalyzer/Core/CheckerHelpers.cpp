@@ -14,6 +14,8 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
+#include <optional>
 
 namespace clang {
 
@@ -110,14 +112,13 @@ Nullability getNullabilityAnnotation(QualType Type) {
   return Nullability::Unspecified;
 }
 
-llvm::Optional<int> tryExpandAsInteger(StringRef Macro,
-                                       const Preprocessor &PP) {
+std::optional<int> tryExpandAsInteger(StringRef Macro, const Preprocessor &PP) {
   const auto *MacroII = PP.getIdentifierInfo(Macro);
   if (!MacroII)
-    return llvm::None;
+    return std::nullopt;
   const MacroInfo *MI = PP.getMacroInfo(MacroII);
   if (!MI)
-    return llvm::None;
+    return std::nullopt;
 
   // Filter out parens.
   std::vector<Token> FilteredTokens;
@@ -128,15 +129,23 @@ llvm::Optional<int> tryExpandAsInteger(StringRef Macro,
 
   // Parse an integer at the end of the macro definition.
   const Token &T = FilteredTokens.back();
-  // FIXME: EOF macro token coming from a PCH file on macOS while marked as
-  //        literal, doesn't contain any literal data
-  if (!T.isLiteral() || !T.getLiteralData())
-    return llvm::None;
-  StringRef ValueStr = StringRef(T.getLiteralData(), T.getLength());
+
+  if (!T.isLiteral())
+    return std::nullopt;
+
+  bool InvalidSpelling = false;
+  SmallVector<char> Buffer(T.getLength());
+  // `Preprocessor::getSpelling` can get the spelling of the token regardless of
+  // whether the macro is defined in a PCH or not:
+  StringRef ValueStr = PP.getSpelling(T, Buffer, &InvalidSpelling);
+
+  if (InvalidSpelling)
+    return std::nullopt;
+
   llvm::APInt IntValue;
   constexpr unsigned AutoSenseRadix = 0;
   if (ValueStr.getAsInteger(AutoSenseRadix, IntValue))
-    return llvm::None;
+    return std::nullopt;
 
   // Parse an optional minus sign.
   size_t Size = FilteredTokens.size();
@@ -180,6 +189,24 @@ OperatorKind operationKindFromOverloadedOperator(OverloadedOperatorKind OOK,
   default:
     llvm_unreachable("unexpected operator kind");
   }
+}
+
+std::optional<SVal> getPointeeVal(SVal PtrSVal, ProgramStateRef State) {
+  if (const auto *Ptr = PtrSVal.getAsRegion()) {
+    return State->getSVal(Ptr);
+  }
+  return std::nullopt;
+}
+
+bool isWithinStdNamespace(const Decl *D) {
+  const DeclContext *DC = D->getDeclContext();
+  while (DC) {
+    if (const auto *NS = dyn_cast<NamespaceDecl>(DC);
+        NS && NS->isStdNamespace())
+      return true;
+    DC = DC->getParent();
+  }
+  return false;
 }
 
 } // namespace ento

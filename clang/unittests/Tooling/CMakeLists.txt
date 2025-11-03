@@ -1,26 +1,22 @@
-set(LLVM_LINK_COMPONENTS
-  ${LLVM_TARGETS_TO_BUILD}
-  Option
-  FrontendOpenMP
-  Support
-  )
-
-
 add_clang_unittest(ToolingTests
   ASTSelectionTest.cpp
   CastExprTest.cpp
   CommentHandlerTest.cpp
   CompilationDatabaseTest.cpp
-  DependencyScannerTest.cpp
   DiagnosticsYamlTest.cpp
   ExecutionTest.cpp
   FixItTest.cpp
+  HeaderAnalysisTest.cpp
   HeaderIncludesTest.cpp
+  StandardLibraryTest.cpp
   LexicallyOrderedRecursiveASTVisitorTest.cpp
   LookupTest.cpp
   QualTypeNamesTest.cpp
   RangeSelectorTest.cpp
+  DependencyScanning/DependencyScannerTest.cpp
+  DependencyScanning/DependencyScanningFilesystemTest.cpp
   RecursiveASTVisitorTests/Attr.cpp
+  RecursiveASTVisitorTests/BitfieldInitializer.cpp
   RecursiveASTVisitorTests/CallbacksLeaf.cpp
   RecursiveASTVisitorTests/CallbacksUnaryOperator.cpp
   RecursiveASTVisitorTests/CallbacksBinaryOperator.cpp
@@ -34,6 +30,7 @@ add_clang_unittest(ToolingTests
   RecursiveASTVisitorTests/CXXMethodDecl.cpp
   RecursiveASTVisitorTests/CXXOperatorCallExprTraverser.cpp
   RecursiveASTVisitorTests/DeclRefExpr.cpp
+  RecursiveASTVisitorTests/DeductionGuide.cpp
   RecursiveASTVisitorTests/ImplicitCtor.cpp
   RecursiveASTVisitorTests/ImplicitCtorInitializer.cpp
   RecursiveASTVisitorTests/InitListExprPostOrder.cpp
@@ -62,10 +59,8 @@ add_clang_unittest(ToolingTests
   StencilTest.cpp
   ToolingTest.cpp
   TransformerTest.cpp
-  )
 
-clang_target_link_libraries(ToolingTests
-  PRIVATE
+  CLANG_LIBS
   clangAST
   clangASTMatchers
   clangBasic
@@ -79,13 +74,22 @@ clang_target_link_libraries(ToolingTests
   clangTooling
   clangToolingCore
   clangToolingInclusions
+  clangToolingInclusionsStdlib
   clangToolingRefactoring
   clangTransformer
-  )
 
-target_link_libraries(ToolingTests
-  PRIVATE
+  LINK_LIBS
+  LLVMTestingAnnotations
   LLVMTestingSupport
-)
+  clangTesting
+
+  LLVM_COMPONENTS
+  ${LLVM_TARGETS_TO_BUILD}
+  MC
+  Option
+  FrontendOpenMP
+  Support
+  TargetParser
+  )
 
 add_subdirectory(Syntax)

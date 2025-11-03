@@ -7,13 +7,17 @@
 //===--------------------------------------------------------------------===//
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectFileInfo.h"
+#include "llvm/MC/MCParser/AsmLexer.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/MCSymbol.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 
 #include "gtest/gtest.h"
@@ -21,36 +25,6 @@
 using namespace llvm;
 
 namespace {
-
-// Come up with our hacked version of MCAsmInfo.
-// This hacked version derives from the main MCAsmInfo instance.
-// Here, we're free to override whatever we want, without polluting
-// the main MCAsmInfo interface.
-class MockedUpMCAsmInfo : public MCAsmInfo {
-public:
-  void setRestrictCommentStringToStartOfStatement(bool Value) {
-    RestrictCommentStringToStartOfStatement = Value;
-  }
-  void setCommentString(StringRef Value) { CommentString = Value; }
-  void setAllowAdditionalComments(bool Value) {
-    AllowAdditionalComments = Value;
-  }
-  void setAllowQuestionAtStartOfIdentifier(bool Value) {
-    AllowQuestionAtStartOfIdentifier = Value;
-  }
-  void setAllowAtAtStartOfIdentifier(bool Value) {
-    AllowAtAtStartOfIdentifier = Value;
-  }
-  void setAllowDollarAtStartOfIdentifier(bool Value) {
-    AllowDollarAtStartOfIdentifier = Value;
-  }
-  void setAllowHashAtStartOfIdentifier(bool Value) {
-    AllowHashAtStartOfIdentifier = Value;
-  }
-  void setAllowDotIsPC(bool Value) { DotIsPC = Value; }
-  void setAssemblerDialect(unsigned Value) { AssemblerDialect = Value; }
-  void setEmitLabelsInUpperCase(bool Value) { EmitLabelsInUpperCase = Value; }
-};
 
 // Setup a testing class that the GTest framework can call.
 class SystemZAsmLexerTest : public ::testing::Test {
@@ -62,7 +36,7 @@ protected:
   }
 
   std::unique_ptr<MCRegisterInfo> MRI;
-  std::unique_ptr<MockedUpMCAsmInfo> MUPMAI;
+  std::unique_ptr<MCAsmInfo> MAI;
   std::unique_ptr<const MCInstrInfo> MII;
   std::unique_ptr<MCObjectFileInfo> MOFI;
   std::unique_ptr<MCStreamer> Str;
@@ -72,41 +46,34 @@ protected:
   std::unique_ptr<MCTargetAsmParser> TargetAsmParser;
 
   SourceMgr SrcMgr;
-  std::string TripleName;
-  llvm::Triple Triple;
+  StringRef TripleName;
+  const llvm::Triple Triple;
   const Target *TheTarget;
 
   const MCTargetOptions MCOptions;
 
-  SystemZAsmLexerTest() {
+  SystemZAsmLexerTest() = delete;
+
+  SystemZAsmLexerTest(StringRef SystemZTriple)
+      : TripleName(SystemZTriple), Triple(SystemZTriple) {
     // We will use the SystemZ triple, because of missing
     // Object File and Streamer support for the z/OS target.
-    TripleName = "s390x-ibm-linux";
-    Triple = llvm::Triple(TripleName);
 
     std::string Error;
-    TheTarget = TargetRegistry::lookupTarget(TripleName, Error);
+    TheTarget = TargetRegistry::lookupTarget(Triple, Error);
     EXPECT_NE(TheTarget, nullptr);
 
-    MRI.reset(TheTarget->createMCRegInfo(TripleName));
+    MRI.reset(TheTarget->createMCRegInfo(Triple));
     EXPECT_NE(MRI, nullptr);
 
     MII.reset(TheTarget->createMCInstrInfo());
     EXPECT_NE(MII, nullptr);
 
-    STI.reset(TheTarget->createMCSubtargetInfo(TripleName, "z10", ""));
+    STI.reset(TheTarget->createMCSubtargetInfo(Triple, "z10", ""));
     EXPECT_NE(STI, nullptr);
 
-    std::unique_ptr<MCAsmInfo> MAI;
-    MAI.reset(TheTarget->createMCAsmInfo(*MRI, TripleName, MCOptions));
+    MAI.reset(TheTarget->createMCAsmInfo(*MRI, Triple, MCOptions));
     EXPECT_NE(MAI, nullptr);
-
-    // Now we cast to our mocked up version of MCAsmInfo.
-    MUPMAI.reset(static_cast<MockedUpMCAsmInfo *>(MAI.release()));
-    // MUPMAI should "hold" MAI.
-    EXPECT_NE(MUPMAI, nullptr);
-    // After releasing, MAI should now be null.
-    EXPECT_EQ(MAI, nullptr);
   }
 
   void setupCallToAsmParser(StringRef AsmStr) {
@@ -114,7 +81,7 @@ protected:
     SrcMgr.AddNewSourceBuffer(std::move(Buffer), SMLoc());
     EXPECT_EQ(Buffer, nullptr);
 
-    Ctx.reset(new MCContext(Triple, MUPMAI.get(), MRI.get(), STI.get(), &SrcMgr,
+    Ctx.reset(new MCContext(Triple, MAI.get(), MRI.get(), STI.get(), &SrcMgr,
                             &MCOptions));
     MOFI.reset(TheTarget->createMCObjectFileInfo(*Ctx, /*PIC=*/false,
                                                  /*LargeCodeModel=*/false));
@@ -122,7 +89,7 @@ protected:
 
     Str.reset(TheTarget->createNullStreamer(*Ctx));
 
-    Parser.reset(createMCAsmParser(SrcMgr, *Ctx, *Str, *MUPMAI));
+    Parser.reset(createMCAsmParser(SrcMgr, *Ctx, *Str, *MAI));
 
     TargetAsmParser.reset(
         TheTarget->createMCAsmParser(*STI, *Parser, *MII, MCOptions));
@@ -132,7 +99,7 @@ protected:
   void lexAndCheckTokens(StringRef AsmStr,
                          SmallVector<AsmToken::TokenKind> ExpectedTokens) {
     // Get reference to AsmLexer.
-    MCAsmLexer &Lexer = Parser->getLexer();
+    AsmLexer &Lexer = Parser->getLexer();
     // Loop through all expected tokens checking one by one.
     for (size_t I = 0; I < ExpectedTokens.size(); ++I) {
       EXPECT_EQ(Lexer.getTok().getKind(), ExpectedTokens[I]);
@@ -143,7 +110,7 @@ protected:
   void lexAndCheckIntegerTokensAndValues(StringRef AsmStr,
                                          SmallVector<int64_t> ExpectedValues) {
     // Get reference to AsmLexer.
-    MCAsmLexer &Lexer = Parser->getLexer();
+    AsmLexer &Lexer = Parser->getLexer();
     // Loop through all expected tokens and expected values.
     for (size_t I = 0; I < ExpectedValues.size(); ++I) {
       // Skip any EndOfStatement tokens, we're not concerned with them.
@@ -156,7 +123,17 @@ protected:
   }
 };
 
-TEST_F(SystemZAsmLexerTest, CheckDontRestrictCommentStringToStartOfStatement) {
+class SystemZAsmLexerLinux : public SystemZAsmLexerTest {
+protected:
+  SystemZAsmLexerLinux() : SystemZAsmLexerTest("s390x-ibm-linux") {}
+};
+
+class SystemZAsmLexerZOS : public SystemZAsmLexerTest {
+protected:
+  SystemZAsmLexerZOS() : SystemZAsmLexerTest("s390x-ibm-zos") {}
+};
+
+TEST_F(SystemZAsmLexerLinux, CheckDontRestrictCommentStringToStartOfStatement) {
   StringRef AsmStr = "jne #-4";
 
   // Setup.
@@ -170,12 +147,10 @@ TEST_F(SystemZAsmLexerTest, CheckDontRestrictCommentStringToStartOfStatement) {
   lexAndCheckTokens(AsmStr /* "jne #-4" */, ExpectedTokens);
 }
 
-// Testing MCAsmInfo's RestrictCommentStringToStartOfStatement attribute.
-TEST_F(SystemZAsmLexerTest, CheckRestrictCommentStringToStartOfStatement) {
+TEST_F(SystemZAsmLexerZOS, CheckRestrictCommentStringToStartOfStatement) {
   StringRef AsmStr = "jne #-4";
 
   // Setup.
-  MUPMAI->setRestrictCommentStringToStartOfStatement(true);
   setupCallToAsmParser(AsmStr);
 
   // Lex initially to get the string.
@@ -187,17 +162,15 @@ TEST_F(SystemZAsmLexerTest, CheckRestrictCommentStringToStartOfStatement) {
   // Minus - '-'
   // Integer - '4'
   SmallVector<AsmToken::TokenKind> ExpectedTokens(
-      {AsmToken::Identifier, AsmToken::Hash, AsmToken::Minus,
-       AsmToken::Integer});
+      {AsmToken::Identifier, AsmToken::Space, AsmToken::Identifier});
   lexAndCheckTokens(AsmStr /* "jne #-4" */, ExpectedTokens);
 }
 
 // Test HLASM Comment Syntax ('*')
-TEST_F(SystemZAsmLexerTest, CheckHLASMComment) {
+TEST_F(SystemZAsmLexerZOS, CheckHLASMComment) {
   StringRef AsmStr = "* lhi 1,10";
 
   // Setup.
-  MUPMAI->setCommentString("*");
   setupCallToAsmParser(AsmStr);
 
   // Lex initially to get the string.
@@ -208,7 +181,7 @@ TEST_F(SystemZAsmLexerTest, CheckHLASMComment) {
   lexAndCheckTokens(AsmStr /* "* lhi 1,10" */, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckHashDefault) {
+TEST_F(SystemZAsmLexerLinux, CheckHashDefault) {
   StringRef AsmStr = "lh#123";
 
   // Setup.
@@ -225,12 +198,11 @@ TEST_F(SystemZAsmLexerTest, CheckHashDefault) {
 }
 
 // Test if "#" is accepted as an Identifier
-TEST_F(SystemZAsmLexerTest, CheckAllowHashInIdentifier) {
+TEST_F(SystemZAsmLexerZOS, CheckAllowHashInIdentifier) {
   StringRef AsmStr = "lh#123";
 
   // Setup.
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setAllowHashInIdentifier(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
@@ -241,14 +213,11 @@ TEST_F(SystemZAsmLexerTest, CheckAllowHashInIdentifier) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckAllowHashInIdentifier2) {
+TEST_F(SystemZAsmLexerZOS, CheckAllowHashInIdentifier2) {
   StringRef AsmStr = "lh#12*3";
 
   // Setup.
-  MUPMAI->setCommentString("*");
-  MUPMAI->setRestrictCommentStringToStartOfStatement(true);
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setAllowHashInIdentifier(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
@@ -262,7 +231,7 @@ TEST_F(SystemZAsmLexerTest, CheckAllowHashInIdentifier2) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, DontCheckStrictCommentString) {
+TEST_F(SystemZAsmLexerLinux, DontCheckStrictCommentString) {
   StringRef AsmStr = "# abc\n/* def *///  xyz";
 
   // Setup.
@@ -277,43 +246,30 @@ TEST_F(SystemZAsmLexerTest, DontCheckStrictCommentString) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, DontCheckStrictCommentString2) {
-  StringRef AsmStr = "# abc\n/* def *///  xyz\n* rst";
-
-  // Setup.
-  MUPMAI->setCommentString("*");
-  setupCallToAsmParser(AsmStr);
-
-  // Lex initially to get the string.
-  Parser->getLexer().Lex();
-
-  SmallVector<AsmToken::TokenKind> ExpectedTokens(
-      {AsmToken::EndOfStatement, AsmToken::Comment, AsmToken::EndOfStatement,
-       AsmToken::EndOfStatement, AsmToken::Eof});
-  lexAndCheckTokens(AsmStr, ExpectedTokens);
-}
-
-TEST_F(SystemZAsmLexerTest, CheckStrictCommentString) {
+TEST_F(SystemZAsmLexerZOS, CheckStrictCommentString) {
   StringRef AsmStr = "# abc\n/* def *///  xyz";
 
   // Setup.
-  MUPMAI->setAllowAdditionalComments(false);
   setupCallToAsmParser(AsmStr);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
 
-  // "# abc" -> still treated as a comment, since CommentString
-  //            is set to "#"
   SmallVector<AsmToken::TokenKind> ExpectedTokens;
-  ExpectedTokens.push_back(AsmToken::EndOfStatement); // "# abc\n"
+  ExpectedTokens.push_back(AsmToken::Identifier);     // "#"
+  ExpectedTokens.push_back(AsmToken::Space);          // " "
+  ExpectedTokens.push_back(AsmToken::Identifier);     // "abc"
+  ExpectedTokens.push_back(AsmToken::EndOfStatement); // "\n"
   ExpectedTokens.push_back(AsmToken::Slash);          // "/"
   ExpectedTokens.push_back(AsmToken::Star);           // "*"
+  ExpectedTokens.push_back(AsmToken::Space);          // " "
   ExpectedTokens.push_back(AsmToken::Identifier);     // "def"
+  ExpectedTokens.push_back(AsmToken::Space);          // " "
   ExpectedTokens.push_back(AsmToken::Star);           // "*"
   ExpectedTokens.push_back(AsmToken::Slash);          // "/"
   ExpectedTokens.push_back(AsmToken::Slash);          // "/"
   ExpectedTokens.push_back(AsmToken::Slash);          // "/"
+  ExpectedTokens.push_back(AsmToken::Space);          // " "
   ExpectedTokens.push_back(AsmToken::Identifier);     // "xyz"
   ExpectedTokens.push_back(AsmToken::EndOfStatement);
   ExpectedTokens.push_back(AsmToken::Eof);
@@ -321,104 +277,11 @@ TEST_F(SystemZAsmLexerTest, CheckStrictCommentString) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckStrictCommentString2) {
-  StringRef AsmStr = "// abc";
-
-  // Setup.
-  MUPMAI->setAllowAdditionalComments(false);
-  MUPMAI->setCommentString("//");
-  setupCallToAsmParser(AsmStr);
-
-  // Lex initially to get the string.
-  Parser->getLexer().Lex();
-
-  // "// abc" -> will still be treated as a comment because "//" is the
-  //             CommentString
-  SmallVector<AsmToken::TokenKind> ExpectedTokens(
-      {AsmToken::EndOfStatement, AsmToken::Eof});
-  lexAndCheckTokens(AsmStr /* "// abc" */, ExpectedTokens);
-}
-
-TEST_F(SystemZAsmLexerTest, CheckStrictCommentString3) {
-  StringRef AsmStr = "/* abc */";
-
-  // Setup.
-  MUPMAI->setAllowAdditionalComments(false);
-  setupCallToAsmParser(AsmStr);
-
-  // Lex initially to get the string.
-  Parser->getLexer().Lex();
-
-  SmallVector<AsmToken::TokenKind> ExpectedTokens;
-  ExpectedTokens.push_back(AsmToken::Slash);
-  ExpectedTokens.push_back(AsmToken::Star);
-  ExpectedTokens.push_back(AsmToken::Identifier);
-  ExpectedTokens.push_back(AsmToken::Star);
-  ExpectedTokens.push_back(AsmToken::Slash);
-  ExpectedTokens.push_back(AsmToken::EndOfStatement);
-  ExpectedTokens.push_back(AsmToken::Eof);
-
-  lexAndCheckTokens(AsmStr, ExpectedTokens);
-}
-
-TEST_F(SystemZAsmLexerTest, CheckStrictCommentString4) {
-  StringRef AsmStr = "# abc\n/* def *///  xyz";
-
-  // Setup.
-  MUPMAI->setCommentString("*");
-  MUPMAI->setAllowAdditionalComments(false);
-  MUPMAI->setRestrictCommentStringToStartOfStatement(true);
-  setupCallToAsmParser(AsmStr);
-
-  // Lex initially to get the string.
-  Parser->getLexer().Lex();
-
-  SmallVector<AsmToken::TokenKind> ExpectedTokens;
-  ExpectedTokens.push_back(AsmToken::Hash);           // "#"
-  ExpectedTokens.push_back(AsmToken::Identifier);     // "abc"
-  ExpectedTokens.push_back(AsmToken::EndOfStatement); // "\n"
-  ExpectedTokens.push_back(AsmToken::Slash);          // "/"
-  ExpectedTokens.push_back(AsmToken::Star);           // "*"
-  ExpectedTokens.push_back(AsmToken::Identifier);     // "def"
-  ExpectedTokens.push_back(AsmToken::Star);           // "*"
-  ExpectedTokens.push_back(AsmToken::Slash);          // "/"
-  ExpectedTokens.push_back(AsmToken::Slash);          // "/"
-  ExpectedTokens.push_back(AsmToken::Slash);          // "/"
-  ExpectedTokens.push_back(AsmToken::Identifier);     // "xyz"
-  ExpectedTokens.push_back(AsmToken::EndOfStatement);
-  ExpectedTokens.push_back(AsmToken::Eof);
-
-  lexAndCheckTokens(AsmStr, ExpectedTokens);
-}
-
-TEST_F(SystemZAsmLexerTest, CheckStrictCommentString5) {
-  StringRef AsmStr = "#abc\n/* def */// xyz";
-
-  // Setup.
-  MUPMAI->setCommentString("*");
-  MUPMAI->setAllowAdditionalComments(false);
-  setupCallToAsmParser(AsmStr);
-
-  // Lex initially to get the string.
-  Parser->getLexer().Lex();
-
-  SmallVector<AsmToken::TokenKind> ExpectedTokens;
-  ExpectedTokens.push_back(AsmToken::Hash);           // "#"
-  ExpectedTokens.push_back(AsmToken::Identifier);     // "abc"
-  ExpectedTokens.push_back(AsmToken::EndOfStatement); // "\n"
-  ExpectedTokens.push_back(AsmToken::Slash);          // "/"
-  ExpectedTokens.push_back(AsmToken::EndOfStatement); // "* def */// xyz"
-  ExpectedTokens.push_back(AsmToken::Eof);
-
-  lexAndCheckTokens(AsmStr, ExpectedTokens);
-}
-
-TEST_F(SystemZAsmLexerTest, CheckValidHLASMIntegers) {
+TEST_F(SystemZAsmLexerZOS, CheckValidHLASMIntegers) {
   StringRef AsmStr = "123\n000123\n1999\n007\n12300\n12021\n";
   // StringRef AsmStr = "123";
   // Setup.
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setLexHLASMIntegers(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
@@ -428,12 +291,11 @@ TEST_F(SystemZAsmLexerTest, CheckValidHLASMIntegers) {
   lexAndCheckIntegerTokensAndValues(AsmStr, ExpectedValues);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckInvalidHLASMIntegers) {
+TEST_F(SystemZAsmLexerZOS, CheckInvalidHLASMIntegers) {
   StringRef AsmStr = "0b0101\n0xDEADBEEF\nfffh\n.133\n";
 
   // Setup.
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setLexHLASMIntegers(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
@@ -453,7 +315,7 @@ TEST_F(SystemZAsmLexerTest, CheckInvalidHLASMIntegers) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckDefaultIntegers) {
+TEST_F(SystemZAsmLexerLinux, CheckDefaultIntegers) {
   StringRef AsmStr = "0b0101\n0xDEADBEEF\nfffh\n";
 
   // Setup.
@@ -466,7 +328,7 @@ TEST_F(SystemZAsmLexerTest, CheckDefaultIntegers) {
   lexAndCheckIntegerTokensAndValues(AsmStr, ExpectedValues);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckDefaultFloats) {
+TEST_F(SystemZAsmLexerLinux, CheckDefaultFloats) {
   StringRef AsmStr = "0.333\n1.3\n2.5\n3.0\n";
 
   // Setup.
@@ -485,7 +347,7 @@ TEST_F(SystemZAsmLexerTest, CheckDefaultFloats) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckDefaultQuestionAtStartOfIdentifier) {
+TEST_F(SystemZAsmLexerLinux, CheckDefaultQuestionAtStartOfIdentifier) {
   StringRef AsmStr = "?lh1?23";
 
   // Setup.
@@ -495,31 +357,15 @@ TEST_F(SystemZAsmLexerTest, CheckDefaultQuestionAtStartOfIdentifier) {
   Parser->getLexer().Lex();
 
   SmallVector<AsmToken::TokenKind> ExpectedTokens(
-      {AsmToken::Error, AsmToken::Identifier, AsmToken::EndOfStatement,
+      {AsmToken::Question, AsmToken::Identifier, AsmToken::EndOfStatement,
        AsmToken::Eof});
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckAcceptQuestionAtStartOfIdentifier) {
-  StringRef AsmStr = "?????lh1?23";
-
-  // Setup.
-  MUPMAI->setAllowQuestionAtStartOfIdentifier(true);
-  setupCallToAsmParser(AsmStr);
-
-  // Lex initially to get the string.
-  Parser->getLexer().Lex();
-
-  SmallVector<AsmToken::TokenKind> ExpectedTokens(
-      {AsmToken::Identifier, AsmToken::EndOfStatement, AsmToken::Eof});
-  lexAndCheckTokens(AsmStr, ExpectedTokens);
-}
-
-TEST_F(SystemZAsmLexerTest, CheckDefaultAtAtStartOfIdentifier) {
+TEST_F(SystemZAsmLexerLinux, CheckDefaultAtAtStartOfIdentifier) {
   StringRef AsmStr = "@@lh1?23";
 
   // Setup.
-  MUPMAI->setAllowQuestionAtStartOfIdentifier(true);
   setupCallToAsmParser(AsmStr);
 
   // Lex initially to get the string.
@@ -531,11 +377,10 @@ TEST_F(SystemZAsmLexerTest, CheckDefaultAtAtStartOfIdentifier) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckAcceptAtAtStartOfIdentifier) {
+TEST_F(SystemZAsmLexerZOS, CheckAcceptAtAtStartOfIdentifier) {
   StringRef AsmStr = "@@lh1?23";
 
   // Setup.
-  MUPMAI->setAllowAtAtStartOfIdentifier(true);
   setupCallToAsmParser(AsmStr);
 
   // Lex initially to get the string.
@@ -546,24 +391,7 @@ TEST_F(SystemZAsmLexerTest, CheckAcceptAtAtStartOfIdentifier) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckAccpetAtAtStartOfIdentifier2) {
-  StringRef AsmStr = "@@lj1?23";
-
-  // Setup.
-  MUPMAI->setCommentString("@");
-  MUPMAI->setAllowAtAtStartOfIdentifier(true);
-  setupCallToAsmParser(AsmStr);
-
-  // Lex initially to get the string.
-  Parser->getLexer().Lex();
-
-  // "@@lj1?23" -> still lexed as a comment as that takes precedence.
-  SmallVector<AsmToken::TokenKind> ExpectedTokens(
-      {AsmToken::EndOfStatement, AsmToken::Eof});
-  lexAndCheckTokens(AsmStr, ExpectedTokens);
-}
-
-TEST_F(SystemZAsmLexerTest, CheckDefaultDollarAtStartOfIdentifier) {
+TEST_F(SystemZAsmLexerLinux, CheckDefaultDollarAtStartOfIdentifier) {
   StringRef AsmStr = "$$ac$c";
 
   // Setup.
@@ -578,11 +406,10 @@ TEST_F(SystemZAsmLexerTest, CheckDefaultDollarAtStartOfIdentifier) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckAcceptDollarAtStartOfIdentifier) {
+TEST_F(SystemZAsmLexerZOS, CheckAcceptDollarAtStartOfIdentifier) {
   StringRef AsmStr = "$$ab$c";
 
   // Setup.
-  MUPMAI->setAllowDollarAtStartOfIdentifier(true);
   setupCallToAsmParser(AsmStr);
 
   // Lex initially to get the string.
@@ -593,15 +420,11 @@ TEST_F(SystemZAsmLexerTest, CheckAcceptDollarAtStartOfIdentifier) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckAcceptHashAtStartOfIdentifier) {
+TEST_F(SystemZAsmLexerZOS, CheckAcceptHashAtStartOfIdentifier) {
   StringRef AsmStr = "##a#b$c";
 
   // Setup.
-  MUPMAI->setAllowHashAtStartOfIdentifier(true);
-  MUPMAI->setCommentString("*");
-  MUPMAI->setAllowAdditionalComments(false);
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setAllowHashInIdentifier(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
@@ -611,13 +434,11 @@ TEST_F(SystemZAsmLexerTest, CheckAcceptHashAtStartOfIdentifier) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckAcceptHashAtStartOfIdentifier2) {
+TEST_F(SystemZAsmLexerLinux, CheckAcceptHashAtStartOfIdentifier2) {
   StringRef AsmStr = "##a#b$c";
 
   // Setup.
-  MUPMAI->setAllowHashAtStartOfIdentifier(true);
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setAllowHashInIdentifier(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
@@ -630,36 +451,25 @@ TEST_F(SystemZAsmLexerTest, CheckAcceptHashAtStartOfIdentifier2) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckAcceptHashAtStartOfIdentifier3) {
+TEST_F(SystemZAsmLexerZOS, CheckAcceptHashAtStartOfIdentifier3) {
   StringRef AsmStr = "##a#b$c";
 
   // Setup.
-  MUPMAI->setAllowHashAtStartOfIdentifier(true);
-  MUPMAI->setCommentString("*");
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setAllowHashInIdentifier(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
 
-  // By default, the AsmLexer treats strings that start with "#"
-  // as a line comment.
-  // Hence, "##a$b$c" is lexed as a line comment irrespective
-  // of whether the AllowHashAtStartOfIdentifier attribute is set to true.
   SmallVector<AsmToken::TokenKind> ExpectedTokens(
-      {AsmToken::EndOfStatement, AsmToken::Eof});
+      {AsmToken::Identifier, AsmToken::EndOfStatement, AsmToken::Eof});
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckAcceptHashAtStartOfIdentifier4) {
+TEST_F(SystemZAsmLexerZOS, CheckAcceptHashAtStartOfIdentifier4) {
   StringRef AsmStr = "##a#b$c";
 
   // Setup.
-  MUPMAI->setAllowHashAtStartOfIdentifier(true);
-  MUPMAI->setCommentString("*");
-  MUPMAI->setAllowAdditionalComments(false);
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setAllowHashInIdentifier(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
@@ -674,11 +484,10 @@ TEST_F(SystemZAsmLexerTest, CheckAcceptHashAtStartOfIdentifier4) {
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckRejectDotAsCurrentPC) {
+TEST_F(SystemZAsmLexerZOS, CheckRejectDotAsCurrentPC) {
   StringRef AsmStr = ".-4";
 
   // Setup.
-  MUPMAI->setAllowDotIsPC(false);
   setupCallToAsmParser(AsmStr);
 
   // Lex initially to get the string.
@@ -690,7 +499,7 @@ TEST_F(SystemZAsmLexerTest, CheckRejectDotAsCurrentPC) {
   EXPECT_EQ(Parser->hasPendingError(), true);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckRejectStarAsCurrentPC) {
+TEST_F(SystemZAsmLexerLinux, CheckRejectStarAsCurrentPC) {
   StringRef AsmStr = "*-4";
 
   // Setup.
@@ -705,55 +514,74 @@ TEST_F(SystemZAsmLexerTest, CheckRejectStarAsCurrentPC) {
   EXPECT_EQ(Parser->hasPendingError(), true);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckRejectCharLiterals) {
+TEST_F(SystemZAsmLexerZOS, CheckRejectCharLiterals) {
   StringRef AsmStr = "abc 'd'";
 
   // Setup.
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setLexHLASMStrings(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
 
   SmallVector<AsmToken::TokenKind> ExpectedTokens(
-      {AsmToken::Identifier, AsmToken::Error, AsmToken::Error,
+      {AsmToken::Identifier, AsmToken::Space, AsmToken::Error, AsmToken::Error,
        AsmToken::EndOfStatement, AsmToken::Eof});
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckRejectStringLiterals) {
+TEST_F(SystemZAsmLexerZOS, CheckRejectStringLiterals) {
   StringRef AsmStr = "abc \"ef\"";
 
   // Setup.
   setupCallToAsmParser(AsmStr);
-  Parser->getLexer().setLexHLASMStrings(true);
 
   // Lex initially to get the string.
   Parser->getLexer().Lex();
 
   SmallVector<AsmToken::TokenKind> ExpectedTokens(
-      {AsmToken::Identifier, AsmToken::Error, AsmToken::Identifier,
-       AsmToken::Error, AsmToken::EndOfStatement, AsmToken::Eof});
+      {AsmToken::Identifier, AsmToken::Space, AsmToken::Error,
+       AsmToken::Identifier, AsmToken::Error, AsmToken::EndOfStatement,
+       AsmToken::Eof});
   lexAndCheckTokens(AsmStr, ExpectedTokens);
 }
 
-TEST_F(SystemZAsmLexerTest, CheckPrintAcceptableSymbol) {
+TEST_F(SystemZAsmLexerZOS, CheckPrintAcceptableSymbol) {
   std::string AsmStr = "ab13_$.@";
-  EXPECT_EQ(true, MUPMAI->isValidUnquotedName(AsmStr));
+  EXPECT_EQ(true, MAI->isValidUnquotedName(AsmStr));
   AsmStr += "#";
-  EXPECT_EQ(false, MUPMAI->isValidUnquotedName(AsmStr));
+  EXPECT_EQ(true, MAI->isValidUnquotedName(AsmStr));
 }
 
-TEST_F(SystemZAsmLexerTest, CheckPrintAcceptableSymbol2) {
-  MUPMAI->setAssemblerDialect(1);
-  std::string AsmStr = "ab13_$.@";
-  EXPECT_EQ(true, MUPMAI->isValidUnquotedName(AsmStr));
-  AsmStr += "#";
-  EXPECT_EQ(true, MUPMAI->isValidUnquotedName(AsmStr));
+TEST_F(SystemZAsmLexerLinux, CheckPrintAcceptableSymbol) {
+  std::string AsmStr = "ab13_$.";
+  EXPECT_EQ(true, MAI->isValidUnquotedName(AsmStr));
+  AsmStr = "ab13_$.@";
+  EXPECT_EQ(false, MAI->isValidUnquotedName(AsmStr));
+  AsmStr = "ab13_$.#";
+  EXPECT_EQ(false, MAI->isValidUnquotedName(AsmStr));
 }
 
-TEST_F(SystemZAsmLexerTest, CheckLabelCaseUpperCase2) {
-  StringRef AsmStr = "label\nlabel";
+TEST_F(SystemZAsmLexerZOS, CheckLabelCaseUpperCase) {
+  StringRef AsmStr = "label";
+
+  // Setup.
+  setupCallToAsmParser(AsmStr);
+
+  // Lex initially to get the string.
+  Parser->getLexer().Lex();
+
+  const MCExpr *Expr;
+  bool ParsePrimaryExpr = Parser->parseExpression(Expr);
+  EXPECT_EQ(ParsePrimaryExpr, false);
+
+  const MCSymbolRefExpr *SymbolExpr = dyn_cast<MCSymbolRefExpr>(Expr);
+  EXPECT_NE(SymbolExpr, nullptr);
+  EXPECT_NE(&SymbolExpr->getSymbol(), nullptr);
+  EXPECT_EQ((&SymbolExpr->getSymbol())->getName(), StringRef("LABEL"));
+}
+
+TEST_F(SystemZAsmLexerLinux, CheckLabelUpperCase2) {
+  StringRef AsmStr = "label";
 
   // Setup.
   setupCallToAsmParser(AsmStr);
@@ -769,18 +597,5 @@ TEST_F(SystemZAsmLexerTest, CheckLabelCaseUpperCase2) {
   EXPECT_NE(SymbolExpr, nullptr);
   EXPECT_NE(&SymbolExpr->getSymbol(), nullptr);
   EXPECT_EQ((&SymbolExpr->getSymbol())->getName(), StringRef("label"));
-
-  // Lex the end of statement token.
-  Parser->getLexer().Lex();
-
-  MUPMAI->setEmitLabelsInUpperCase(true);
-
-  ParsePrimaryExpr = Parser->parseExpression(Expr);
-  EXPECT_EQ(ParsePrimaryExpr, false);
-
-  SymbolExpr = dyn_cast<MCSymbolRefExpr>(Expr);
-  EXPECT_NE(SymbolExpr, nullptr);
-  EXPECT_NE(&SymbolExpr->getSymbol(), nullptr);
-  EXPECT_EQ((&SymbolExpr->getSymbol())->getName(), StringRef("LABEL"));
 }
 } // end anonymous namespace

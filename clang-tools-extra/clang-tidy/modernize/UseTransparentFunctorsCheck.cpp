@@ -1,4 +1,4 @@
-//===--- UseTransparentFunctorsCheck.cpp - clang-tidy----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "UseTransparentFunctorsCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 UseTransparentFunctorsCheck::UseTransparentFunctorsCheck(
     StringRef Name, ClangTidyContext *Context)
@@ -40,15 +37,13 @@ void UseTransparentFunctorsCheck::registerMatchers(MatchFinder *Finder) {
 
   // Non-transparent functor mentioned as a template parameter. FIXIT.
   Finder->addMatcher(
-      loc(qualType(
-              unless(elaboratedType()),
-              hasDeclaration(classTemplateSpecializationDecl(
-                  unless(hasAnyTemplateArgument(templateArgument(refersToType(
-                      qualType(pointsTo(qualType(isAnyCharacter()))))))),
-                  hasAnyTemplateArgument(
-                      templateArgument(refersToType(qualType(hasDeclaration(
-                                           TransparentFunctors))))
-                          .bind("Functor"))))))
+      loc(qualType(hasDeclaration(classTemplateSpecializationDecl(
+              unless(hasAnyTemplateArgument(templateArgument(refersToType(
+                  qualType(pointsTo(qualType(isAnyCharacter()))))))),
+              hasAnyTemplateArgument(
+                  templateArgument(refersToType(qualType(
+                                       hasDeclaration(TransparentFunctors))))
+                      .bind("Functor"))))))
           .bind("FunctorParentLoc"),
       this);
 
@@ -96,8 +91,9 @@ void UseTransparentFunctorsCheck::check(
   unsigned ArgNum = 0;
   const auto *FunctorParentType =
       FunctorParentLoc.getType()->castAs<TemplateSpecializationType>();
-  for (; ArgNum < FunctorParentType->getNumArgs(); ++ArgNum) {
-    const TemplateArgument &Arg = FunctorParentType->getArg(ArgNum);
+  for (; ArgNum < FunctorParentType->template_arguments().size(); ++ArgNum) {
+    const TemplateArgument &Arg =
+        FunctorParentType->template_arguments()[ArgNum];
     if (Arg.getKind() != TemplateArgument::Type)
       continue;
     QualType ParentArgType = Arg.getAsType();
@@ -107,7 +103,7 @@ void UseTransparentFunctorsCheck::check(
       break;
   }
   // Functor is a default template argument.
-  if (ArgNum == FunctorParentType->getNumArgs())
+  if (ArgNum == FunctorParentType->template_arguments().size())
     return;
   TemplateArgumentLoc FunctorLoc = FunctorParentLoc.getArgLoc(ArgNum);
   auto FunctorTypeLoc = getInnerTypeLocAs<TemplateSpecializationTypeLoc>(
@@ -123,6 +119,4 @@ void UseTransparentFunctorsCheck::check(
                                   FunctorTypeLoc.getArgLoc(0).getSourceRange());
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

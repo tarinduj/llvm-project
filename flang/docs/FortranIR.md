@@ -8,9 +8,10 @@
 
 # Design: Fortran IR
 
-```eval_rst
-.. contents::
-   :local:
+```{contents}
+---
+local:
+---
 ```
 
 ## Introduction
@@ -145,7 +146,7 @@ Once the basic blocks are constructed, CFG edges defined, and the CFG is simplif
 
 _Program_: A program instance is the top-level object that contains the representation of all the code being compiled, the compilation unit. It contains a list of procedures and a reference to the global symbol table.
 
-_Procedure_: This is a named Fortran procedure (subroutine or function). It contains a (hierarchical) list of regions. It also owns the master list of all basic blocks for the procedure.
+_Procedure_: This is a named Fortran procedure (subroutine or function). It contains a (hierarchical) list of regions. It also owns a list of all basic blocks for the procedure.
 
 _Region_: A region is owned by a procedure or by another region. A region owns a reference to a scope in the symbol table tree. The list of delineated basic blocks can also be requested from a region.
 
@@ -170,7 +171,7 @@ FIR is intentionally similar to SIL from the statement level up to the level of 
 Program, procedure, region, and basic block all leverage code from LLVM, in much the same way as SIL. These data structures have significant investment and engineering behind their use in compilers, and it makes sense to leverage that work.
 
 * Pro: Uses LLVM data structures, pervasive in compiler projects such as LLVM, SIL, etc.
-* Pro: Get used to seeing and using LLVM, as f18 aims to be an LLVM project
+* Pro: Get used to seeing and using LLVM, as Flang aims to be an LLVM project
 * Con: Uses LLVM data structures, which the project has been avoiding
 
 #### Alternative: C++ Standard Template Library

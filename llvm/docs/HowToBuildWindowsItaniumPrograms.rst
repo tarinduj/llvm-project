@@ -48,7 +48,7 @@ The linker can be specified with: "-fuse-ld=lld".
 In the Itanium C++ ABI the first member of an object is a pointer to the vtable
 for its class. The vtable is often emitted into the object file with the key function
 and must be imported for classes marked dllimport. The pointers must be globally
-unique. Unfortunately, the COFF/PE file format does not provide a mechanism to 
+unique. Unfortunately, the COFF/PE file format does not provide a mechanism to
 store a runtime address from another DLL into this pointer (although runtime
 addresses are patched into the IAT). Therefore, the compiler must emit some code,
 that runs after IAT patching but before anything that might use the vtable pointers,
@@ -58,7 +58,7 @@ there is no declaration available to the compiler so this can't be done. To allo
 programs to link we currently rely on the -auto-import switch in LLD to auto-import
 references to __cxxabiv1::__class_type_info pointers (see: https://reviews.llvm.org/D43184
 for a related discussion). This allows for linking; but, code that actually uses
-such fields will not work as they these will not be fixed up at runtime. See 
+such fields will not work as they these will not be fixed up at runtime. See
 _pei386_runtime_relocator which handles the runtime component of the autoimporting
 scheme used for mingw and comments in https://reviews.llvm.org/D43184 and
 https://reviews.llvm.org/D89518 for more.
@@ -73,19 +73,11 @@ The procedure is:
 
 It is also possible to cross-compile from Linux.
 
-One method of building the libraries in step 2. is to build them "stand-alone".
-A stand-alone build doesn't involve the rest of the LLVM tree. The steps are:
+To build the libraries in step 2, refer to the `libc++ documentation <https://libcxx.llvm.org/VendorDocumentation.html#the-default-build>`_.
 
-* ``cd build-dir``
-* ``cmake -DLLVM_PATH=<path to llvm checkout e.g. /llvm-project/> -DCMAKE_INSTALL_PREFIX=<install path> <other options> <path to project e.g. /llvm-project/libcxxabi>``
-* ``<make program e.g. ninja>``
-* ``<make program> install``
-
-More information on standalone builds can be found in the build documentation for
-the respective libraries. The next section discuss the salient options and modifications
-required for building and installing the libraries using standalone builds. This assumes
-that we are building libunwind and ibc++ as DLLs and statically linking libc++abi into
-libc++. Other build configurations are possible, but they are not discussed here.
+The next section discuss the salient options and modifications required for building and installing the
+libraries. This assumes that we are building libunwind and libc++ as DLLs and statically linking libc++abi
+into libc++. Other build configurations are possible, but they are not discussed here.
 
 Common CMake configuration options:
 -----------------------------------
@@ -97,7 +89,7 @@ Tell the libc++ headers that the Itanium C++ ABI is being used.
 * ``-DCMAKE_C_FLAGS="-lmsvcrt -llegacy_stdio_definitions -D_NO_CRT_STDIO_INLINE"``
 
 Supply CRT definitions including stdio definitions that have been removed from the MS VS CRT.
-We don't want the stdio functions decalred inline as they will casuse multiple defintiion
+We don't want the stdio functions declared inline as they will cause multiple definition
 errors when the same symbols are pulled in from legacy_stdio_definitions.ib.
 
 * ``-DCMAKE_INSTALL_PREFIX=<install path>``

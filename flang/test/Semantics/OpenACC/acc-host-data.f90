@@ -1,5 +1,4 @@
-! RUN: %S/../test_errors.sh %s %t %flang -fopenacc
-! REQUIRES: shell
+! RUN: %python %S/../test_errors.py %s %flang -fopenacc
 
 ! Check OpenACC clause validity for the following construct and directive:
 !   2.8 host_data
@@ -28,7 +27,7 @@ program openacc_host_data_validity
   !$acc host_data use_device(aa, bb) if_present
   !$acc end host_data
 
-  !ERROR: At most one IF_PRESENT clause can appear on the HOST_DATA directive
+  ! OK
   !$acc host_data use_device(aa, bb) if_present if_present
   !$acc end host_data
 

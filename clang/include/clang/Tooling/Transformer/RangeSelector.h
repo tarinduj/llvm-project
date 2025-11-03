@@ -12,8 +12,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLING_REFACTOR_RANGE_SELECTOR_H_
-#define LLVM_CLANG_TOOLING_REFACTOR_RANGE_SELECTOR_H_
+#ifndef LLVM_CLANG_TOOLING_TRANSFORMER_RANGESELECTOR_H
+#define LLVM_CLANG_TOOLING_TRANSFORMER_RANGESELECTOR_H
 
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Basic/SourceLocation.h"
@@ -50,7 +50,7 @@ inline RangeSelector range(std::string BeginID, std::string EndID) {
 /// Selects the (empty) range [B,B) when \p Selector selects the range [B,E).
 RangeSelector before(RangeSelector Selector);
 
-/// Selects the the point immediately following \p Selector. That is, the
+/// Selects the point immediately following \p Selector. That is, the
 /// (empty) range [E,E), when \p Selector selects either
 /// * the CharRange [B,E) or
 /// * the TokenRange [B,E'] where the token at E' spans the range [E',E).
@@ -86,6 +86,11 @@ RangeSelector name(std::string ID);
 // source between the call's parentheses).
 RangeSelector callArgs(std::string ID);
 
+// Given a \c CXXConstructExpr (bound to \p ID), selects the
+// arguments' source text. Depending on the syntactic form of the construct,
+// this is the range between parentheses or braces.
+RangeSelector constructExprArgs(std::string ID);
+
 // Given a \c CompoundStmt (bound to \p ID), selects the source of the
 // statements (all source between the braces).
 RangeSelector statements(std::string ID);
@@ -105,4 +110,4 @@ RangeSelector expansion(RangeSelector S);
 } // namespace transformer
 } // namespace clang
 
-#endif // LLVM_CLANG_TOOLING_REFACTOR_RANGE_SELECTOR_H_
+#endif // LLVM_CLANG_TOOLING_TRANSFORMER_RANGESELECTOR_H

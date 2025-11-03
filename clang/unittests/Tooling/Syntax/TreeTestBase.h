@@ -17,11 +17,12 @@
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Testing/TestClangConfig.h"
 #include "clang/Tooling/Syntax/Nodes.h"
+#include "clang/Tooling/Syntax/TokenBufferTokenManager.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "clang/Tooling/Syntax/Tree.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ScopedPrinter.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -39,18 +40,20 @@ protected:
   syntax::Node *nodeByRange(llvm::Annotations::Range R, syntax::Node *Root);
 
   // Data fields.
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+  DiagnosticOptions DiagOpts;
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags =
-      new DiagnosticsEngine(new DiagnosticIDs, DiagOpts.get());
+      llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(DiagnosticIDs::create(),
+                                                   DiagOpts);
   IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> FS =
-      new llvm::vfs::InMemoryFileSystem;
+      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
   IntrusiveRefCntPtr<FileManager> FileMgr =
-      new FileManager(FileSystemOptions(), FS);
+      llvm::makeIntrusiveRefCnt<FileManager>(FileSystemOptions(), FS);
   IntrusiveRefCntPtr<SourceManager> SourceMgr =
-      new SourceManager(*Diags, *FileMgr);
+      llvm::makeIntrusiveRefCnt<SourceManager>(*Diags, *FileMgr);
   std::shared_ptr<CompilerInvocation> Invocation;
   // Set after calling buildTree().
   std::unique_ptr<syntax::TokenBuffer> TB;
+  std::unique_ptr<syntax::TokenBufferTokenManager> TM;
   std::unique_ptr<syntax::Arena> Arena;
 };
 

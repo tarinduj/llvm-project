@@ -1,5 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1
-! REQUIRES: shell
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Test for checking namelist constraints, C8103-C8105
 
 module dup
@@ -12,6 +11,7 @@ subroutine C8103a(x)
   integer :: x
   !ERROR: 'dupname' is already declared in this scoping unit
   namelist /dupName/ x, x
+  namelist /nl/ uniquename ! ok
 end subroutine C8103a
 
 subroutine C8103b(y)

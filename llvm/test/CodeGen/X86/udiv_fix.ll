@@ -122,9 +122,9 @@ define i4 @func4(i4 %x, i4 %y) nounwind {
 ;
 ; X86-LABEL: func4:
 ; X86:       # %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    andb $15, %cl
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    andb $15, %al
 ; X86-NEXT:    shlb $2, %al
 ; X86-NEXT:    movzbl %al, %eax
@@ -152,27 +152,29 @@ define i64 @func5(i64 %x, i64 %y) nounwind {
 ; X86-NEXT:    pushl %ebp
 ; X86-NEXT:    movl %esp, %ebp
 ; X86-NEXT:    pushl %esi
-; X86-NEXT:    andl $-8, %esp
-; X86-NEXT:    subl $24, %esp
+; X86-NEXT:    andl $-16, %esp
+; X86-NEXT:    subl $80, %esp
 ; X86-NEXT:    movl 8(%ebp), %eax
 ; X86-NEXT:    movl 12(%ebp), %ecx
+; X86-NEXT:    movl 16(%ebp), %edx
+; X86-NEXT:    movl 20(%ebp), %esi
+; X86-NEXT:    movl %esi, {{[0-9]+}}(%esp)
+; X86-NEXT:    movl %edx, {{[0-9]+}}(%esp)
 ; X86-NEXT:    movl %ecx, %edx
 ; X86-NEXT:    shrl %edx
+; X86-NEXT:    movl %edx, {{[0-9]+}}(%esp)
 ; X86-NEXT:    shldl $31, %eax, %ecx
+; X86-NEXT:    movl %ecx, {{[0-9]+}}(%esp)
 ; X86-NEXT:    shll $31, %eax
-; X86-NEXT:    movl %esp, %esi
-; X86-NEXT:    pushl $0
-; X86-NEXT:    pushl $0
-; X86-NEXT:    pushl 20(%ebp)
-; X86-NEXT:    pushl 16(%ebp)
-; X86-NEXT:    pushl $0
-; X86-NEXT:    pushl %edx
-; X86-NEXT:    pushl %ecx
-; X86-NEXT:    pushl %eax
-; X86-NEXT:    pushl %esi
+; X86-NEXT:    movl %eax, {{[0-9]+}}(%esp)
+; X86-NEXT:    leal {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    movl %eax, (%esp)
+; X86-NEXT:    movl $0, {{[0-9]+}}(%esp)
+; X86-NEXT:    movl $0, {{[0-9]+}}(%esp)
+; X86-NEXT:    movl $0, {{[0-9]+}}(%esp)
 ; X86-NEXT:    calll __udivti3
-; X86-NEXT:    addl $32, %esp
-; X86-NEXT:    movl (%esp), %eax
+; X86-NEXT:    subl $4, %esp
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %edx
 ; X86-NEXT:    leal -4(%ebp), %esp
 ; X86-NEXT:    popl %esi

@@ -15,6 +15,7 @@
 
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/Target/SPIRV/Serialization.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
@@ -22,9 +23,8 @@
 namespace mlir {
 namespace spirv {
 
-LogicalResult encodeInstructionInto(SmallVectorImpl<uint32_t> &binary,
-                                    spirv::Opcode op,
-                                    ArrayRef<uint32_t> operands);
+void encodeInstructionInto(SmallVectorImpl<uint32_t> &binary, spirv::Opcode op,
+                           ArrayRef<uint32_t> operands);
 
 /// A SPIR-V module serializer.
 ///
@@ -42,7 +42,8 @@ LogicalResult encodeInstructionInto(SmallVectorImpl<uint32_t> &binary,
 class Serializer {
 public:
   /// Creates a serializer for the given SPIR-V `module`.
-  explicit Serializer(spirv::ModuleOp module, bool emitDebugInfo = false);
+  explicit Serializer(spirv::ModuleOp module,
+                      const SerializationOptions &options);
 
   /// Serializes the remembered SPIR-V module.
   LogicalResult serialize();
@@ -101,21 +102,29 @@ private:
 
   void processDebugInfo();
 
-  void processExtension();
+  LogicalResult processExtension();
 
   void processMemoryModel();
 
   LogicalResult processConstantOp(spirv::ConstantOp op);
+
+  LogicalResult processConstantCompositeReplicateOp(
+      spirv::EXTConstantCompositeReplicateOp op);
 
   LogicalResult processSpecConstantOp(spirv::SpecConstantOp op);
 
   LogicalResult
   processSpecConstantCompositeOp(spirv::SpecConstantCompositeOp op);
 
+  LogicalResult processSpecConstantCompositeReplicateOp(
+      spirv::EXTSpecConstantCompositeReplicateOp op);
+
   LogicalResult
   processSpecConstantOperationOp(spirv::SpecConstantOperationOp op);
 
-  /// SPIR-V dialect supports OpUndef using spv.UndefOp that produces a SSA
+  LogicalResult processGraphConstantARMOp(spirv::GraphConstantARMOp op);
+
+  /// SPIR-V dialect supports OpUndef using spirv.UndefOp that produces a SSA
   /// value to use with other operations. The SPIR-V spec recommends that
   /// OpUndef be generated at module level. The serialization generates an
   /// OpUndef for each type needed at module level.
@@ -126,6 +135,16 @@ private:
 
   /// Processes a SPIR-V function op.
   LogicalResult processFuncOp(spirv::FuncOp op);
+  LogicalResult processFuncParameter(spirv::FuncOp op);
+
+  /// Processes a SPIR-V GraphARM op.
+  LogicalResult processGraphARMOp(spirv::GraphARMOp op);
+
+  /// Processes a SPIR-V GraphEntryPointARM op.
+  LogicalResult processGraphEntryPointARMOp(spirv::GraphEntryPointARMOp op);
+
+  /// Processes a SPIR-V GraphOutputsARMOp op.
+  LogicalResult processGraphOutputsARMOp(spirv::GraphOutputsARMOp op);
 
   LogicalResult processVariableOp(spirv::VariableOp op);
 
@@ -133,6 +152,8 @@ private:
   LogicalResult processGlobalVariableOp(spirv::GlobalVariableOp varOp);
 
   /// Process attributes that translate to decorations on the result <id>
+  LogicalResult processDecorationAttr(Location loc, uint32_t resultID,
+                                      Decoration decoration, Attribute attr);
   LogicalResult processDecoration(Location loc, uint32_t resultID,
                                   NamedAttribute attr);
 
@@ -155,7 +176,7 @@ private:
 
   Type getVoidType() { return mlirBuilder.getNoneType(); }
 
-  bool isVoidType(Type type) const { return type.isa<NoneType>(); }
+  bool isVoidType(Type type) const { return isa<NoneType>(type); }
 
   /// Returns true if the given type is a pointer type to a struct in some
   /// interface storage class.
@@ -179,12 +200,21 @@ private:
                                     spirv::Opcode &typeEnum,
                                     SmallVectorImpl<uint32_t> &operands);
 
+  LogicalResult prepareGraphType(Location loc, GraphType type,
+                                 spirv::Opcode &typeEnum,
+                                 SmallVectorImpl<uint32_t> &operands);
+
   //===--------------------------------------------------------------------===//
   // Constant
   //===--------------------------------------------------------------------===//
 
   uint32_t getConstantID(Attribute value) const {
     return constIDMap.lookup(value);
+  }
+
+  uint32_t getConstantCompositeReplicateID(
+      std::pair<Attribute, Type> valueTypePair) const {
+    return constCompositeReplicateIDMap.lookup(valueTypePair);
   }
 
   /// Main dispatch method for processing a constant with the given `constType`
@@ -223,8 +253,21 @@ private:
   uint32_t prepareConstantInt(Location loc, IntegerAttr intAttr,
                               bool isSpec = false);
 
+  uint32_t getGraphConstantARMId(Attribute value) const {
+    return graphConstIDMap.lookup(value);
+  }
+
+  uint32_t prepareGraphConstantId(Location loc, Type graphConstType,
+                                  IntegerAttr intAttr);
+
   uint32_t prepareConstantFp(Location loc, FloatAttr floatAttr,
                              bool isSpec = false);
+
+  /// Prepares `spirv.EXTConstantCompositeReplicateOp` serialization. This
+  /// method emits OpConstantCompositeReplicateEXT and returns the result <id>
+  /// associated with it.
+  uint32_t prepareConstantCompositeReplicate(Location loc, Type resultType,
+                                             Attribute valueAttr);
 
   //===--------------------------------------------------------------------===//
   // Control flow
@@ -237,14 +280,18 @@ private:
   /// assigns the next available <id>
   uint32_t getOrCreateBlockID(Block *block);
 
+#ifndef NDEBUG
+  /// (For debugging) prints the block with its result <id>.
+  void printBlock(Block *block, raw_ostream &os);
+#endif
+
   /// Processes the given `block` and emits SPIR-V instructions for all ops
   /// inside. Does not emit OpLabel for this block if `omitLabel` is true.
-  /// `actionBeforeTerminator` is a callback that will be invoked before
-  /// handling the terminator op. It can be used to inject the Op*Merge
-  /// instruction if this is a SPIR-V selection/loop header block.
-  LogicalResult
-  processBlock(Block *block, bool omitLabel = false,
-               function_ref<void()> actionBeforeTerminator = nullptr);
+  /// `emitMerge` is a callback that will be invoked before handling the
+  /// terminator op to inject the Op*Merge instruction if this is a SPIR-V
+  /// selection/loop header block.
+  LogicalResult processBlock(Block *block, bool omitLabel = false,
+                             function_ref<LogicalResult()> emitMerge = nullptr);
 
   /// Emits OpPhi instructions for the given block if it has block arguments.
   LogicalResult emitPhiForBlockArguments(Block *block);
@@ -292,7 +339,8 @@ private:
   /// Serializes an operation in the SPIR-V dialect that is a mirror of an
   /// instruction in the SPIR-V spec. This is auto generated if hasOpcode == 1
   /// and autogenSerialization == 1 in ODS.
-  template <typename OpTy> LogicalResult processOp(OpTy op) {
+  template <typename OpTy>
+  LogicalResult processOp(OpTy op) {
     return op.emitError("unsupported op serialization");
   }
 
@@ -316,8 +364,8 @@ private:
   /// An MLIR builder for getting MLIR constructs.
   mlir::Builder mlirBuilder;
 
-  /// A flag which indicates if the debuginfo should be emitted.
-  bool emitDebugInfo = false;
+  /// Serialization options.
+  SerializationOptions options;
 
   /// A flag which indicates if the last processed instruction was a merge
   /// instruction.
@@ -346,6 +394,7 @@ private:
   SmallVector<uint32_t, 0> decorations;
   SmallVector<uint32_t, 0> typesGlobalValues;
   SmallVector<uint32_t, 0> functions;
+  SmallVector<uint32_t, 0> graphs;
 
   /// Recursive struct references are serialized as OpTypePointer instructions
   /// to the recursive struct type. However, the OpTypePointer instruction
@@ -362,15 +411,22 @@ private:
       recursiveStructInfos;
 
   /// `functionHeader` contains all the instructions that must be in the first
-  /// block in the function, and `functionBody` contains the rest. After
-  /// processing FuncOp, the encoded instructions of a function are appended to
-  /// `functions`. An example of instructions in `functionHeader` in order:
+  /// block in the function or graph, and `functionBody` contains the rest.
+  /// After processing FuncOp/GraphARMOp, the encoded instructions of a function
+  /// or graph are appended to `functions` or `graphs` respectively. Examples of
+  /// instructions in `functionHeader` in order:
+  ///
+  /// For a FuncOp:
   /// OpFunction ...
   /// OpFunctionParameter ...
   /// OpFunctionParameter ...
   /// OpLabel ...
   /// OpVariable ...
   /// OpVariable ...
+  ///
+  /// For a GraphARMOp
+  /// OpGraphARM ...
+  /// OpGraphInputARM ...
   SmallVector<uint32_t, 0> functionHeader;
   SmallVector<uint32_t, 0> functionBody;
 
@@ -380,8 +436,14 @@ private:
   /// Map from constant values to their <id>s.
   DenseMap<Attribute, uint32_t> constIDMap;
 
+  /// Map from a replicated composite constant's value and type to their <id>s.
+  DenseMap<std::pair<Attribute, Type>, uint32_t> constCompositeReplicateIDMap;
+
   /// Map from specialization constant names to their <id>s.
   llvm::StringMap<uint32_t> specConstIDMap;
+
+  /// Map from graph constant ID value to their <id>s.
+  DenseMap<Attribute, uint32_t> graphConstIDMap;
 
   /// Map from GlobalVariableOps name to <id>s.
   llvm::StringMap<uint32_t> globalVarIDMap;
@@ -418,10 +480,10 @@ private:
   ///   ...
   /// ^parent1:
   ///   ...
-  ///   spv.Branch ^phi(%val0: i32)
+  ///   spirv.Branch ^phi(%val0: i32)
   /// ^parent2:
   ///   ...
-  ///   spv.Branch ^phi(%val1: i32)
+  ///   spirv.Branch ^phi(%val1: i32)
   /// ```
   ///
   /// When we are serializing the `^phi` block, we need to emit at the beginning

@@ -11,7 +11,23 @@
 //  llvm-dis [options] x.bc - Read LLVM bitcode from the x.bc file, write asm
 //                            to the x.ll file.
 //  Options:
-//      --help   - Output information about command line switches
+//
+//  Color Options:
+//      --color                 - Use colors in output (default=autodetect)
+//
+//  Disassembler Options:
+//      -f                      - Enable binary output on terminals
+//      --materialize-metadata  - Load module without materializing metadata,
+//                                then materialize only the metadata
+//      -o <filename>           - Override output filename
+//      --show-annotations      - Add informational comments to the .ll file
+//
+//  Generic Options:
+//      --help                  - Display available options
+//                                (--help-hidden for more)
+//      --help-list             - Display list of available options
+//                                (--help-list-hidden for more)
+//      --version               - Display the version of this program
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,6 +39,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -37,7 +54,7 @@ using namespace llvm;
 
 static cl::OptionCategory DisCategory("Disassembler Options");
 
-static cl::list<std::string> InputFilenames(cl::Positional, cl::ZeroOrMore,
+static cl::list<std::string> InputFilenames(cl::Positional,
                                             cl::desc("[input bitcode]..."),
                                             cl::cat(DisCategory));
 
@@ -63,16 +80,16 @@ static cl::opt<bool>
                     cl::desc("Add informational comments to the .ll file"),
                     cl::cat(DisCategory));
 
-static cl::opt<bool> PreserveAssemblyUseListOrder(
-    "preserve-ll-uselistorder",
-    cl::desc("Preserve use-list order when writing LLVM assembly."),
-    cl::init(false), cl::Hidden, cl::cat(DisCategory));
-
 static cl::opt<bool>
     MaterializeMetadata("materialize-metadata",
                         cl::desc("Load module without materializing metadata, "
                                  "then materialize only the metadata"),
                         cl::cat(DisCategory));
+
+static cl::opt<bool> PrintThinLTOIndexOnly(
+    "print-thinlto-index-only",
+    cl::desc("Only read thinlto index and print the index as LLVM assembly."),
+    cl::init(false), cl::Hidden, cl::cat(DisCategory));
 
 namespace {
 
@@ -108,20 +125,6 @@ public:
         OS << " [debug line = ";
         printDebugLoc(DL,OS);
         OS << "]";
-      }
-      if (const DbgDeclareInst *DDI = dyn_cast<DbgDeclareInst>(I)) {
-        if (!Padded) {
-          OS.PadToColumn(50);
-          OS << ";";
-        }
-        OS << " [debug variable = " << DDI->getVariable()->getName() << "]";
-      }
-      else if (const DbgValueInst *DVI = dyn_cast<DbgValueInst>(I)) {
-        if (!Padded) {
-          OS.PadToColumn(50);
-          OS << ";";
-        }
-        OS << " [debug variable = " << DVI->getVariable()->getName() << "]";
       }
     }
   }
@@ -161,10 +164,6 @@ int main(int argc, char **argv) {
   cl::HideUnrelatedOptions({&DisCategory, &getColorCategory()});
   cl::ParseCommandLineOptions(argc, argv, "llvm .bc -> .ll disassembler\n");
 
-  LLVMContext Context;
-  Context.setDiagnosticHandler(
-      std::make_unique<LLVMDisDiagnosticHandler>(argv[0]));
-
   if (InputFilenames.size() < 1) {
     InputFilenames.push_back("-");
   } else if (InputFilenames.size() > 1 && !OutputFilename.empty()) {
@@ -173,9 +172,20 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  for (std::string InputFilename : InputFilenames) {
-    std::unique_ptr<MemoryBuffer> MB = ExitOnErr(
-        errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFilename)));
+  for (const auto &InputFilename : InputFilenames) {
+    // Use a fresh context for each input to avoid state
+    // cross-contamination across inputs (e.g. type name collisions).
+    LLVMContext Context;
+    Context.setDiagnosticHandler(
+        std::make_unique<LLVMDisDiagnosticHandler>(argv[0]));
+
+    ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
+        MemoryBuffer::getFileOrSTDIN(InputFilename);
+    if (std::error_code EC = BufferOrErr.getError()) {
+      WithColor::error() << InputFilename << ": " << EC.message() << '\n';
+      return 1;
+    }
+    std::unique_ptr<MemoryBuffer> MB = std::move(BufferOrErr.get());
 
     BitcodeFileContents IF = ExitOnErr(llvm::getBitcodeFileContents(*MB));
 
@@ -186,12 +196,17 @@ int main(int argc, char **argv) {
 
     for (size_t I = 0; I < N; ++I) {
       BitcodeModule MB = IF.Mods[I];
-      std::unique_ptr<Module> M = ExitOnErr(
-          MB.getLazyModule(Context, MaterializeMetadata, SetImporting));
-      if (MaterializeMetadata)
-        ExitOnErr(M->materializeMetadata());
-      else
-        ExitOnErr(M->materializeAll());
+
+      std::unique_ptr<Module> M;
+
+      if (!PrintThinLTOIndexOnly) {
+        M = ExitOnErr(
+            MB.getLazyModule(Context, MaterializeMetadata, SetImporting));
+        if (MaterializeMetadata)
+          ExitOnErr(M->materializeMetadata());
+        else
+          ExitOnErr(M->materializeAll());
+      }
 
       BitcodeLTOInfo LTOInfo = ExitOnErr(MB.getLTOInfo());
       std::unique_ptr<ModuleSummaryIndex> Index;
@@ -209,7 +224,7 @@ int main(int argc, char **argv) {
           FinalFilename = "-";
         } else {
           StringRef IFN = InputFilename;
-          FinalFilename = (IFN.endswith(".bc") ? IFN.drop_back(3) : IFN).str();
+          FinalFilename = (IFN.ends_with(".bc") ? IFN.drop_back(3) : IFN).str();
           if (N > 1)
             FinalFilename += std::string(".") + std::to_string(I);
           FinalFilename += ".ll";
@@ -233,7 +248,11 @@ int main(int argc, char **argv) {
 
       // All that llvm-dis does is write the assembly to a file.
       if (!DontPrint) {
-        M->print(Out->os(), Annotator.get(), PreserveAssemblyUseListOrder);
+        if (M) {
+          M->removeDebugIntrinsicDeclarations();
+          M->print(Out->os(), Annotator.get(),
+                   /* ShouldPreserveUseListOrder */ false);
+        }
         if (Index)
           Index->print(Out->os());
       }

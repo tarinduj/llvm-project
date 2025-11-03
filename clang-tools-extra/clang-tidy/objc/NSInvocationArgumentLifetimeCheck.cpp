@@ -1,4 +1,4 @@
-//===--- NSInvocationArgumentLifetimeCheck.cpp - clang-tidy ---------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,20 +23,18 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace objc {
-namespace {
+namespace clang::tidy::objc {
 
 static constexpr StringRef WeakText = "__weak";
 static constexpr StringRef StrongText = "__strong";
 static constexpr StringRef UnsafeUnretainedText = "__unsafe_unretained";
+
+namespace {
 
 /// Matches ObjCIvarRefExpr, DeclRefExpr, or MemberExpr that reference
 /// Objective-C object (or block) variables or fields whose object lifetimes
@@ -52,12 +50,14 @@ AST_POLYMORPHIC_MATCHER(isObjCManagedLifetime,
          QT.getQualifiers().getObjCLifetime() > Qualifiers::OCL_ExplicitNone;
 }
 
-static llvm::Optional<FixItHint>
+} // namespace
+
+static std::optional<FixItHint>
 fixItHintReplacementForOwnershipString(StringRef Text, CharSourceRange Range,
                                        StringRef Ownership) {
   size_t Index = Text.find(Ownership);
   if (Index == StringRef::npos)
-    return llvm::None;
+    return std::nullopt;
 
   SourceLocation Begin = Range.getBegin().getLocWithOffset(Index);
   SourceLocation End = Begin.getLocWithOffset(Ownership.size());
@@ -65,13 +65,13 @@ fixItHintReplacementForOwnershipString(StringRef Text, CharSourceRange Range,
                                       UnsafeUnretainedText);
 }
 
-static llvm::Optional<FixItHint>
+static std::optional<FixItHint>
 fixItHintForVarDecl(const VarDecl *VD, const SourceManager &SM,
                     const LangOptions &LangOpts) {
   assert(VD && "VarDecl parameter must not be null");
   // Don't provide fix-its for any parameter variables at this time.
   if (isa<ParmVarDecl>(VD))
-    return llvm::None;
+    return std::nullopt;
 
   // Currently there is no way to directly get the source range for the
   // __weak/__strong ObjC lifetime qualifiers, so it's necessary to string
@@ -81,22 +81,20 @@ fixItHintForVarDecl(const VarDecl *VD, const SourceManager &SM,
   if (Range.isInvalid()) {
     // An invalid range likely means inside a macro, in which case don't supply
     // a fix-it.
-    return llvm::None;
+    return std::nullopt;
   }
 
   StringRef VarDeclText = Lexer::getSourceText(Range, SM, LangOpts);
-  if (llvm::Optional<FixItHint> Hint =
+  if (std::optional<FixItHint> Hint =
           fixItHintReplacementForOwnershipString(VarDeclText, Range, WeakText))
     return Hint;
 
-  if (llvm::Optional<FixItHint> Hint = fixItHintReplacementForOwnershipString(
+  if (std::optional<FixItHint> Hint = fixItHintReplacementForOwnershipString(
           VarDeclText, Range, StrongText))
     return Hint;
 
   return FixItHint::CreateInsertion(Range.getBegin(), "__unsafe_unretained ");
 }
-
-} // namespace
 
 void NSInvocationArgumentLifetimeCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -143,6 +141,4 @@ void NSInvocationArgumentLifetimeCheck::check(
     Diag << *Hint;
 }
 
-} // namespace objc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::objc

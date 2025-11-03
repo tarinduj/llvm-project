@@ -10,14 +10,23 @@
 #define LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTECLIENTBASE_H
 
 #include "GDBRemoteCommunication.h"
-
+#include "lldb/Utility/Broadcaster.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/StringRef.h"
+#include <chrono>
 #include <condition_variable>
+#include <cstdint>
+#include <mutex>
 
 namespace lldb_private {
 namespace process_gdb_remote {
 
-class GDBRemoteClientBase : public GDBRemoteCommunication {
+class GDBRemoteClientBase : public GDBRemoteCommunication, public Broadcaster {
 public:
+  enum {
+    eBroadcastBitRunPacketSent = (1u << 0),
+  };
+
   struct ContinueDelegate {
     virtual ~ContinueDelegate();
     virtual void HandleAsyncStdout(llvm::StringRef out) = 0;
@@ -31,7 +40,7 @@ public:
     virtual void HandleAsyncStructuredDataPacket(llvm::StringRef data) = 0;
   };
 
-  GDBRemoteClientBase(const char *comm_name, const char *listener_name);
+  GDBRemoteClientBase(const char *comm_name);
 
   bool SendAsyncSignal(int signo, std::chrono::seconds interrupt_timeout);
 
@@ -52,16 +61,18 @@ public:
   // ErrorReplyTimeout.
   PacketResult SendPacketAndWaitForResponse(
       llvm::StringRef payload, StringExtractorGDBRemote &response,
-      std::chrono::seconds interrupt_timeout = std::chrono::seconds(0));
+      std::chrono::seconds interrupt_timeout = std::chrono::seconds(0),
+      bool sync_on_timeout = true);
+
+  PacketResult ReadPacketWithOutputSupport(
+      StringExtractorGDBRemote &response, Timeout<std::micro> timeout,
+      bool sync_on_timeout,
+      llvm::function_ref<void(llvm::StringRef)> output_callback);
 
   PacketResult SendPacketAndReceiveResponseWithOutputSupport(
       llvm::StringRef payload, StringExtractorGDBRemote &response,
       std::chrono::seconds interrupt_timeout,
       llvm::function_ref<void(llvm::StringRef)> output_callback);
-
-  bool SendvContPacket(llvm::StringRef payload,
-                       std::chrono::seconds interrupt_timeout,
-                       StringExtractorGDBRemote &response);
 
   class Lock {
   public:
@@ -94,7 +105,8 @@ public:
 protected:
   PacketResult
   SendPacketAndWaitForResponseNoLock(llvm::StringRef payload,
-                                     StringExtractorGDBRemote &response);
+                                     StringExtractorGDBRemote &response,
+                                     bool sync_on_timeout = true);
 
   virtual void OnRunPacketSent(bool first);
 

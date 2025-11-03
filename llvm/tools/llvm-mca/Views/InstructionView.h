@@ -15,11 +15,12 @@
 #ifndef LLVM_TOOLS_LLVM_MCA_INSTRUCTIONVIEW_H
 #define LLVM_TOOLS_LLVM_MCA_INSTRUCTIONVIEW_H
 
-#include "Views/View.h"
+#include "llvm/MCA/View.h"
 #include "llvm/Support/JSON.h"
-#include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
+class MCInstPrinter;
+
 namespace mca {
 
 // The base class for views that deal with individual machine instructions.
@@ -37,7 +38,7 @@ public:
                   llvm::MCInstPrinter &Printer, llvm::ArrayRef<llvm::MCInst> S)
       : STI(STI), MCIP(Printer), Source(S), InstrStream(InstructionString) {}
 
-  virtual ~InstructionView();
+  ~InstructionView() override;
 
   StringRef getNameAsString() const override { return "Instructions"; }
 

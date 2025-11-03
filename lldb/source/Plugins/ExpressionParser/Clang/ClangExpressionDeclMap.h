@@ -12,6 +12,7 @@
 #include <csignal>
 #include <cstdint>
 
+#include <memory>
 #include <vector>
 
 #include "ClangASTSource.h"
@@ -52,7 +53,7 @@ class ClangPersistentVariables;
 /// struct so that it can be passed to the JITted version of the IR.
 ///
 /// Fourth and finally, it "dematerializes" the struct after the JITted code
-/// has has executed, placing the new values back where it found the old ones.
+/// has executed, placing the new values back where it found the old ones.
 class ClangExpressionDeclMap : public ClangASTSource {
 public:
   /// Constructor
@@ -343,7 +344,7 @@ private:
 
   /// Activate parser-specific variables
   void EnableParserVars() {
-    if (!m_parser_vars.get())
+    if (!m_parser_vars)
       m_parser_vars = std::make_unique<ParserVars>();
   }
 
@@ -353,7 +354,7 @@ private:
   /// The following values contain layout information for the materialized
   /// struct, but are not specific to a single materialization
   struct StructVars {
-    StructVars() : m_result_name(), m_object_pointer_type(nullptr, nullptr) {}
+    StructVars() = default;
 
     lldb::offset_t m_struct_alignment =
         0;                    ///< The alignment of the struct in bytes.
@@ -364,22 +365,20 @@ private:
                /// added since).
     ConstString
         m_result_name; ///< The name of the result variable ($1, for example)
-    TypeFromUser m_object_pointer_type; ///< The type of the "this" variable, if
-                                        ///one exists
   };
 
   std::unique_ptr<StructVars> m_struct_vars;
 
   /// Activate struct variables
   void EnableStructVars() {
-    if (!m_struct_vars.get())
+    if (!m_struct_vars)
       m_struct_vars.reset(new struct StructVars);
   }
 
   /// Deallocate struct variables
   void DisableStructVars() { m_struct_vars.reset(); }
 
-  TypeSystemClang *GetScratchContext(Target &target) {
+  lldb::TypeSystemClangSP GetScratchContext(Target &target) {
     return ScratchTypeSystemClang::GetForTarget(target,
                                                 m_ast_context->getLangOpts());
   }
@@ -482,7 +481,10 @@ private:
   ///
   /// \param[in] namespace_decl
   ///     If valid and module is non-NULL, the parent namespace.
-  void LookupFunction(NameSearchContext &context, lldb::ModuleSP module_sp,
+  ///
+  /// \returns Returns \c true if we successfully found a function
+  /// and could create a decl with correct type-info for it.
+  bool LookupFunction(NameSearchContext &context, lldb::ModuleSP module_sp,
                       ConstString name,
                       const CompilerDeclContext &namespace_decl);
 
@@ -533,6 +535,23 @@ private:
                         TypeFromParser *parser_type = nullptr);
 
   /// Use the NameSearchContext to generate a Decl for the given LLDB
+  /// ValueObject, and put it in the list of found entities.
+  ///
+  /// Helper function used by the other AddOneVariable APIs.
+  ///
+  /// \param[in,out] context
+  ///     The NameSearchContext to use when constructing the Decl.
+  ///
+  /// \param[in] pt
+  ///     The CompilerType of the variable we're adding a Decl for.
+  ///
+  /// \param[in] var
+  ///     The LLDB ValueObject that needs a Decl.
+  ClangExpressionVariable::ParserVars *
+  AddExpressionVariable(NameSearchContext &context, TypeFromParser const &pt,
+                        lldb::ValueObjectSP valobj);
+
+  /// Use the NameSearchContext to generate a Decl for the given LLDB
   /// Variable, and put it in the Tuple list.
   ///
   /// \param[in] context
@@ -545,6 +564,20 @@ private:
   ///     The LLDB ValueObject for that variable.
   void AddOneVariable(NameSearchContext &context, lldb::VariableSP var,
                       lldb::ValueObjectSP valobj);
+
+  /// Use the NameSearchContext to generate a Decl for the given ValueObject
+  /// and put it in the list of found entities.
+  ///
+  /// \param[in,out] context
+  ///     The NameSearchContext to use when constructing the Decl.
+  ///
+  /// \param[in] valobj
+  ///     The ValueObject that needs a Decl.
+  ///
+  /// \param[in] valobj_provider Callback that fetches a ValueObjectSP
+  ///            from the specified frame
+  void AddOneVariable(NameSearchContext &context, lldb::ValueObjectSP valobj,
+                      ValueObjectProviderTy valobj_provider);
 
   /// Use the NameSearchContext to generate a Decl for the given persistent
   /// variable, and put it in the list of found entities.

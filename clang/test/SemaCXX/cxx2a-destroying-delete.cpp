@@ -16,7 +16,7 @@ namespace std {
 void operator delete(void*, std::destroying_delete_t); // ok, just a placement delete
 
 struct A;
-void operator delete(A*, std::destroying_delete_t); // expected-error {{first parameter of 'operator delete' must have type 'void *'}}
+void operator delete(A*, std::destroying_delete_t); // expected-error {{1st parameter of 'operator delete' must have type 'void *'}}
 
 struct A {
   void operator delete(A*, std::destroying_delete_t);
@@ -27,7 +27,7 @@ struct A {
   // FIXME: It's probably a language defect that we permit usual operator delete to be variadic.
   void operator delete(A*, std::destroying_delete_t, std::size_t, ...);
 
-  void operator delete(struct X*, std::destroying_delete_t, std::size_t, ...); // expected-error {{first parameter of 'operator delete' must have type 'A *'}}
+  void operator delete(struct X*, std::destroying_delete_t, std::size_t, ...); // expected-error {{1st parameter of destroying 'operator delete' must have type 'A *'}}
 
   void operator delete(void*, std::size_t);
 };
@@ -42,9 +42,9 @@ namespace convert_param {
   };
   struct B : private A { using A::operator delete; }; // expected-note 2{{declared private here}}
   struct C : B {};
-  void delete_C(C *c) { delete c; } // expected-error {{cannot cast 'convert_param::C' to its private base class 'convert_param::A'}}
+  void delete_C(C *c) { delete c; } // expected-error {{cannot cast 'C' to its private base class 'A'}}
 
-  // expected-error@-7 {{cannot cast 'convert_param::D' to its private base class 'convert_param::A'}}
+  // expected-error@-7 {{cannot cast 'convert_param::D' to its private base class 'A'}}
   struct D : B { virtual ~D() {} }; // expected-note {{while checking implicit 'delete this' for virtual destructor}}
 }
 
@@ -120,7 +120,7 @@ namespace first_param_conversion {
   struct D : B {};
   struct E : C, D {};
   void g(E *e) {
-    delete e; // expected-error {{ambiguous conversion from derived class 'first_param_conversion::E' to base class 'first_param_conversion::B':}}
+    delete e; // expected-error {{ambiguous conversion from derived class 'E' to base class 'B':}}
   }
 }
 
@@ -138,7 +138,7 @@ namespace templated {
     void operator delete(id_alias<C> *, std::destroying_delete_t);
   };
   template<typename T> struct D {
-    void operator delete(typename id_struct<D>::type *, std::destroying_delete_t); // expected-error {{use 'D<T> *'}}
+    void operator delete(typename id_struct<D>::type *, std::destroying_delete_t); // expected-error {{use 'templated::D<T> *'}}
   };
 }
 
@@ -146,12 +146,12 @@ namespace dtor_access {
   struct S {
     void operator delete(S *p, std::destroying_delete_t);
   private:
-    ~S(); // expected-note {{here}}
+    ~S();
   };
 
-  // FIXME: PR47474: GCC accepts this, and it seems somewhat reasonable to
-  // allow, even though [expr.delete]p12 says this is ill-formed.
-  void f() { delete new S; } // expected-error {{calling a private destructor}}
+  // C++20 [expr.delete]p12 says this is ill-formed, but GCC accepts and we
+  // filed CWG2889 to resolve in the same way.
+  void f() { delete new S; }
 
   struct T {
     void operator delete(T *, std::destroying_delete_t);
@@ -165,7 +165,7 @@ namespace dtor_access {
     ~U() override;
   };
 
-  void g() { delete (T *)new U; } // expected-error {{calling a protected destructor}}
+  void g() { delete (T *)new U; } // expected-error {{calling a protected destructor of class 'T'}}
 }
 
 namespace delete_from_new {
@@ -186,4 +186,13 @@ namespace delete_from_new {
   // expected-note@#member-delete-from-new {{deleted here}}
 #endif
   }
+}
+
+namespace GH96191 {
+  struct S {};
+  struct T {
+    void operator delete(S) { } // expected-error {{1st parameter of 'operator delete' must have type 'void *'}}
+  };
+
+  void foo(T *t) { delete t; }
 }

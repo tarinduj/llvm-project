@@ -5,11 +5,11 @@ a: .word b
 
   .cg_profile a, b, 32
   .cg_profile freq, a, 11
-  .cg_profile late, late2, 20
+  .cg_profile "late\\", late2, 20
   .cg_profile .L.local, b, 42
 
-	.globl late
-late:
+	.globl "late\\"
+"late\\":
 late2: .word 0
 late3:
 .L.local:
@@ -31,9 +31,10 @@ late3:
 # CHECK-NEXT:   0010: 14000000 00000000 2A000000 00000000
 # CHECK-NEXT: )
 
-# CHECK:      Name: .rel.llvm.call-graph-profile (28)
+# CHECK:      Name: .rel.llvm.call-graph-profile
 # CHECK-NEXT: Type: SHT_REL (0x9)
-# CHECK-NEXT: Flags [ (0x0)
+# CHECK-NEXT: Flags [ (0x40)
+# CHECK-NEXT:   SHF_INFO_LINK
 # CHECK-NEXT: ]
 # CHECK-NEXT: Address: 0x0
 # CHECK-NEXT: Offset: 0x140
@@ -82,7 +83,7 @@ late3:
 # CHECK-NEXT: Type:
 # CHECK-NEXT: Other:
 # CHECK-NEXT: Section: Undefined
-# CHECK:      Name: late
+# CHECK:      Name: late\ ([[#]])
 # CHECK-NEXT: Value:
 # CHECK-NEXT: Size:
 # CHECK-NEXT: Binding: Global

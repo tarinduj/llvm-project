@@ -30,9 +30,9 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "posix-dyld"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static lldb_private::DynamicLoader *
   CreateInstance(lldb_private::Process *process, bool force);
@@ -53,9 +53,18 @@ public:
                                   lldb::addr_t tls_file_addr) override;
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
-  uint32_t GetPluginVersion() override;
+  lldb::ModuleSP LoadModuleAtAddress(const lldb_private::FileSpec &file,
+                                     lldb::addr_t link_map_addr,
+                                     lldb::addr_t base_addr,
+                                     bool base_addr_is_offset) override;
+
+  void CalculateDynamicSaveCoreRanges(
+      lldb_private::Process &process,
+      std::vector<lldb_private::MemoryRegionInfo> &ranges,
+      llvm::function_ref<bool(const lldb_private::Thread &)>
+          save_thread_predicate) override;
 
 protected:
   /// Runtime linker rendezvous structure.
@@ -84,9 +93,8 @@ protected:
   /// Contains the pointer to the interpret module, if loaded.
   std::weak_ptr<lldb_private::Module> m_interpreter_module;
 
-  /// Loaded module list. (link map for each module)
-  std::map<lldb::ModuleWP, lldb::addr_t, std::owner_less<lldb::ModuleWP>>
-      m_loaded_modules;
+  /// Returns true if the process is for a core file.
+  bool IsCoreFile() const;
 
   /// If possible sets a breakpoint on a function called by the runtime
   /// linker each time a module is loaded or unloaded.
@@ -168,6 +176,19 @@ private:
   DynamicLoaderPOSIXDYLD(const DynamicLoaderPOSIXDYLD &) = delete;
   const DynamicLoaderPOSIXDYLD &
   operator=(const DynamicLoaderPOSIXDYLD &) = delete;
+
+  /// Loaded module list. (link map for each module)
+  /// This may be accessed in a multi-threaded context. Use the accessor methods
+  /// to access `m_loaded_modules` safely.
+  std::map<lldb::ModuleWP, lldb::addr_t, std::owner_less<lldb::ModuleWP>>
+      m_loaded_modules;
+  llvm::sys::RWMutex m_loaded_modules_rw_mutex;
+
+  void SetLoadedModule(const lldb::ModuleSP &module_sp,
+                       lldb::addr_t link_map_addr);
+  void UnloadModule(const lldb::ModuleSP &module_sp);
+  std::optional<lldb::addr_t>
+  GetLoadedModuleLinkAddr(const lldb::ModuleSP &module_sp);
 };
 
 #endif // LLDB_SOURCE_PLUGINS_DYNAMICLOADER_POSIX_DYLD_DYNAMICLOADERPOSIXDYLD_H

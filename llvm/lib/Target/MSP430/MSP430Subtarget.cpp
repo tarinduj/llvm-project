@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "MSP430Subtarget.h"
-#include "MSP430.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "MSP430SelectionDAGInfo.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -57,5 +57,14 @@ MSP430Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
 
 MSP430Subtarget::MSP430Subtarget(const Triple &TT, const std::string &CPU,
                                  const std::string &FS, const TargetMachine &TM)
-    : MSP430GenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS), FrameLowering(),
-      InstrInfo(initializeSubtargetDependencies(CPU, FS)), TLInfo(TM, *this) {}
+    : MSP430GenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS),
+      InstrInfo(initializeSubtargetDependencies(CPU, FS)), TLInfo(TM, *this),
+      FrameLowering(*this) {
+  TSInfo = std::make_unique<MSP430SelectionDAGInfo>();
+}
+
+MSP430Subtarget::~MSP430Subtarget() = default;
+
+const SelectionDAGTargetInfo *MSP430Subtarget::getSelectionDAGInfo() const {
+  return TSInfo.get();
+}

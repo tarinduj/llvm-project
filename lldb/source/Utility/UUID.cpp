@@ -11,10 +11,15 @@
 #include "lldb/Utility/Stream.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/RandomNumberGenerator.h"
 
 #include <cctype>
+#include <chrono>
+#include <climits>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <random>
 
 using namespace lldb_private;
 
@@ -35,14 +40,15 @@ static inline bool separate(size_t count) {
   }
 }
 
-UUID UUID::fromCvRecord(UUID::CvRecordPdb70 debug_info) {
+UUID::UUID(UUID::CvRecordPdb70 debug_info) {
   llvm::sys::swapByteOrder(debug_info.Uuid.Data1);
   llvm::sys::swapByteOrder(debug_info.Uuid.Data2);
   llvm::sys::swapByteOrder(debug_info.Uuid.Data3);
   llvm::sys::swapByteOrder(debug_info.Age);
   if (debug_info.Age)
-    return UUID::fromOptionalData(&debug_info, sizeof(debug_info));
-  return UUID::fromOptionalData(&debug_info.Uuid, sizeof(debug_info.Uuid));
+    *this = UUID(&debug_info, sizeof(debug_info));
+  else
+    *this = UUID(&debug_info.Uuid, sizeof(debug_info.Uuid));
 }
 
 std::string UUID::GetAsString(llvm::StringRef separator) const {
@@ -55,12 +61,11 @@ std::string UUID::GetAsString(llvm::StringRef separator) const {
 
     os << llvm::format_hex_no_prefix(B.value(), 2, true);
   }
-  os.flush();
 
   return result;
 }
 
-void UUID::Dump(Stream *s) const { s->PutCString(GetAsString()); }
+void UUID::Dump(Stream &s) const { s.PutCString(GetAsString()); }
 
 static inline int xdigit_to_int(char ch) {
   ch = tolower(ch);
@@ -107,16 +112,22 @@ bool UUID::SetFromStringRef(llvm::StringRef str) {
   if (!rest.empty() || bytes.empty())
     return false;
 
-  *this = fromData(bytes);
+  *this = UUID(bytes);
   return true;
 }
 
-bool UUID::SetFromOptionalStringRef(llvm::StringRef str) {
-  bool result = SetFromStringRef(str);
-  if (result) {
-    if (llvm::all_of(m_bytes, [](uint8_t b) { return b == 0; }))
-        Clear();
+UUID UUID::Generate(uint32_t num_bytes) {
+  llvm::SmallVector<uint8_t, 20> bytes(num_bytes);
+  auto ec = llvm::getRandomBytes(bytes.data(), bytes.size());
+
+  // If getRandomBytes failed, fall back to a lower entropy source.
+  if (ec) {
+    auto seed = std::chrono::steady_clock::now().time_since_epoch().count();
+    std::independent_bits_engine<std::default_random_engine, CHAR_BIT,
+                                 unsigned short>
+        engine(seed);
+    std::generate(bytes.begin(), bytes.end(), std::ref(engine));
   }
 
-  return result;
+  return UUID(bytes);
 }

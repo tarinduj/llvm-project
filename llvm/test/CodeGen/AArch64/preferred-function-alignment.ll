@@ -1,5 +1,5 @@
 ; RUN: llc -mtriple=aarch64-unknown-linux -mcpu=generic < %s | FileCheck --check-prefixes=ALIGN2,CHECK %s
-; RUN: llc -mtriple=aarch64-unknown-linux -mcpu=cortex-a35 < %s | FileCheck --check-prefixes=ALIGN2,CHECK %s
+; RUN: llc -mtriple=aarch64-unknown-linux -mcpu=cortex-a35 < %s | FileCheck --check-prefixes=ALIGN4,CHECK %s
 ; RUN: llc -mtriple=aarch64-unknown-linux -mcpu=cortex-a53 < %s | FileCheck --check-prefixes=ALIGN4,CHECK %s
 ; RUN: llc -mtriple=aarch64-unknown-linux -mcpu=cortex-a55 < %s | FileCheck --check-prefixes=ALIGN4,CHECK %s
 ; RUN: llc -mtriple=aarch64-unknown-linux -mcpu=cortex-a57 < %s | FileCheck --check-prefixes=ALIGN4,CHECK %s
@@ -39,4 +39,11 @@ define void @test_optsize() optsize {
 }
 
 ; CHECK-LABEL: test_optsize
+; CHECK-NEXT: .p2align 2
+
+define void @test_minsize() minsize {
+  ret void
+}
+
+; CHECK-LABEL: test_minsize
 ; CHECK-NEXT: .p2align 2

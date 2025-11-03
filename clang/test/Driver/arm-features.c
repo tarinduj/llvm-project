@@ -1,19 +1,19 @@
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic+crc -march=armv8a -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-CRC %s
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic -march=armv8a+crc -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-CRC %s
-// CHECK-CRC: "-cc1"{{.*}} "-triple" "armv8-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "+crc"
+// CHECK-CRC: "-cc1"{{.*}} "-triple" "armv8a-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "+crc"
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic+crypto -march=armv8a -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-CRYPTO %s
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic -march=armv8a+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-CRYPTO %s
-// CHECK-CRYPTO: "-cc1"{{.*}} "-triple" "armv8-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-CRYPTO: "-cc1"{{.*}} "-triple" "armv8a-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "+sha2" "-target-feature" "+aes"
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic+dsp -march=armv8m.main -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-DSP %s
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic -march=armv8m.main+dsp -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-DSP %s
 // CHECK-DSP: "-cc1"{{.*}} "-triple" "thumbv8m.main-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "+dsp"
 
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic+nocrc -march=armv8a -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NOCRC %s
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic -march=armv8a+nocrc -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NOCRC %s
-// CHECK-NOCRC: "-cc1"{{.*}} "-triple" "armv8-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "-crc"
+// CHECK-NOCRC: "-cc1"{{.*}} "-triple" "armv8a-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "-crc"
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic+nocrypto -march=armv8a -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NOCRYPTO %s
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic -march=armv8a+nocrypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NOCRYPTO %s
-// CHECK-NOCRYPTO: "-cc1"{{.*}} "-triple" "armv8-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "-sha2" "-target-feature" "-aes"
+// CHECK-NOCRYPTO: "-cc1"{{.*}} "-triple" "armv8a-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "-sha2" "-target-feature" "-aes"
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic+nodsp -march=armv8m.main -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NODSP %s
 // RUN: %clang -target arm-none-none-eabi -mcpu=generic -march=armv8m.main+nodsp -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NODSP %s
 // CHECK-NODSP: "-cc1"{{.*}} "-triple" "thumbv8m.main-{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "-dsp"
@@ -74,7 +74,7 @@
 // Check +crypto for M and R profiles:
 //
 // RUN: %clang -target arm-arm-none-eabi -march=armv8-r+crypto   -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-CRYPTO-R %s
-// CHECK-CRYPTO-R: "-cc1"{{.*}} "-target-cpu" "cortex-r52"{{.*}} "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-CRYPTO-R: "-cc1"{{.*}} "-target-cpu" "generic"{{.*}} "-target-feature" "+sha2" "-target-feature" "+aes" "-target-feature" "+neon"
 // RUN: %clang -target arm-arm-none-eabi -march=armv8-m.base+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NOCRYPTO5 %s
 // RUN: %clang -target arm-arm-none-eabi -march=armv8-m.main+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NOCRYPTO5 %s
 // RUN: %clang -target arm-arm-none-eabi -mcpu=cortex-m23+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NOCRYPTO5 %s
@@ -97,3 +97,21 @@
 // CHECK-NOSHA-DAG: "-target-feature" "-sha2"
 // CHECK-NOAES-DAG: "-target-feature" "-aes"
 //
+// Check that adding features that depend on NEON enable the feature
+// RUN: %clang -target arm-none-none-eabi -march=armv8-r+sha2 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NEON-ENABLED-WITH-FEATURE %s
+// RUN: %clang -target arm-none-none-eabi -march=armv8-r+aes -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NEON-ENABLED-WITH-FEATURE %s
+// RUN: %clang -target arm-none-none-eabi -march=armv8-r+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NEON-ENABLED-WITH-FEATURE %s
+// RUN: %clang -target arm-none-none-eabi -march=armv8-r+dotprod -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NEON-ENABLED-WITH-FEATURE %s
+// RUN: %clang -target arm-none-none-eabi -march=armv8-r+bf16 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NEON-ENABLED-WITH-FEATURE %s
+// RUN: %clang -target arm-none-none-eabi -march=armv8-r+i8mm -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NEON-ENABLED-WITH-FEATURE %s
+// CHECK-NEON-ENABLED-WITH-FEATURE: "-target-feature" "+neon"
+
+// Check that disabling NEON disables all features associated with this
+// RUN: %clang -target arm-none-none-eabi -march=armv8-a+nosimd -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NEON-DISABLED-DISABLES-ALL-DEPENDENCIES %s
+// CHECK-NEON-DISABLED-DISABLES-ALL-DEPENDENCIES: "-target-feature" "-neon"
+// CHECK-NEON-DISABLED-DISABLES-ALL-DEPENDENCIES: "-target-feature" "-dotprod"
+// CHECK-NEON-DISABLED-DISABLES-ALL-DEPENDENCIES: "-target-feature" "-bf16"
+// CHECK-NEON-DISABLED-DISABLES-ALL-DEPENDENCIES: "-target-feature" "-i8mm"
+// CHECK-NEON-DISABLED-DISABLES-ALL-DEPENDENCIES: "-target-feature" "-crypto"
+// CHECK-NEON-DISABLED-DISABLES-ALL-DEPENDENCIES: "-target-feature" "-sha2"
+// CHECK-NEON-DISABLED-DISABLES-ALL-DEPENDENCIES: "-target-feature" "-aes"

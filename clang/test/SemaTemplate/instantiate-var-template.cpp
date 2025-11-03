@@ -28,10 +28,10 @@ namespace InstantiationDependent {
   template<typename T> constexpr T b = a<sizeof(sizeof(f(T())))>; // expected-error {{invalid application of 'sizeof' to an incomplete type 'void'}}
 
   static_assert(b<int> == 1, "");
-  static_assert(b<char> == 1, ""); // expected-note {{in instantiation of}} expected-error {{not an integral constant}}
+  static_assert(b<char> == 1, ""); // expected-note {{in instantiation of}}
 
   template<typename T> void f() {
-    static_assert(a<sizeof(sizeof(f(T())))> == 0, ""); // expected-error {{static_assert failed}}
+    int check[a<sizeof(sizeof(f(T())))> == 0 ? 1 : -1]; // expected-error {{array with a negative size}}
   }
 }
 
@@ -46,4 +46,15 @@ namespace InvalidInsertPos {
   template<int N> decltype(v<int, N-1>) v<int, N>;
   template<> int v<int, 0>;
   int k = v<int, 500>;
+}
+
+namespace GH97881_comment {
+  template <bool B>
+  auto g = sizeof(g<!B>);
+  // expected-error@-1 {{the type of variable template specialization 'g<false>'}}
+  // expected-note@-2 {{in instantiation of variable template specialization 'GH97881_comment::g'}}
+
+  void test() {
+    (void)sizeof(g<false>); // expected-note {{in instantiation of variable template specialization 'GH97881_comment::g'}}
+  }
 }

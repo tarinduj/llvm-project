@@ -47,6 +47,11 @@ public:
 
   Status RemoveHardwareBreakpoint(lldb::addr_t addr) override;
 
+  NativeProcessFreeBSD &GetProcess();
+
+  llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
+  GetSiginfo() const override;
+
 private:
   // Interface for friend classes
 

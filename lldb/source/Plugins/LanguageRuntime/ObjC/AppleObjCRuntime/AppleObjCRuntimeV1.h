@@ -28,7 +28,7 @@ public:
   static lldb_private::LanguageRuntime *
   CreateInstance(Process *process, lldb::LanguageType language);
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "apple-objc-v1"; }
 
   static char ID;
 
@@ -100,16 +100,14 @@ public:
   bool GetDynamicTypeAndAddress(ValueObject &in_value,
                                 lldb::DynamicValueType use_dynamic,
                                 TypeAndOrName &class_type_or_name,
-                                Address &address,
-                                Value::ValueType &value_type) override;
+                                Address &address, Value::ValueType &value_type,
+                                llvm::ArrayRef<uint8_t> &local_buffer) override;
 
   llvm::Expected<std::unique_ptr<UtilityFunction>>
   CreateObjectChecker(std::string, ExecutionContext &exe_ctx) override;
 
   // PluginInterface protocol
-  ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   ObjCRuntimeVersions GetRuntimeVersion() const override {
     return ObjCRuntimeVersions::eAppleObjC_V1;

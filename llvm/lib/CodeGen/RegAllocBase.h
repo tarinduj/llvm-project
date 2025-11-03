@@ -37,6 +37,8 @@
 #define LLVM_LIB_CODEGEN_REGALLOCBASE_H
 
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegAllocCommon.h"
 #include "llvm/CodeGen/RegisterClassInfo.h"
 
@@ -68,21 +70,33 @@ protected:
   LiveIntervals *LIS = nullptr;
   LiveRegMatrix *Matrix = nullptr;
   RegisterClassInfo RegClassInfo;
-  const RegClassFilterFunc ShouldAllocateClass;
 
+private:
+  /// Private, callees should go through shouldAllocateRegister
+  const RegAllocFilterFunc shouldAllocateRegisterImpl;
+
+protected:
   /// Inst which is a def of an original reg and whose defs are already all
   /// dead after remat is saved in DeadRemats. The deletion of such inst is
   /// postponed till all the allocations are done, so its remat expr is
   /// always available for the remat of all the siblings of the original reg.
   SmallPtrSet<MachineInstr *, 32> DeadRemats;
 
-  RegAllocBase(const RegClassFilterFunc F = allocateAllRegClasses) :
-    ShouldAllocateClass(F) {}
+  SmallSet<Register, 2> FailedVRegs;
+  RegAllocBase(const RegAllocFilterFunc F = nullptr)
+      : shouldAllocateRegisterImpl(F) {}
 
   virtual ~RegAllocBase() = default;
 
   // A RegAlloc pass should call this before allocatePhysRegs.
   void init(VirtRegMap &vrm, LiveIntervals &lis, LiveRegMatrix &mat);
+
+  /// Get whether a given register should be allocated
+  bool shouldAllocateRegister(Register Reg) {
+    if (!shouldAllocateRegisterImpl)
+      return true;
+    return shouldAllocateRegisterImpl(*TRI, *MRI, Reg);
+  }
 
   // The top-level driver. The output is a VirtRegMap that us updated with
   // physical register assignments.
@@ -92,31 +106,42 @@ protected:
   // rematerialization.
   virtual void postOptimization();
 
+  /// Perform cleanups on registers that failed to allocate. This hacks on the
+  /// liveness in order to avoid spurious verifier errors in later passes.
+  void cleanupFailedVReg(Register FailedVReg, MCRegister PhysReg,
+                         SmallVectorImpl<Register> &SplitRegs);
+
   // Get a temporary reference to a Spiller instance.
   virtual Spiller &spiller() = 0;
 
   /// enqueue - Add VirtReg to the priority queue of unassigned registers.
-  virtual void enqueueImpl(LiveInterval *LI) = 0;
+  virtual void enqueueImpl(const LiveInterval *LI) = 0;
 
   /// enqueue - Add VirtReg to the priority queue of unassigned registers.
-  void enqueue(LiveInterval *LI);
+  void enqueue(const LiveInterval *LI);
 
   /// dequeue - Return the next unassigned register, or NULL.
-  virtual LiveInterval *dequeue() = 0;
+  virtual const LiveInterval *dequeue() = 0;
 
   // A RegAlloc pass should override this to provide the allocation heuristics.
   // Each call must guarantee forward progess by returning an available PhysReg
   // or new set of split live virtual registers. It is up to the splitter to
   // converge quickly toward fully spilled live ranges.
-  virtual MCRegister selectOrSplit(LiveInterval &VirtReg,
+  virtual MCRegister selectOrSplit(const LiveInterval &VirtReg,
                                    SmallVectorImpl<Register> &splitLVRs) = 0;
+
+  /// Query a physical register to use as a filler in contexts where the
+  /// allocation has failed. This will raise an error, but not abort the
+  /// compilation.
+  MCPhysReg getErrorAssignment(const TargetRegisterClass &RC,
+                               const MachineInstr *CtxMI = nullptr);
 
   // Use this group name for NamedRegionTimer.
   static const char TimerGroupName[];
   static const char TimerGroupDescription[];
 
   /// Method called when the allocator is about to remove a LiveInterval.
-  virtual void aboutToRemoveInterval(LiveInterval &LI) {}
+  virtual void aboutToRemoveInterval(const LiveInterval &LI) {}
 
 public:
   /// VerifyEnabled - True when -verify-regalloc is given.

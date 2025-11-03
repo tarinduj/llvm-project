@@ -7,17 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/SCFToGPU/SCFToGPUPass.h"
-#include "../PassDetail.h"
+
 #include "mlir/Conversion/SCFToGPU/SCFToGPU.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Complex/IR/Complex.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/Support/CommandLine.h"
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTAFFINEFORTOGPUPASS
+#define GEN_PASS_DEF_CONVERTPARALLELLOOPTOGPUPASS
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -26,16 +26,14 @@ namespace {
 // A pass that traverses top-level loops in the function and converts them to
 // GPU launch operations.  Nested launches are not allowed, so this does not
 // walk the function recursively to avoid considering nested loops.
-struct ForLoopMapper : public ConvertAffineForToGPUBase<ForLoopMapper> {
-  ForLoopMapper() = default;
-  ForLoopMapper(unsigned numBlockDims, unsigned numThreadDims) {
-    this->numBlockDims = numBlockDims;
-    this->numThreadDims = numThreadDims;
-  }
+struct ForLoopMapper
+    : public impl::ConvertAffineForToGPUPassBase<ForLoopMapper> {
+  using Base::Base;
 
-  void runOnFunction() override {
-    for (Operation &op : llvm::make_early_inc_range(getFunction().getOps())) {
-      if (auto forOp = dyn_cast<AffineForOp>(&op)) {
+  void runOnOperation() override {
+    for (Operation &op : llvm::make_early_inc_range(
+             getOperation().getFunctionBody().getOps())) {
+      if (auto forOp = dyn_cast<affine::AffineForOp>(&op)) {
         if (failed(convertAffineLoopNestToGPULaunch(forOp, numBlockDims,
                                                     numThreadDims)))
           signalPassFailure();
@@ -45,7 +43,7 @@ struct ForLoopMapper : public ConvertAffineForToGPUBase<ForLoopMapper> {
 };
 
 struct ParallelLoopToGpuPass
-    : public ConvertParallelLoopToGpuBase<ParallelLoopToGpuPass> {
+    : public impl::ConvertParallelLoopToGpuPassBase<ParallelLoopToGpuPass> {
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     populateParallelLoopToGPUPatterns(patterns);
@@ -55,19 +53,8 @@ struct ParallelLoopToGpuPass
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       signalPassFailure();
+    finalizeParallelLoopToGPUConversion(getOperation());
   }
 };
 
 } // namespace
-
-std::unique_ptr<OperationPass<FuncOp>>
-mlir::createAffineForToGPUPass(unsigned numBlockDims, unsigned numThreadDims) {
-  return std::make_unique<ForLoopMapper>(numBlockDims, numThreadDims);
-}
-std::unique_ptr<OperationPass<FuncOp>> mlir::createAffineForToGPUPass() {
-  return std::make_unique<ForLoopMapper>();
-}
-
-std::unique_ptr<Pass> mlir::createParallelLoopToGpuPass() {
-  return std::make_unique<ParallelLoopToGpuPass>();
-}

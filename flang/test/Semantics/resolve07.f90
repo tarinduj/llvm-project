@@ -1,5 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1
-! REQUIRES: shell
+! RUN: %python %S/test_errors.py %s %flang_fc1
 subroutine s1
   integer :: x(2)
   !ERROR: The dimensions of 'x' have already been declared
@@ -19,6 +18,7 @@ subroutine s2
 end
 
 subroutine s3
+  save
   dimension :: x(4), x2(8)
   !ERROR: The dimensions of 'x' have already been declared
   allocatable :: x(:)

@@ -34,10 +34,9 @@ public:
   GetReturnValueObjectImpl(lldb_private::Thread &thread,
                            lldb_private::CompilerType &type) const override;
 
-  bool
-  CreateFunctionEntryUnwindPlan(lldb_private::UnwindPlan &unwind_plan) override;
+  lldb::UnwindPlanSP CreateFunctionEntryUnwindPlan() override;
 
-  bool CreateDefaultUnwindPlan(lldb_private::UnwindPlan &unwind_plan) override;
+  lldb::UnwindPlanSP CreateDefaultUnwindPlan() override;
 
   bool RegisterIsVolatile(const lldb_private::RegisterInfo *reg_info) override;
 
@@ -78,13 +77,11 @@ public:
 
   static lldb::ABISP CreateInstance(lldb::ProcessSP process_sp, const lldb_private::ArchSpec &arch);
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "sysv-ppc"; }
 
   // PluginInterface protocol
 
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
 protected:
   void CreateRegisterMapIfNeeded();

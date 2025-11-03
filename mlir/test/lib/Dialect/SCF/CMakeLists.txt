@@ -1,12 +1,20 @@
 # Exclude tests from libMLIR.so
 add_mlir_library(MLIRSCFTestPasses
+  TestLoopParametricTiling.cpp
+  TestLoopUnrolling.cpp
+  TestParallelLoopUnrolling.cpp
   TestSCFUtils.cpp
+  TestSCFWrapInZeroTripCheck.cpp
+  TestUpliftWhileToFor.cpp
+  TestWhileOpBuilder.cpp
 
   EXCLUDE_FROM_LIBMLIR
-
-  LINK_LIBS PUBLIC
+  )
+mlir_target_link_libraries(MLIRSCFTestPasses PUBLIC
+  MLIRMemRefDialect
   MLIRPass
-  MLIRSCF
+  MLIRSCFDialect
   MLIRSCFTransforms
+  MLIRSCFUtils
   MLIRTransformUtils
   )

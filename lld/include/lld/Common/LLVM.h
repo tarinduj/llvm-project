@@ -45,7 +45,6 @@ class WasmSymbol;
 
 namespace wasm {
 struct WasmTag;
-struct WasmTagType;
 struct WasmFunction;
 struct WasmGlobal;
 struct WasmGlobalType;
@@ -59,9 +58,6 @@ struct WasmTableType;
 } // namespace llvm
 
 namespace lld {
-llvm::raw_ostream &outs();
-llvm::raw_ostream &errs();
-
 // Casting operators.
 using llvm::cast;
 using llvm::cast_or_null;
@@ -97,7 +93,6 @@ using llvm::wasm::WasmSignature;
 using llvm::wasm::WasmTable;
 using llvm::wasm::WasmTableType;
 using llvm::wasm::WasmTag;
-using llvm::wasm::WasmTagType;
 } // end namespace lld.
 
 namespace std {

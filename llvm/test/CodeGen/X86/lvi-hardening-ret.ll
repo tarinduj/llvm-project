@@ -16,10 +16,10 @@ define dso_local i32 @ordinary_function(i32 %x, i32 %y) #0 {
 entry:
   %x.addr = alloca i32, align 4
   %y.addr = alloca i32, align 4
-  store i32 %x, i32* %x.addr, align 4
-  store i32 %y, i32* %y.addr, align 4
-  %0 = load i32, i32* %x.addr, align 4
-  %1 = load i32, i32* %y.addr, align 4
+  store i32 %x, ptr %x.addr, align 4
+  store i32 %y, ptr %y.addr, align 4
+  %0 = load i32, ptr %x.addr, align 4
+  %1 = load i32, ptr %y.addr, align 4
   %add = add nsw i32 %0, %1
   ret i32 %add
 ; CHECK-NOT:  retq
@@ -34,16 +34,16 @@ define dso_local i32 @no_caller_saved_registers_function(i32 %x, i32 %y) #1 {
 entry:
   %x.addr = alloca i32, align 4
   %y.addr = alloca i32, align 4
-  store i32 %x, i32* %x.addr, align 4
-  store i32 %y, i32* %y.addr, align 4
-  %0 = load i32, i32* %x.addr, align 4
-  %1 = load i32, i32* %y.addr, align 4
+  store i32 %x, ptr %x.addr, align 4
+  store i32 %y, ptr %y.addr, align 4
+  %0 = load i32, ptr %x.addr, align 4
+  %1 = load i32, ptr %y.addr, align 4
   %add = add nsw i32 %0, %1
   ret i32 %add
 ; CHECK-NOT:  retq
-; CHECK:      popq %rcx
+; CHECK:      popq %rsi
 ; CHECK-NEXT: lfence
-; CHECK-NEXT: jmpq *%rcx
+; CHECK-NEXT: jmpq *%rsi
 }
 
 ; Function Attrs: noinline nounwind optnone uwtable
@@ -52,9 +52,9 @@ define dso_local preserve_mostcc void @preserve_most() #0 {
 entry:
   ret void
 ; CHECK-NOT:  retq
-; CHECK:      popq %rax
+; CHECK:      popq %r11
 ; CHECK-NEXT: lfence
-; CHECK-NEXT: jmpq *%rax
+; CHECK-NEXT: jmpq *%r11
 }
 
 ; Function Attrs: noinline nounwind optnone uwtable
@@ -63,9 +63,9 @@ define dso_local preserve_allcc void @preserve_all() #0 {
 entry:
   ret void
 ; CHECK-NOT:  retq
-; CHECK:      popq %rax
+; CHECK:      popq %r11
 ; CHECK-NEXT: lfence
-; CHECK-NEXT: jmpq *%rax
+; CHECK-NEXT: jmpq *%r11
 }
 
 define { i64, i128 } @ret_i64_i128() #0 {

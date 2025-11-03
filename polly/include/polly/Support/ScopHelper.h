@@ -18,6 +18,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/ValueHandle.h"
 #include "isl/isl-noexceptions.h"
+#include <optional>
 
 namespace llvm {
 class LoopInfo;
@@ -34,6 +35,9 @@ class RegionNode;
 namespace polly {
 class Scop;
 class ScopStmt;
+
+/// Same as llvm/Analysis/ScalarEvolutionExpressions.h
+using LoopToScevMapT = llvm::DenseMap<const llvm::Loop *, const llvm::SCEV *>;
 
 /// Enumeration of assumptions Polly can take.
 enum AssumptionKind {
@@ -79,7 +83,7 @@ using RecordedAssumptionsTy = llvm::SmallVector<Assumption, 8>;
 ///
 /// This function will add the assumption to the RecordedAssumptions. This
 /// collection will be added (@see addAssumption) to the assumed context once
-/// all paramaters are known and the context is fully built.
+/// all parameters are known and the context is fully built.
 ///
 /// @param RecordedAssumption container which keeps all recorded assumptions.
 /// @param Kind The assumption kind describing the underlying cause.
@@ -128,12 +132,12 @@ using BoxedLoopsSetTy = llvm::SetVector<const llvm::Loop *>;
 /// isNull(), isInstruction(), isLoad(), isStore(), ..., isMemTransferInst(),
 /// operator bool(), operator!()
 ///
-/// The functions isa, cast, cast_or_null, dyn_cast are modeled te resemble
+/// The functions isa, cast, cast_or_null, dyn_cast are modeled to resemble
 /// those from llvm/Support/Casting.h. Partial template function specialization
 /// is currently not supported in C++ such that those cannot be used directly.
 /// (llvm::isa could, but then llvm:cast etc. would not have the expected
 /// behavior)
-class MemAccInst {
+class MemAccInst final {
 private:
   llvm::Instruction *I;
 
@@ -252,21 +256,6 @@ public:
       return nullptr;
     llvm_unreachable("Operation not supported on nullptr");
   }
-
-  unsigned getAlignment() const {
-    if (isLoad())
-      return asLoad()->getAlignment();
-    if (isStore())
-      return asStore()->getAlignment();
-    if (isMemTransferInst())
-      return std::min(asMemTransferInst()->getDestAlignment(),
-                      asMemTransferInst()->getSourceAlignment());
-    if (isMemIntrinsic())
-      return asMemIntrinsic()->getDestAlignment();
-    if (isCallInst())
-      return 0;
-    llvm_unreachable("Operation not supported on nullptr");
-  }
   bool isVolatile() const {
     if (isLoad())
       return asLoad()->isVolatile();
@@ -318,7 +307,6 @@ public:
 
   llvm::Instruction *asInstruction() const { return I; }
 
-private:
   bool isLoad() const { return I && llvm::isa<llvm::LoadInst>(I); }
   bool isStore() const { return I && llvm::isa<llvm::StoreInst>(I); }
   bool isCallInst() const { return I && llvm::isa<llvm::CallInst>(I); }
@@ -398,41 +386,24 @@ void splitEntryBlockForAlloca(llvm::BasicBlock *EntryBlock,
 /// as the call to SCEVExpander::expandCodeFor:
 ///
 /// @param S     The current Scop.
-/// @param SE    The Scalar Evolution pass.
+/// @param SE    The Scalar Evolution pass used by @p S.
+/// @param GenFn The function to generate code in. Can be the same as @p SE.
+/// @param GenSE The Scalar Evolution pass for @p GenFn.
 /// @param DL    The module data layout.
 /// @param Name  The suffix added to the new instruction names.
 /// @param E     The expression for which code is actually generated.
 /// @param Ty    The type of the resulting code.
 /// @param IP    The insertion point for the new code.
 /// @param VMap  A remapping of values used in @p E.
+/// @param LoopMap A remapping of loops used in @p E.
 /// @param RTCBB The last block of the RTC. Used to insert loop-invariant
 ///              instructions in rare cases.
 llvm::Value *expandCodeFor(Scop &S, llvm::ScalarEvolution &SE,
+                           llvm::Function *GenFn, llvm::ScalarEvolution &GenSE,
                            const llvm::DataLayout &DL, const char *Name,
                            const llvm::SCEV *E, llvm::Type *Ty,
-                           llvm::Instruction *IP, ValueMapT *VMap,
-                           llvm::BasicBlock *RTCBB);
-
-/// Check if the block is a error block.
-///
-/// A error block is currently any block that fulfills at least one of
-/// the following conditions:
-///
-///  - It is terminated by an unreachable instruction
-///  - It contains a call to a non-pure function that is not immediately
-///    dominated by a loop header and that does not dominate the region exit.
-///    This is a heuristic to pick only error blocks that are conditionally
-///    executed and can be assumed to be not executed at all without the domains
-///    being available.
-///
-/// @param BB The block to check.
-/// @param R  The analyzed region.
-/// @param LI The loop info analysis.
-/// @param DT The dominator tree of the function.
-///
-/// @return True if the block is a error block, false otherwise.
-bool isErrorBlock(llvm::BasicBlock &BB, const llvm::Region &R,
-                  llvm::LoopInfo &LI, const llvm::DominatorTree &DT);
+                           llvm::BasicBlock::iterator IP, ValueMapT *VMap,
+                           LoopToScevMapT *LoopMap, llvm::BasicBlock *RTCBB);
 
 /// Return the condition for the terminator @p TI.
 ///
@@ -558,17 +529,17 @@ bool hasDebugCall(ScopStmt *Stmt);
 ///   !{ !"Name" }
 ///
 /// Then `nullptr` is set to mark the property is existing, but does not carry
-/// any value. If the property does not exist, `None` is returned.
-llvm::Optional<llvm::Metadata *> findMetadataOperand(llvm::MDNode *LoopMD,
-                                                     llvm::StringRef Name);
+/// any value. If the property does not exist, `std::nullopt` is returned.
+std::optional<llvm::Metadata *> findMetadataOperand(llvm::MDNode *LoopMD,
+                                                    llvm::StringRef Name);
 
 /// Find a boolean property value in a LoopID. The value not being defined is
 /// interpreted as a false value.
 bool getBooleanLoopAttribute(llvm::MDNode *LoopID, llvm::StringRef Name);
 
 /// Find an integers property value in a LoopID.
-llvm::Optional<int> getOptionalIntLoopAttribute(llvm::MDNode *LoopID,
-                                                llvm::StringRef Name);
+std::optional<int> getOptionalIntLoopAttribute(llvm::MDNode *LoopID,
+                                               llvm::StringRef Name);
 
 /// Does the loop's LoopID contain a 'llvm.loop.disable_heuristics' property?
 ///

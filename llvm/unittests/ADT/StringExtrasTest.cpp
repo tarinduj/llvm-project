@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -34,8 +35,44 @@ TEST(StringExtrasTest, isSpace) {
   EXPECT_FALSE(isSpace('_'));
 }
 
-TEST(StringExtrasTest, Join) {
-  std::vector<std::string> Items;
+TEST(StringExtrasTest, isLower) {
+  EXPECT_TRUE(isLower('a'));
+  EXPECT_TRUE(isLower('b'));
+  EXPECT_TRUE(isLower('z'));
+  EXPECT_FALSE(isLower('A'));
+  EXPECT_FALSE(isLower('B'));
+  EXPECT_FALSE(isLower('Z'));
+  EXPECT_FALSE(isLower('\0'));
+  EXPECT_FALSE(isLower('\t'));
+  EXPECT_FALSE(isLower('\?'));
+}
+
+TEST(StringExtrasTest, isUpper) {
+  EXPECT_FALSE(isUpper('a'));
+  EXPECT_FALSE(isUpper('b'));
+  EXPECT_FALSE(isUpper('z'));
+  EXPECT_TRUE(isUpper('A'));
+  EXPECT_TRUE(isUpper('B'));
+  EXPECT_TRUE(isUpper('Z'));
+  EXPECT_FALSE(isUpper('\0'));
+  EXPECT_FALSE(isUpper('\t'));
+  EXPECT_FALSE(isUpper('\?'));
+}
+
+TEST(StringExtrasTest, isPunct) {
+  EXPECT_FALSE(isPunct('a'));
+  EXPECT_FALSE(isPunct('b'));
+  EXPECT_FALSE(isPunct('z'));
+  EXPECT_TRUE(isPunct('-'));
+  EXPECT_TRUE(isPunct(';'));
+  EXPECT_TRUE(isPunct('@'));
+  EXPECT_FALSE(isPunct('0'));
+  EXPECT_FALSE(isPunct('1'));
+  EXPECT_FALSE(isPunct('x'));
+}
+
+template <class ContainerT> void testJoin() {
+  ContainerT Items;
   EXPECT_EQ("", join(Items.begin(), Items.end(), " <sep> "));
 
   Items = {"foo"};
@@ -47,6 +84,17 @@ TEST(StringExtrasTest, Join) {
   Items = {"foo", "bar", "baz"};
   EXPECT_EQ("foo <sep> bar <sep> baz",
             join(Items.begin(), Items.end(), " <sep> "));
+}
+
+TEST(StringExtrasTest, Join) {
+  {
+    SCOPED_TRACE("std::vector<std::string>");
+    testJoin<std::vector<std::string>>();
+  }
+  {
+    SCOPED_TRACE("std::vector<const char*>");
+    testJoin<std::vector<const char *>>();
+  }
 }
 
 TEST(StringExtrasTest, JoinItems) {
@@ -90,9 +138,16 @@ TEST(StringExtrasTest, ToAndFromHex) {
   EXPECT_EQ(EvenData, fromHex(EvenStr));
   EXPECT_EQ(StringRef(EvenStr).lower(), toHex(EvenData, true));
 
-  std::string InvalidStr = "A5ZX";
+  std::string InvalidStr = "A50\xFF";
   std::string IgnoredOutput;
   EXPECT_FALSE(tryGetFromHex(InvalidStr, IgnoredOutput));
+}
+
+TEST(StringExtrasTest, UINT64ToHex) {
+  EXPECT_EQ(utohexstr(0x0u, false, 2), "00");
+  EXPECT_EQ(utohexstr(0xA0u), "A0");
+  EXPECT_EQ(utohexstr(0xA0u, false, 4), "00A0");
+  EXPECT_EQ(utohexstr(0xA0u, false, 8), "000000A0");
 }
 
 TEST(StringExtrasTest, to_float) {
@@ -142,6 +197,13 @@ TEST(StringExtrasTest, ConvertToSnakeFromCamelCase) {
 
   testConvertToSnakeCase("OpName", "op_name");
   testConvertToSnakeCase("opName", "op_name");
+  testConvertToSnakeCase("OPName", "op_name");
+  testConvertToSnakeCase("Intel_OCL_BI", "intel_ocl_bi");
+  testConvertToSnakeCase("I32Attr", "i32_attr");
+  testConvertToSnakeCase("opNAME", "op_name");
+  testConvertToSnakeCase("opNAMe", "op_na_me");
+  testConvertToSnakeCase("opnameE", "opname_e");
+  testConvertToSnakeCase("OPNameOPName", "op_name_op_name");
   testConvertToSnakeCase("_OpName", "_op_name");
   testConvertToSnakeCase("Op_Name", "op_name");
   testConvertToSnakeCase("", "");
@@ -228,6 +290,12 @@ TEST(StringExtrasTest, ListSeparator) {
   EXPECT_EQ(S, "");
   S = LS2;
   EXPECT_EQ(S, " ");
+
+  ListSeparator LS3(",", "{");
+  S = LS3;
+  EXPECT_EQ(S, "{");
+  S = LS3;
+  EXPECT_EQ(S, ",");
 }
 
 TEST(StringExtrasTest, toStringAPInt) {
@@ -247,11 +315,11 @@ TEST(StringExtrasTest, toStringAPInt) {
   EXPECT_EQ(toString(APInt(8, 255, isSigned), 36, isSigned, false), "73");
 
   isSigned = true;
-  EXPECT_EQ(toString(APInt(8, 255, isSigned), 2, isSigned, true), "-0b1");
-  EXPECT_EQ(toString(APInt(8, 255, isSigned), 8, isSigned, true), "-01");
-  EXPECT_EQ(toString(APInt(8, 255, isSigned), 10, isSigned, true), "-1");
-  EXPECT_EQ(toString(APInt(8, 255, isSigned), 16, isSigned, true), "-0x1");
-  EXPECT_EQ(toString(APInt(8, 255, isSigned), 36, isSigned, false), "-1");
+  EXPECT_EQ(toString(APInt(8, -1, isSigned), 2, isSigned, true), "-0b1");
+  EXPECT_EQ(toString(APInt(8, -1, isSigned), 8, isSigned, true), "-01");
+  EXPECT_EQ(toString(APInt(8, -1, isSigned), 10, isSigned, true), "-1");
+  EXPECT_EQ(toString(APInt(8, -1, isSigned), 16, isSigned, true), "-0x1");
+  EXPECT_EQ(toString(APInt(8, -1, isSigned), 36, isSigned, false), "-1");
 }
 
 TEST(StringExtrasTest, toStringAPSInt) {
@@ -273,4 +341,61 @@ TEST(StringExtrasTest, toStringAPSInt) {
   EXPECT_EQ(toString(APSInt(APInt(8, 255), isUnsigned), 8), "-1");
   EXPECT_EQ(toString(APSInt(APInt(8, 255), isUnsigned), 10), "-1");
   EXPECT_EQ(toString(APSInt(APInt(8, 255), isUnsigned), 16), "-1");
+}
+
+TEST(StringExtrasTest, splitStringRef) {
+  auto Spl = split("foo<=>bar<=><=>baz", "<=>");
+  auto It = Spl.begin();
+  auto End = Spl.end();
+
+  ASSERT_NE(It, End);
+  EXPECT_EQ(*It, StringRef("foo"));
+  ASSERT_NE(++It, End);
+  EXPECT_EQ(*It, StringRef("bar"));
+  ASSERT_NE(++It, End);
+  EXPECT_EQ(*It, StringRef(""));
+  ASSERT_NE(++It, End);
+  EXPECT_EQ(*It, StringRef("baz"));
+  ASSERT_EQ(++It, End);
+}
+
+TEST(StringExtrasTest, splitStringRefForLoop) {
+  llvm::SmallVector<StringRef, 4> Result;
+  for (StringRef x : split("foo<=>bar<=><=>baz", "<=>"))
+    Result.push_back(x);
+  EXPECT_THAT(Result, testing::ElementsAre("foo", "bar", "", "baz"));
+}
+
+TEST(StringExtrasTest, splitChar) {
+  auto Spl = split("foo,bar,,baz", ',');
+  auto It = Spl.begin();
+  auto End = Spl.end();
+
+  ASSERT_NE(It, End);
+  EXPECT_EQ(*It, StringRef("foo"));
+  ASSERT_NE(++It, End);
+  EXPECT_EQ(*It, StringRef("bar"));
+  ASSERT_NE(++It, End);
+  EXPECT_EQ(*It, StringRef(""));
+  ASSERT_NE(++It, End);
+  EXPECT_EQ(*It, StringRef("baz"));
+  ASSERT_EQ(++It, End);
+}
+
+TEST(StringExtrasTest, splitCharForLoop) {
+  llvm::SmallVector<StringRef, 4> Result;
+  for (StringRef x : split("foo,bar,,baz", ','))
+    Result.push_back(x);
+  EXPECT_THAT(Result, testing::ElementsAre("foo", "bar", "", "baz"));
+}
+
+TEST(StringExtrasTest, arrayToStringRef) {
+  auto roundTripTestString = [](llvm::StringRef Str) {
+    EXPECT_EQ(Str, toStringRef(arrayRefFromStringRef<uint8_t>(Str)));
+    EXPECT_EQ(Str, toStringRef(arrayRefFromStringRef<char>(Str)));
+  };
+  roundTripTestString("");
+  roundTripTestString("foo");
+  roundTripTestString("\0\n");
+  roundTripTestString("\xFF\xFE");
 }

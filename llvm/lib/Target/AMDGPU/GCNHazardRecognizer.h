@@ -25,7 +25,6 @@ class MachineFunction;
 class MachineInstr;
 class MachineOperand;
 class MachineRegisterInfo;
-class ScheduleDAG;
 class SIInstrInfo;
 class SIRegisterInfo;
 class GCNSubtarget;
@@ -47,7 +46,7 @@ private:
   const GCNSubtarget &ST;
   const SIInstrInfo &TII;
   const SIRegisterInfo &TRI;
-  TargetSchedModel TSchedModel;
+  const TargetSchedModel &TSchedModel;
   bool RunLdsBranchVmemWARHazardFixup;
 
   /// RegUnits of uses in the current soft memory clause.
@@ -63,9 +62,17 @@ private:
 
   void addClauseInst(const MachineInstr &MI);
 
+  /// \returns the number of wait states before another MFMA instruction can be
+  /// issued after \p MI.
+  unsigned getMFMAPipelineWaitStates(const MachineInstr &MI) const;
+
   // Advance over a MachineInstr bundle. Look for hazards in the bundled
   // instructions.
   void processBundle();
+
+  // Run on an individual instruction in hazard recognizer mode. This can be
+  // used on a newly inserted instruction before returning from PreEmitNoops.
+  void runOnInstruction(MachineInstr *MI);
 
   int getWaitStatesSince(IsHazardFn IsHazard, int Limit);
   int getWaitStatesSinceDef(unsigned Reg, IsHazardFn IsHazardDef, int Limit);
@@ -93,12 +100,43 @@ private:
   bool fixSMEMtoVectorWriteHazards(MachineInstr *MI);
   bool fixVcmpxExecWARHazard(MachineInstr *MI);
   bool fixLdsBranchVmemWARHazard(MachineInstr *MI);
+  bool fixLdsDirectVALUHazard(MachineInstr *MI);
+  bool fixLdsDirectVMEMHazard(MachineInstr *MI);
+  bool fixVALUPartialForwardingHazard(MachineInstr *MI);
+  bool fixVALUTransUseHazard(MachineInstr *MI);
+  bool fixVALUTransCoexecutionHazards(MachineInstr *MI);
+  bool fixWMMAHazards(MachineInstr *MI);
+  bool fixWMMACoexecutionHazards(MachineInstr *MI);
+  bool fixShift64HighRegBug(MachineInstr *MI);
+  bool fixVALUMaskWriteHazard(MachineInstr *MI);
+  bool fixRequiredExportPriority(MachineInstr *MI);
+  bool fixGetRegWaitIdle(MachineInstr *MI);
+  bool fixDsAtomicAsyncBarrierArriveB64(MachineInstr *MI);
+  bool fixScratchBaseForwardingHazard(MachineInstr *MI);
+  bool fixSetRegMode(MachineInstr *MI);
 
   int checkMAIHazards(MachineInstr *MI);
   int checkMAIHazards908(MachineInstr *MI);
   int checkMAIHazards90A(MachineInstr *MI);
+  /// Pad the latency between neighboring MFMA instructions with s_nops. The
+  /// percentage of wait states to fill with s_nops is specified by the command
+  /// line option '-amdgpu-mfma-padding-ratio'.
+  ///
+  /// For example, with '-amdgpu-mfma-padding-ratio=100':
+  ///
+  /// 2 pass MFMA instructions have a latency of 2 wait states. Therefore, a
+  /// 'S_NOP 1' will be added between sequential MFMA instructions.
+  ///
+  /// V_MFMA_F32_4X4X1F32
+  /// V_MFMA_F32_4X4X1F32
+  ///-->
+  /// V_MFMA_F32_4X4X1F32
+  /// S_NOP 1
+  /// V_MFMA_F32_4X4X1F32
+  int checkMFMAPadding(MachineInstr *MI);
   int checkMAIVALUHazards(MachineInstr *MI);
   int checkMAILdStHazards(MachineInstr *MI);
+  int checkPermlaneHazards(MachineInstr *MI);
 
 public:
   GCNHazardRecognizer(const MachineFunction &MF);

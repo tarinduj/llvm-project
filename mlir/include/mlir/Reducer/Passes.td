@@ -20,15 +20,12 @@ def CommonReductionPassOptions {
     Option<"testerName", "test", "std::string", /* default */"",
            "The location of the tester which tests the file interestingness">,
     ListOption<"testerArgs", "test-arg", "std::string",
-               "arguments of the tester",
-               "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">,
+               "arguments of the tester">,
   ];
 }
 
-def ReductionTree : Pass<"reduction-tree"> {
+def ReductionTreePass : Pass<"reduction-tree"> {
   let summary = "Reduce the input with reduction-tree algorithm";
-
-  let constructor = "mlir::createReductionTreePass()";
 
   let options = [
     Option<"traversalModeId", "traversal-mode", "unsigned",
@@ -37,10 +34,8 @@ def ReductionTree : Pass<"reduction-tree"> {
   ] # CommonReductionPassOptions.options;
 }
 
-def OptReduction : Pass<"opt-reduction-pass", "ModuleOp"> {
+def OptReductionPass : Pass<"opt-reduction-pass", "ModuleOp"> {
   let summary = "A wrapper pass that reduces the file with optimization passes";
-
-  let constructor = "mlir::createOptReductionPass()";
 
   let options = [
     Option<"optPass", "opt-pass", "std::string", /* default */"",

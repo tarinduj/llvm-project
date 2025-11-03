@@ -1,4 +1,4 @@
-//===--- MisplacedPointerArithmeticInAllocCheck.cpp - clang-tidy-----------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 void MisplacedPointerArithmeticInAllocCheck::registerMatchers(
     MatchFinder *Finder) {
@@ -78,8 +76,8 @@ void MisplacedPointerArithmeticInAllocCheck::check(
     } else {
       const auto *CtrE = New->getConstructExpr();
       if (!CtrE || !CtrE->getArg(CtrE->getNumArgs() - 1)
-                                     ->getType()
-                                     ->isIntegralOrEnumerationType())
+                        ->getType()
+                        ->isIntegralOrEnumerationType())
         return;
       CallName = "operator new";
     }
@@ -99,6 +97,4 @@ void MisplacedPointerArithmeticInAllocCheck::check(
       << FixItHint::CreateInsertion(NewRParen, RParen);
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

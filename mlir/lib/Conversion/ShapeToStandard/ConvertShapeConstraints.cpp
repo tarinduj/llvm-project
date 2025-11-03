@@ -8,17 +8,20 @@
 
 #include "mlir/Conversion/ShapeToStandard/ShapeToStandard.h"
 
-#include "../PassDetail.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTSHAPECONSTRAINTSPASS
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
+
 using namespace mlir;
+
 namespace {
 #include "ShapeToStandard.cpp.inc"
 } // namespace
@@ -29,7 +32,7 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(shape::CstrRequireOp op,
                                 PatternRewriter &rewriter) const override {
-    rewriter.create<AssertOp>(op.getLoc(), op.pred(), op.msgAttr());
+    cf::AssertOp::create(rewriter, op.getLoc(), op.getPred(), op.getMsgAttr());
     rewriter.replaceOpWithNewOp<shape::ConstWitnessOp>(op, true);
     return success();
   }
@@ -49,21 +52,16 @@ namespace {
 // is emitted, witnesses are satisfied, so they are replace with
 // `shape.const_witness true`.
 class ConvertShapeConstraints
-    : public ConvertShapeConstraintsBase<ConvertShapeConstraints> {
+    : public impl::ConvertShapeConstraintsPassBase<ConvertShapeConstraints> {
   void runOnOperation() override {
-    auto func = getOperation();
+    auto *func = getOperation();
     auto *context = &getContext();
 
     RewritePatternSet patterns(context);
     populateConvertShapeConstraintsConversionPatterns(patterns);
 
-    if (failed(applyPatternsAndFoldGreedily(func, std::move(patterns))))
+    if (failed(applyPatternsGreedily(func, std::move(patterns))))
       return signalPassFailure();
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<FuncOp>>
-mlir::createConvertShapeConstraintsPass() {
-  return std::make_unique<ConvertShapeConstraints>();
-}

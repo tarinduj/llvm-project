@@ -18,12 +18,12 @@
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/InitializePasses.h"
+#include <optional>
 
 using namespace llvm;
 
 DiagnosticInfoMIROptimization::MachineArgument::MachineArgument(
-    StringRef MKey, const MachineInstr &MI)
-    : Argument() {
+    StringRef MKey, const MachineInstr &MI) {
   Key = std::string(MKey);
 
   raw_string_ostream OS(Val);
@@ -31,10 +31,18 @@ DiagnosticInfoMIROptimization::MachineArgument::MachineArgument(
            /*SkipDebugLoc=*/true);
 }
 
-Optional<uint64_t>
+bool MachineOptimizationRemarkEmitter::invalidate(
+    MachineFunction &MF, const PreservedAnalyses &PA,
+    MachineFunctionAnalysisManager::Invalidator &Inv) {
+  // This analysis has no state and so can be trivially preserved but it needs
+  // a fresh view of BFI if it was constructed with one.
+  return MBFI && Inv.invalidate<MachineBlockFrequencyAnalysis>(MF, PA);
+}
+
+std::optional<uint64_t>
 MachineOptimizationRemarkEmitter::computeHotness(const MachineBasicBlock &MBB) {
   if (!MBFI)
-    return None;
+    return std::nullopt;
 
   return MBFI->getBlockProfileCount(&MBB);
 }
@@ -54,10 +62,8 @@ void MachineOptimizationRemarkEmitter::emit(
   LLVMContext &Ctx = MF.getFunction().getContext();
 
   // Only emit it if its hotness meets the threshold.
-  if (OptDiag.getHotness().getValueOr(0) <
-      Ctx.getDiagnosticsHotnessThreshold()) {
+  if (OptDiag.getHotness().value_or(0) < Ctx.getDiagnosticsHotnessThreshold())
     return;
-  }
 
   Ctx.diagnose(OptDiag);
 }
@@ -86,6 +92,18 @@ void MachineOptimizationRemarkEmitterPass::getAnalysisUsage(
   AU.addRequired<LazyMachineBlockFrequencyInfoPass>();
   AU.setPreservesAll();
   MachineFunctionPass::getAnalysisUsage(AU);
+}
+
+AnalysisKey MachineOptimizationRemarkEmitterAnalysis::Key;
+
+MachineOptimizationRemarkEmitterAnalysis::Result
+MachineOptimizationRemarkEmitterAnalysis::run(
+    MachineFunction &MF, MachineFunctionAnalysisManager &MFAM) {
+  MachineBlockFrequencyInfo *MBFI =
+      MF.getFunction().getContext().getDiagnosticsHotnessRequested()
+          ? &MFAM.getResult<MachineBlockFrequencyAnalysis>(MF)
+          : nullptr;
+  return Result(MF, MBFI);
 }
 
 char MachineOptimizationRemarkEmitterPass::ID = 0;

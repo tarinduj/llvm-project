@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TWEAKTESTING_H
-#define LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TWEAKTESTING_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_TWEAKS_TWEAKTESTING_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_TWEAKS_TWEAKTESTING_H
 
-#include "TestTU.h"
+#include "ParsedAST.h"
+#include "TestWorkspace.h"
 #include "index/Index.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <memory>
@@ -24,9 +26,9 @@ namespace clangd {
 // Fixture base for testing tweaks. Intended to be subclassed for each tweak.
 //
 // Usage:
-// TWEAK_TEST(ExpandAutoType);
+// TWEAK_TEST(ExpandDeducedType);
 //
-// TEST_F(ExpandAutoTypeTest, ShortensTypes) {
+// TEST_F(ExpandDeducedTypeTest, ShortensTypes) {
 //   Header = R"cpp(
 //     namespace foo { template<typename> class X{}; }
 //     using namespace foo;
@@ -90,14 +92,13 @@ protected:
   std::string apply(llvm::StringRef MarkedCode,
                     llvm::StringMap<std::string> *EditedFiles = nullptr) const;
 
-  // Accepts a code snippet with many ranges (or points) marked, and returns a
-  // list of snippets with one range marked each.
-  // Primarily used from EXPECT_AVAILABLE/EXPECT_UNAVAILABLE macro.
-  static std::vector<std::string> expandCases(llvm::StringRef MarkedCode);
-
-  // Returns a matcher that accepts marked code snippets where the tweak is
-  // available at the marked range.
-  ::testing::Matcher<llvm::StringRef> isAvailable() const;
+  // Helpers for EXPECT_AVAILABLE/EXPECT_UNAVAILABLE macros.
+  using WrappedAST = std::pair<ParsedAST, /*WrappingOffset*/ unsigned>;
+  WrappedAST build(llvm::StringRef) const;
+  bool isAvailable(WrappedAST &, llvm::Annotations::Range) const;
+  // Return code re-decorated with a single point/range.
+  static std::string decorate(llvm::StringRef, unsigned);
+  static std::string decorate(llvm::StringRef, llvm::Annotations::Range);
 };
 
 MATCHER_P2(FileWithContents, FileName, Contents, "") {
@@ -110,18 +111,85 @@ MATCHER_P2(FileWithContents, FileName, Contents, "") {
     TweakID##Test() : TweakTest(#TweakID) {}                                   \
   }
 
-#define EXPECT_AVAILABLE(MarkedCode)                                           \
+#define EXPECT_AVAILABLE_(MarkedCode, Available)                               \
   do {                                                                         \
-    for (const auto &Case : expandCases(MarkedCode))                           \
-      EXPECT_THAT(Case, ::clang::clangd::TweakTest::isAvailable());            \
+    llvm::Annotations A{llvm::StringRef(MarkedCode)};                          \
+    auto AST = build(A.code());                                                \
+    assert(!A.points().empty() || !A.ranges().empty());                        \
+    for (const auto &P : A.points())                                           \
+      EXPECT_EQ(Available, isAvailable(AST, {P, P})) << decorate(A.code(), P); \
+    for (const auto &R : A.ranges())                                           \
+      EXPECT_EQ(Available, isAvailable(AST, R)) << decorate(A.code(), R);      \
   } while (0)
+#define EXPECT_AVAILABLE(MarkedCode) EXPECT_AVAILABLE_(MarkedCode, true)
+#define EXPECT_UNAVAILABLE(MarkedCode) EXPECT_AVAILABLE_(MarkedCode, false)
 
-#define EXPECT_UNAVAILABLE(MarkedCode)                                         \
-  do {                                                                         \
-    for (const auto &Case : expandCases(MarkedCode))                           \
-      EXPECT_THAT(Case,                                                        \
-                  ::testing::Not(::clang::clangd::TweakTest::isAvailable()));  \
-  } while (0)
+// A helper class to represent the return value of TweakWorkspaceTest::apply().
+struct TweakResult {
+  // A string representation the status of the operation.
+  // For failure cases, this is the same as the return value of
+  // TweakTest::apply() (see the comment above that for details).
+  // For success cases, this is "success".
+  std::string Status;
+  // The contents of all files changed by the tweak, including
+  // the file in which it was invoked. Keys are absolute paths.
+  llvm::StringMap<std::string> EditedFiles = {};
+};
+
+// GTest matchers to allow more easily writing assertions about the
+// expected value of a TweakResult.
+MATCHER_P(withStatus, S, "") { return arg.Status == S; }
+template <class EditedFilesMatcher>
+::testing::Matcher<TweakResult> editedFiles(EditedFilesMatcher M) {
+  return ::testing::Field(&TweakResult::EditedFiles, M);
+}
+
+// Used for formatting TweakResult objects in assertion failure messages,
+// so it's easier to understand what didn't match.
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &Stream,
+                                     const TweakResult &Result) {
+  Stream << "{ status: " << Result.Status << ", editedFiles: [";
+  for (const auto &F : Result.EditedFiles) {
+    Stream << F.first() << ":\n";
+    Stream << F.second;
+  }
+  return Stream << "] }";
+}
+
+// A version of TweakTest that makes it easier to create test cases that
+// involve multiple files which are indexed.
+// Usage:
+//   - Call `Workspace.addMainFile(filename, contents)` to add
+//     source files which are indexer entry points (e.g. would show
+//     up in `compile_commands.json`).
+//   - Call `Workspace.addSource(filename, contents)` to add other
+//     source files (e.g. header files).
+//   - Call `apply(filename, range)` to invoke the tweak on the
+//     indicated file with the given range selected. Can be called
+//     multiple times for the same set of added files.
+// The implementation takes care of building an index reflecting
+// all added source files, and making it available to the tweak.
+// Unlike TweakTest, this does not have a notion of a `CodeContext`
+// (i.e. the contents of all added files are interpreted as being
+// in a File context).
+class TweakWorkspaceTest : public ::testing::Test {
+  const char *TweakID;
+
+public:
+  TweakWorkspaceTest(const char *TweakID) : TweakID(TweakID) {}
+
+  TweakResult apply(StringRef InvocationFile,
+                    llvm::Annotations::Range InvocationRange);
+
+protected:
+  TestWorkspace Workspace;
+};
+
+#define TWEAK_WORKSPACE_TEST(TweakID)                                          \
+  class TweakID##WorkspaceTest : public ::clang::clangd::TweakWorkspaceTest {  \
+  protected:                                                                   \
+    TweakID##WorkspaceTest() : TweakWorkspaceTest(#TweakID) {}                 \
+  }
 
 } // namespace clangd
 } // namespace clang

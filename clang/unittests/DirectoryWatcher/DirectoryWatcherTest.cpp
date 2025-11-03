@@ -15,6 +15,7 @@
 #include <condition_variable>
 #include <future>
 #include <mutex>
+#include <optional>
 #include <thread>
 
 using namespace llvm;
@@ -137,7 +138,7 @@ struct VerifyingConsumer {
 
   void consumeInitial(DirectoryWatcher::Event E) {
     std::unique_lock<std::mutex> L(Mtx);
-    auto It = std::find(ExpectedInitial.begin(), ExpectedInitial.end(), E);
+    auto It = llvm::find(ExpectedInitial, E);
     if (It == ExpectedInitial.end()) {
       UnexpectedInitial.push_back(E);
     } else {
@@ -151,11 +152,9 @@ struct VerifyingConsumer {
 
   void consumeNonInitial(DirectoryWatcher::Event E) {
     std::unique_lock<std::mutex> L(Mtx);
-    auto It =
-        std::find(ExpectedNonInitial.begin(), ExpectedNonInitial.end(), E);
+    auto It = llvm::find(ExpectedNonInitial, E);
     if (It == ExpectedNonInitial.end()) {
-      auto OptIt =
-          std::find(OptionalNonInitial.begin(), OptionalNonInitial.end(), E);
+      auto OptIt = llvm::find(OptionalNonInitial, E);
       if (OptIt != OptionalNonInitial.end()) {
         OptionalNonInitial.erase(OptIt);
       } else {
@@ -177,13 +176,13 @@ struct VerifyingConsumer {
   }
 
   // Not locking - caller has to lock Mtx.
-  llvm::Optional<bool> result() const {
+  std::optional<bool> result() const {
     if (ExpectedInitial.empty() && ExpectedNonInitial.empty() &&
         UnexpectedInitial.empty() && UnexpectedNonInitial.empty())
       return true;
     if (!UnexpectedInitial.empty() || !UnexpectedNonInitial.empty())
       return false;
-    return llvm::None;
+    return std::nullopt;
   }
 
   // This method is used by tests.
@@ -194,7 +193,7 @@ struct VerifyingConsumer {
       if (result())
         return *result();
 
-      ResultIsReady.wait(L, [this]() { return result().hasValue(); });
+      ResultIsReady.wait(L, [this]() { return result().has_value(); });
     }
     return false; // Just to make compiler happy.
   }
@@ -258,12 +257,12 @@ void checkEventualResultWithTimeout(VerifyingConsumer &TestConsumer) {
               std::future_status::ready)
       << "The expected result state wasn't reached before the time-out.";
   std::unique_lock<std::mutex> L(TestConsumer.Mtx);
-  EXPECT_TRUE(TestConsumer.result().hasValue());
-  if (TestConsumer.result().hasValue()) {
+  EXPECT_TRUE(TestConsumer.result().has_value());
+  if (TestConsumer.result()) {
     EXPECT_TRUE(*TestConsumer.result());
   }
-  if ((TestConsumer.result().hasValue() && !TestConsumer.result().getValue()) ||
-      !TestConsumer.result().hasValue())
+  if ((TestConsumer.result() && !*TestConsumer.result()) ||
+      !TestConsumer.result())
     TestConsumer.printUnmetExpectations(llvm::outs());
 }
 } // namespace

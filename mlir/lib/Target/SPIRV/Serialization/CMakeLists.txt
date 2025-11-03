@@ -8,10 +8,8 @@ add_mlir_translation_library(MLIRSPIRVSerialization
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRSPIRV
+  MLIRSPIRVDialect
   MLIRSPIRVBinaryUtils
   MLIRSupport
-  MLIRTranslation
+  MLIRTranslateLib
   )
-
-

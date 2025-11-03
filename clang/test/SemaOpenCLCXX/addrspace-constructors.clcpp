@@ -32,6 +32,8 @@ kernel void k() {
   __local X lx;
   __private X x;
 
+  __private X tx = X();
+
   __private Y py;
   __constant Y cy1; // expected-error{{variable in constant address space must be initialized}}
   __constant Y cy2(1); // expected-error{{no matching constructor for initialization of '__constant Y'}}
@@ -52,5 +54,5 @@ struct Z {
 
 struct W {
   int w;
-  constexpr W() __constant = default; // expected-error {{defaulted definition of default constructor is not constexpr}}
+  constexpr W() __constant = default; // expected-error {{defaulted definition of default constructor cannot be marked constexpr}}
 };

@@ -28,6 +28,10 @@ public:
       : TextTreeStructure(OS, /* showColors */ false), OS(OS) {}
 
   void Visit(const Decl *D) {
+    if (!D) {
+      OS << "<<<NULL>>>";
+      return;
+    }
     OS << D->getDeclKindName() << "Decl";
     if (auto *ND = dyn_cast<NamedDecl>(D)) {
       OS << " '" << ND->getDeclName() << "'";
@@ -60,7 +64,7 @@ public:
     if (const auto *F = Init->getAnyMember()) {
       OS << " '" << F->getNameAsString() << "'";
     } else if (auto const *TSI = Init->getTypeSourceInfo()) {
-      OS << " '" << TSI->getType().getAsString() << "'";
+      OS << " '" << TSI->getType() << "'";
     }
   }
 
@@ -81,7 +85,7 @@ public:
     OS << "TemplateArgument";
     switch (A.getKind()) {
     case TemplateArgument::Type: {
-      OS << " type " << A.getAsType().getAsString();
+      OS << " type " << A.getAsType();
       break;
     }
     default:
@@ -111,7 +115,7 @@ template <typename... NodeType> std::string dumpASTString(NodeType &&... N) {
 
   Dumper.Visit(std::forward<NodeType &&>(N)...);
 
-  return OS.str();
+  return Buffer;
 }
 
 template <typename... NodeType>
@@ -126,7 +130,7 @@ std::string dumpASTString(TraversalKind TK, NodeType &&... N) {
 
   Dumper.Visit(std::forward<NodeType &&>(N)...);
 
-  return OS.str();
+  return Buffer;
 }
 
 const FunctionDecl *getFunctionNode(clang::ASTUnit *AST,
@@ -280,7 +284,7 @@ TemplateArgument type int
 
 TEST(Traverse, IgnoreUnlessSpelledInSourceVars) {
 
-  auto AST = buildASTFromCode(R"cpp(
+  auto AST = buildASTFromCodeWithArgs(R"cpp(
 
 struct String
 {
@@ -346,7 +350,7 @@ void varDeclCtors() {
   }
 }
 
-)cpp");
+)cpp", {"-std=c++14"});
 
   {
     auto FN =
@@ -368,6 +372,8 @@ FunctionDecl 'stringConstruct'
   |             |-ImplicitCastExpr
   |             | `-StringLiteral
   |             `-CXXDefaultArgExpr
+  |               `-UnaryOperator
+  |                 `-IntegerLiteral
   `-ExprWithCleanups
     `-CXXOperatorCallExpr
       |-ImplicitCastExpr
@@ -378,6 +384,8 @@ FunctionDecl 'stringConstruct'
           |-ImplicitCastExpr
           | `-StringLiteral
           `-CXXDefaultArgExpr
+            `-UnaryOperator
+              `-IntegerLiteral
 )cpp");
 
     EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
@@ -415,6 +423,8 @@ FunctionDecl 'overloadCall'
   |             |-ImplicitCastExpr
   |             | `-StringLiteral
   |             `-CXXDefaultArgExpr
+  |               `-UnaryOperator
+  |                 `-IntegerLiteral
   `-CXXMemberCallExpr
     `-MemberExpr
       `-ParenExpr
@@ -715,7 +725,7 @@ FunctionDecl 'foo'
 
 TEST(Traverse, IgnoreUnlessSpelledInSourceReturns) {
 
-  auto AST = buildASTFromCode(R"cpp(
+  auto AST = buildASTFromCodeWithArgs(R"cpp(
 
 struct A
 {
@@ -784,7 +794,7 @@ B func12() {
   return c;
 }
 
-)cpp");
+)cpp", {"-std=c++14"});
 
   auto getFunctionNode = [&AST](const std::string &name) {
     auto BN = ast_matchers::match(functionDecl(hasName(name)).bind("fn"),
@@ -1011,7 +1021,7 @@ LambdaExpr
 | |-FieldDecl ''
 | |-FieldDecl ''
 | |-FieldDecl ''
-| `-CXXDestructorDecl '~'
+| `-CXXDestructorDecl '~(lambda at input.cc:9:3)'
 |-ImplicitCastExpr
 | `-DeclRefExpr 'a'
 |-DeclRefExpr 'b'
@@ -1157,6 +1167,63 @@ void decomposition()
     f = 42;
 }
 
+typedef __typeof(sizeof(int)) size_t;
+
+struct Pair
+{
+    int x, y;
+};
+
+// Tuple-like structure with a `get` method that has a default argument.
+struct Pair2
+{
+    int x, y;
+};
+
+// Note: these utilities are required to force binding to tuple like structure
+namespace std
+{
+    template <typename E>
+    struct tuple_size
+    {
+    };
+
+    template <>
+    struct tuple_size<Pair>
+    {
+        static constexpr size_t value = 2;
+    };
+
+    template <>
+    struct tuple_size<Pair2>
+    {
+        static constexpr size_t value = 2;
+    };
+
+    template <size_t I, class T>
+    struct tuple_element
+    {
+        using type = int;
+    };
+
+};
+
+template <size_t I>
+int &&get(Pair &&p);
+
+template <size_t I>
+int &&get(Pair2 &&p, int unused = 0);
+
+void decompTuple()
+{
+    Pair p{1, 2};
+    auto [a, b] = p;
+
+    a = 3;
+
+    auto [c, d] = Pair2{3, 4};
+}
+
 )cpp",
                                        {"-std=c++20"});
 
@@ -1171,14 +1238,15 @@ void decomposition()
 CXXRecordDecl 'Record'
 |-CXXRecordDecl 'Record'
 |-CXXConstructorDecl 'Record'
-| |-CXXCtorInitializer 'struct Simple'
+| |-CXXCtorInitializer 'Simple'
 | | `-CXXConstructExpr
-| |-CXXCtorInitializer 'struct Other'
+| |-CXXCtorInitializer 'Other'
 | | `-CXXConstructExpr
 | |-CXXCtorInitializer 'm_i'
 | | `-IntegerLiteral
 | |-CXXCtorInitializer 'm_i2'
 | | `-CXXDefaultInitExpr
+| |   `-IntegerLiteral
 | |-CXXCtorInitializer 'm_s'
 | | `-CXXConstructExpr
 | `-CompoundStmt
@@ -1194,7 +1262,7 @@ CXXRecordDecl 'Record'
               R"cpp(
 CXXRecordDecl 'Record'
 |-CXXConstructorDecl 'Record'
-| |-CXXCtorInitializer 'struct Simple'
+| |-CXXCtorInitializer 'Simple'
 | | `-CXXConstructExpr
 | |-CXXCtorInitializer 'm_i'
 | | `-IntegerLiteral
@@ -1445,6 +1513,7 @@ CallExpr
 | `-DeclRefExpr 'hasDefaultArg'
 |-IntegerLiteral
 `-CXXDefaultArgExpr
+  `-IntegerLiteral
 )cpp");
     EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
                             BN[0].getNodeAs<CallExpr>("funcCall")),
@@ -1492,6 +1561,104 @@ DecompositionDecl ''
 |-BindingDecl 'f'
 |-BindingDecl 's'
 `-BindingDecl 't'
+)cpp");
+  }
+
+  {
+    auto FN = ast_matchers::match(
+        functionDecl(hasName("decompTuple"),
+                     hasDescendant(decompositionDecl().bind("decomp"))),
+        AST2->getASTContext());
+    EXPECT_EQ(FN.size(), 1u);
+
+    EXPECT_EQ(
+        dumpASTString(TK_AsIs, FN[0].getNodeAs<DecompositionDecl>("decomp")),
+        R"cpp(
+DecompositionDecl ''
+|-CXXConstructExpr
+| `-ImplicitCastExpr
+|   `-DeclRefExpr 'p'
+|-BindingDecl 'a'
+| |-VarDecl 'a'
+| | `-CallExpr
+| |   |-ImplicitCastExpr
+| |   | `-DeclRefExpr 'get'
+| |   `-ImplicitCastExpr
+| |     `-DeclRefExpr ''
+| `-DeclRefExpr 'a'
+`-BindingDecl 'b'
+  |-VarDecl 'b'
+  | `-CallExpr
+  |   |-ImplicitCastExpr
+  |   | `-DeclRefExpr 'get'
+  |   `-ImplicitCastExpr
+  |     `-DeclRefExpr ''
+  `-DeclRefExpr 'b'
+)cpp");
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            FN[0].getNodeAs<DecompositionDecl>("decomp")),
+              R"cpp(
+DecompositionDecl ''
+|-DeclRefExpr 'p'
+|-BindingDecl 'a'
+`-BindingDecl 'b'
+)cpp");
+  }
+
+  {
+    auto FN = ast_matchers::match(
+        functionDecl(hasName("decompTuple"),
+                     hasDescendant(callExpr(hasAncestor(varDecl(
+                                                hasName("a"),
+                                                hasAncestor(bindingDecl()))))
+                                       .bind("decomp_call"))),
+        AST2->getASTContext());
+    EXPECT_EQ(FN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, FN[0].getNodeAs<CallExpr>("decomp_call")),
+              R"cpp(
+CallExpr
+|-ImplicitCastExpr
+| `-DeclRefExpr 'get'
+`-ImplicitCastExpr
+  `-DeclRefExpr ''
+)cpp");
+
+    EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                            FN[0].getNodeAs<CallExpr>("decomp_call")),
+              R"cpp(
+DeclRefExpr ''
+)cpp");
+  }
+
+  {
+    auto FN = ast_matchers::match(
+        functionDecl(hasName("decompTuple"),
+                     hasDescendant(callExpr(hasAncestor(varDecl(
+                                                hasName("c"),
+                                                hasAncestor(bindingDecl()))))
+                                       .bind("decomp_call_with_default"))),
+        AST2->getASTContext());
+    EXPECT_EQ(FN.size(), 1u);
+
+    EXPECT_EQ(dumpASTString(TK_AsIs, FN[0].getNodeAs<CallExpr>(
+                                         "decomp_call_with_default")),
+              R"cpp(
+CallExpr
+|-ImplicitCastExpr
+| `-DeclRefExpr 'get'
+|-ImplicitCastExpr
+| `-DeclRefExpr ''
+`-CXXDefaultArgExpr
+  `-IntegerLiteral
+)cpp");
+
+    EXPECT_EQ(
+        dumpASTString(TK_IgnoreUnlessSpelledInSource,
+                      FN[0].getNodeAs<CallExpr>("decomp_call_with_default")),
+        R"cpp(
+DeclRefExpr ''
 )cpp");
   }
 }
@@ -1840,6 +2007,77 @@ CXXRewrittenBinaryOperator
 `-DeclRefExpr 'hs2'
 )cpp");
   }
+}
+
+TEST(Traverse, CatchStatements) {
+
+  auto AST = buildASTFromCode(R"cpp(
+void test()
+{
+  try
+  {
+    int a;
+  }
+  catch (...)
+  {
+    int b;
+  }
+
+  try
+  {
+    int a;
+  }
+  catch (const int&)
+  {
+    int b;
+  }
+}
+)cpp");
+
+  auto BN =
+      ast_matchers::match(cxxCatchStmt().bind("catch"), AST->getASTContext());
+  EXPECT_EQ(BN.size(), 2u);
+  const auto *catchWithoutDecl = BN[0].getNodeAs<Stmt>("catch");
+
+  llvm::StringRef Expected = R"cpp(
+CXXCatchStmt
+|-<<<NULL>>>
+`-CompoundStmt
+  `-DeclStmt
+    `-VarDecl 'b'
+)cpp";
+  EXPECT_EQ(dumpASTString(TK_AsIs, catchWithoutDecl), Expected);
+
+  Expected = R"cpp(
+CXXCatchStmt
+|-<<<NULL>>>
+`-CompoundStmt
+  `-DeclStmt
+    `-VarDecl 'b'
+)cpp";
+  EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource, catchWithoutDecl),
+            Expected);
+
+  const auto *catchWithDecl = BN[1].getNodeAs<Stmt>("catch");
+
+  Expected = R"cpp(
+CXXCatchStmt
+|-VarDecl ''
+`-CompoundStmt
+  `-DeclStmt
+    `-VarDecl 'b'
+)cpp";
+  EXPECT_EQ(dumpASTString(TK_AsIs, catchWithDecl), Expected);
+
+  Expected = R"cpp(
+CXXCatchStmt
+|-VarDecl ''
+`-CompoundStmt
+  `-DeclStmt
+    `-VarDecl 'b'
+)cpp";
+  EXPECT_EQ(dumpASTString(TK_IgnoreUnlessSpelledInSource, catchWithDecl),
+            Expected);
 }
 
 } // namespace clang

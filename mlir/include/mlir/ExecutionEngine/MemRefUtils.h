@@ -17,7 +17,6 @@
 #include "mlir/ExecutionEngine/CRunnerUtils.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 
 #include "llvm/Support/raw_ostream.h"
@@ -25,9 +24,11 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <climits>
 #include <functional>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 
 #ifndef MLIR_EXECUTIONENGINE_MEMREFUTILS_H_
 #define MLIR_EXECUTIONENGINE_MEMREFUTILS_H_
@@ -47,7 +48,8 @@ inline std::array<int64_t, N> makeStrides(ArrayRef<int64_t> shape) {
   std::array<int64_t, N> res;
   int64_t running = 1;
   for (int64_t idx = N - 1; idx >= 0; --idx) {
-    assert(shape[idx] && "size must be non-negative for all shape dimensions");
+    assert(shape[idx] >= 0 &&
+           "size must be non-negative for all shape dimensions");
     res[idx] = running;
     running *= shape[idx];
   }
@@ -66,8 +68,8 @@ makeStridedMemRefDescriptor(T *ptr, T *alignedPtr, ArrayRef<int64_t> shape,
   assert(shape.size() == N);
   assert(shapeAlloc.size() == N);
   StridedMemRefType<T, N> descriptor;
-  descriptor.basePtr = static_cast<T *>(ptr);
-  descriptor.data = static_cast<T *>(alignedPtr);
+  descriptor.basePtr = ptr;
+  descriptor.data = alignedPtr;
   descriptor.offset = 0;
   std::copy(shape.begin(), shape.end(), descriptor.sizes);
   auto strides = makeStrides<N>(shapeAlloc);
@@ -87,8 +89,8 @@ makeStridedMemRefDescriptor(T *ptr, T *alignedPtr, ArrayRef<int64_t> shape = {},
   assert(shape.size() == N);
   assert(shapeAlloc.size() == N);
   StridedMemRefType<T, 0> descriptor;
-  descriptor.basePtr = static_cast<T *>(ptr);
-  descriptor.data = static_cast<T *>(alignedPtr);
+  descriptor.basePtr = ptr;
+  descriptor.data = alignedPtr;
   descriptor.offset = 0;
   return descriptor;
 }
@@ -100,10 +102,10 @@ makeStridedMemRefDescriptor(T *ptr, T *alignedPtr, ArrayRef<int64_t> shape = {},
 template <typename T>
 std::pair<T *, T *>
 allocAligned(size_t nElements, AllocFunType allocFun = &::malloc,
-             llvm::Optional<uint64_t> alignment = llvm::Optional<uint64_t>()) {
-  assert(sizeof(T) < (1ul << 32) && "Elemental type overflows");
+             std::optional<uint64_t> alignment = std::optional<uint64_t>()) {
+  assert(sizeof(T) <= UINT_MAX && "Elemental type overflows");
   auto size = nElements * sizeof(T);
-  auto desiredAlignment = alignment.getValueOr(nextPowerOf2(sizeof(T)));
+  auto desiredAlignment = alignment.value_or(nextPowerOf2(sizeof(T)));
   assert((desiredAlignment & (desiredAlignment - 1)) == 0);
   assert(desiredAlignment >= sizeof(T));
   T *data = reinterpret_cast<T *>(allocFun(size + desiredAlignment));
@@ -145,11 +147,11 @@ public:
   OwningMemRef(
       ArrayRef<int64_t> shape, ArrayRef<int64_t> shapeAlloc = {},
       ElementWiseVisitor<T> init = {},
-      llvm::Optional<uint64_t> alignment = llvm::Optional<uint64_t>(),
+      std::optional<uint64_t> alignment = std::optional<uint64_t>(),
       AllocFunType allocFun = &::malloc,
       std::function<void(StridedMemRefType<T, Rank>)> freeFun =
           [](StridedMemRefType<T, Rank> descriptor) {
-            ::free(descriptor.data);
+            ::free(descriptor.basePtr);
           })
       : freeFunc(freeFun) {
     if (shapeAlloc.empty())
@@ -162,20 +164,17 @@ public:
     int64_t nElements = 1;
     for (int64_t s : shapeAlloc)
       nElements *= s;
-    T *data, *alignedData;
-    std::tie(data, alignedData) =
+    auto [allocatedPtr, alignedData] =
         detail::allocAligned<T>(nElements, allocFun, alignment);
-    descriptor = detail::makeStridedMemRefDescriptor<Rank>(data, alignedData,
-                                                           shape, shapeAlloc);
+    descriptor = detail::makeStridedMemRefDescriptor<Rank>(
+        allocatedPtr, alignedData, shape, shapeAlloc);
     if (init) {
       for (StridedMemrefIterator<T, Rank> it = descriptor.begin(),
                                           end = descriptor.end();
            it != end; ++it)
         init(*it, it.getIndices());
     } else {
-      memset(descriptor.data, 0,
-             nElements * sizeof(T) +
-                 alignment.getValueOr(detail::nextPowerOf2(sizeof(T))));
+      memset(alignedData, 0, nElements * sizeof(T));
     }
   }
   /// Take ownership of an existing descriptor with a custom deleter.
@@ -191,14 +190,14 @@ public:
     freeFunc = other.freeFunc;
     descriptor = other.descriptor;
     other.freeFunc = nullptr;
-    memset(0, &other.descriptor, sizeof(other.descriptor));
+    memset(&other.descriptor, 0, sizeof(other.descriptor));
   }
   OwningMemRef(OwningMemRef &&other) { *this = std::move(other); }
 
   DescriptorType &operator*() { return descriptor; }
   DescriptorType *operator->() { return &descriptor; }
   T &operator[](std::initializer_list<int64_t> indices) {
-    return descriptor[std::move(indices)];
+    return descriptor[indices];
   }
 
 private:

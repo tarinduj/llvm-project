@@ -11,10 +11,9 @@
 
 include "mlir/Pass/PassBase.td"
 
-def AsyncParallelFor : Pass<"async-parallel-for", "ModuleOp"> {
+def AsyncParallelForPass : Pass<"async-parallel-for", "ModuleOp"> {
   let summary = "Convert scf.parallel operations to multiple async compute ops "
                 "executed concurrently for non-overlapping iteration ranges";
-  let constructor = "mlir::createAsyncParallelForPass()";
 
   let options = [
     Option<"asyncDispatch", "async-dispatch",
@@ -25,31 +24,36 @@ def AsyncParallelFor : Pass<"async-parallel-for", "ModuleOp"> {
 
     Option<"numWorkerThreads", "num-workers",
       "int32_t", /*default=*/"8",
-      "The number of available workers to execute async operations.">,
+      "The number of available workers to execute async operations. If `-1` "
+      "the value will be retrieved from the runtime.">,
 
-    Option<"targetBlockSize", "target-block-size",
+    Option<"minTaskSize", "min-task-size",
       "int32_t", /*default=*/"1000",
-      "The target block size for sharding parallel operation.">
+      "The minimum task size for sharding parallel operation.">
   ];
 
-  let dependentDialects = ["async::AsyncDialect", "scf::SCFDialect"];
-}
-
-def AsyncToAsyncRuntime : Pass<"async-to-async-runtime", "ModuleOp"> {
-  let summary = "Lower high level async operations (e.g. async.execute) to the"
-                "explicit async.runtime and async.coro operations";
-  let constructor = "mlir::createAsyncToAsyncRuntimePass()";
-  let options = [
-    // Temporary for bringup, should become the default.
-    Option<"eliminateBlockingAwaitOps", "eliminate-blocking-await-ops", "bool",
-            /*default=*/"false",
-           "Rewrite functions with blocking async.runtime.await as coroutines "
-           "with async.runtime.await_and_resume.">,
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "async::AsyncDialect",
+    "func::FuncDialect",
+    "scf::SCFDialect"
   ];
-  let dependentDialects = ["async::AsyncDialect"];
 }
 
-def AsyncRuntimeRefCounting : Pass<"async-runtime-ref-counting"> {
+def AsyncToAsyncRuntimePass : Pass<"async-to-async-runtime", "ModuleOp"> {
+  let summary = "Lower all high level async operations (e.g. async.execute) to"
+                "the explicit async.runtime and async.coro operations";
+  let dependentDialects = ["async::AsyncDialect", "func::FuncDialect", "cf::ControlFlowDialect"];
+}
+
+def AsyncFuncToAsyncRuntimePass
+    : Pass<"async-func-to-async-runtime", "ModuleOp"> {
+  let summary = "Lower async.func operations to the explicit async.runtime and"
+                "async.coro operations";
+  let dependentDialects = ["async::AsyncDialect", "func::FuncDialect"];
+}
+
+def AsyncRuntimeRefCountingPass : Pass<"async-runtime-ref-counting"> {
   let summary = "Automatic reference counting for Async runtime operations";
   let description = [{
     This pass works at the async runtime abtraction level, after all
@@ -62,18 +66,17 @@ def AsyncRuntimeRefCounting : Pass<"async-runtime-ref-counting"> {
     See: https://llvm.org/docs/Coroutines.html#switched-resume-lowering
   }];
 
-  let constructor = "mlir::createAsyncRuntimeRefCountingPass()";
   let dependentDialects = ["async::AsyncDialect"];
 }
 
-def AsyncRuntimeRefCountingOpt : Pass<"async-runtime-ref-counting-opt"> {
+def AsyncRuntimeRefCountingOptPass : Pass<"async-runtime-ref-counting-opt"> {
   let summary = "Optimize automatic reference counting operations for the"
                 "Async runtime by removing redundant operations";
-  let constructor = "mlir::createAsyncRuntimeRefCountingOptPass()";
+
   let dependentDialects = ["async::AsyncDialect"];
 }
 
-def AsyncRuntimePolicyBasedRefCounting
+def AsyncRuntimePolicyBasedRefCountingPass
     : Pass<"async-runtime-policy-based-ref-counting"> {
   let summary = "Policy based reference counting for Async runtime operations";
   let description = [{
@@ -101,7 +104,6 @@ def AsyncRuntimePolicyBasedRefCounting
     automatic reference counting.
   }];
 
-  let constructor = "mlir::createAsyncRuntimePolicyBasedRefCountingPass()";
   let dependentDialects = ["async::AsyncDialect"];
 }
 

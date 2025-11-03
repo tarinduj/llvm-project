@@ -1,4 +1,4 @@
-add_mlir_dialect_library(MLIREmitC
+add_mlir_dialect_library(MLIREmitCDialect
   EmitC.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -9,6 +9,10 @@ add_mlir_dialect_library(MLIREmitC
   MLIREmitCAttributesIncGen
 
   LINK_LIBS PUBLIC
+  MLIRCallInterfaces
+  MLIRCastInterfaces
+  MLIRControlFlowInterfaces
+  MLIRFunctionInterfaces
   MLIRIR
   MLIRSideEffectInterfaces
   )

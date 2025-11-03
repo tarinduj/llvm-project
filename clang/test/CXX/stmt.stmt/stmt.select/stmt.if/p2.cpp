@@ -64,11 +64,11 @@ namespace ccce {
     }
     if constexpr (b) { // expected-error {{constexpr if condition is not a constant expression}} expected-note {{cannot be used in a constant expression}}
     }
-    if constexpr (s) { // expected-error {{value of type 'ccce::S' is not contextually convertible to 'bool'}}
+    if constexpr (s) { // expected-error {{value of type 'S' is not contextually convertible to 'bool'}}
     }
 
     constexpr S constexprS;
-    if constexpr (constexprS) { // expected-error {{value of type 'const ccce::S' is not contextually convertible to 'bool'}}
+    if constexpr (constexprS) { // expected-error {{value of type 'const S' is not contextually convertible to 'bool'}}
     }
   }
 }
@@ -80,6 +80,7 @@ namespace generic_lambda {
     [](auto x) {
       if constexpr (sizeof(T) == 1 && sizeof(x) == 1)
         T::error(); // expected-error 2{{'::'}}
+                    // expected-note@-3 2{{while substituting into a lambda expression here}}
     } (0);
   }
 
@@ -88,6 +89,7 @@ namespace generic_lambda {
       if constexpr (sizeof(T) == 1)
         if constexpr (sizeof(x) == 1)
           T::error(); // expected-error {{'::'}}
+                      // expected-note@-4 {{while substituting into a lambda expression here}}
     } (0);
   }
 
@@ -151,7 +153,8 @@ a:  if constexpr(sizeof(n) == 4) // expected-error {{redefinition}} expected-not
 
   void evil_things() {
     goto evil_label; // expected-error {{cannot jump}}
-    if constexpr (true || ({evil_label: false;})) {} // expected-note {{constexpr if}}
+    if constexpr (true || ({evil_label: false;})) {} // expected-note {{constexpr if}} \
+                                                     // expected-note {{jump enters a statement expression}}
 
     if constexpr (true) // expected-note {{constexpr if}}
       goto surprise; // expected-error {{cannot jump}}
@@ -159,4 +162,98 @@ a:  if constexpr(sizeof(n) == 4) // expected-error {{redefinition}} expected-not
       surprise: {}
   }
 }
+
+namespace deduced_return_type_in_discareded_statement {
+
+template <typename T>
+auto a(const T &t) {
+  return t;
+}
+
+void f() {
+  if constexpr (false) {
+    a(a(0));
+  }
+}
+} // namespace deduced_return_type_in_discareded_statement
+
+namespace GH140449 {
+
+template <typename T>
+int f() {
+    T *ptr;
+    return 0;
+}
+
+template <typename T>
+constexpr int g() {
+    T *ptr; // expected-error{{'ptr' declared as a pointer to a reference of type 'int &'}}
+    return 0;
+}
+
+template <typename T>
+auto h() {
+    T *ptr; // expected-error{{'ptr' declared as a pointer to a reference of type 'int &'}}
+    return 0;
+}
+
+void test() {
+    if constexpr (false) {
+        int x = f<int &>();
+        constexpr int y = g<int &>();
+        // expected-error@-1 {{constexpr variable 'y' must be initialized by a constant expression}} \
+        // expected-note@-1{{in instantiation of function template specialization}}
+        int z = h<int &>();
+        // expected-note@-1{{in instantiation of function template specialization}}
+
+    }
+}
+
+void regression() {
+  if constexpr (false) {
+    auto lam = []() { return 0; };
+    1 | lam(); // expected-warning {{unused}}
+  }
+}
+
+}
+
+namespace GH146063 {
+template <typename>
+struct A {
+  static_assert([]() constexpr { return true; }());
+};
+
+void f1() {
+  if constexpr (false) {
+    A<int> a;
+  }
+}
+
+void f2() {
+  if constexpr (false) {
+    static_assert([]{});
+    // expected-warning@-1 {{address of lambda function pointer conversion operator will always evaluate to 'true'}}
+  }
+}
+
+}
+
+namespace GH153884 {
+  bool f1() {
+    auto f = [](auto) { return true; };
+    if constexpr (0)
+      return f(1);
+    return false;
+  }
+  bool f2() {
+    auto f = [](auto x) { if (x) return 1.5; else return "wat"; };
+    // expected-error@-1 {{'auto' in return type deduced as 'const char *' here but deduced as 'double' in earlier return statement}}
+    if constexpr (0)
+      return f(1);
+    // expected-note@-1 {{in instantiation of function template specialization 'GH153884::f2()}}
+    return false;
+  }
+}
+
 #endif

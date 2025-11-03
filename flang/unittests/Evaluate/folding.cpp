@@ -1,11 +1,12 @@
-#include "testing.h"
 #include "../../lib/Evaluate/host.h"
 #include "flang/Evaluate/call.h"
 #include "flang/Evaluate/expression.h"
 #include "flang/Evaluate/fold.h"
 #include "flang/Evaluate/intrinsics-library.h"
 #include "flang/Evaluate/intrinsics.h"
+#include "flang/Evaluate/target.h"
 #include "flang/Evaluate/tools.h"
+#include "flang/Testing/testing.h"
 #include <tuple>
 
 using namespace Fortran::evaluate;
@@ -44,10 +45,16 @@ void TestHostRuntimeSubnormalFlushing() {
     Fortran::parser::ContextualMessages messages{src, nullptr};
     Fortran::common::IntrinsicTypeDefaultKinds defaults;
     auto intrinsics{Fortran::evaluate::IntrinsicProcTable::Configure(defaults)};
-    FoldingContext flushingContext{
-        messages, defaults, intrinsics, defaultRounding, true};
-    FoldingContext noFlushingContext{
-        messages, defaults, intrinsics, defaultRounding, false};
+    TargetCharacteristics flushingTargetCharacteristics;
+    flushingTargetCharacteristics.set_areSubnormalsFlushedToZero(true);
+    TargetCharacteristics noFlushingTargetCharacteristics;
+    noFlushingTargetCharacteristics.set_areSubnormalsFlushedToZero(false);
+    Fortran::common::LanguageFeatureControl languageFeatures;
+    std::set<std::string> tempNames;
+    FoldingContext flushingContext{messages, defaults, intrinsics,
+        flushingTargetCharacteristics, languageFeatures, tempNames};
+    FoldingContext noFlushingContext{messages, defaults, intrinsics,
+        noFlushingTargetCharacteristics, languageFeatures, tempNames};
 
     DynamicType r4{R4{}.GetType()};
     // Test subnormal argument flushing

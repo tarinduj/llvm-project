@@ -102,6 +102,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // BoolNode
+//===----------------------------------------------------------------------===//
 
 /// A BoolNode denotes a question with a boolean-like result. These nodes branch
 /// to a single node on a successful result, otherwise defaulting to the failure
@@ -133,6 +134,7 @@ private:
 
 //===----------------------------------------------------------------------===//
 // ExitNode
+//===----------------------------------------------------------------------===//
 
 /// An ExitNode is a special sentinel node that denotes the end of matcher.
 struct ExitNode : public MatcherNode {
@@ -147,12 +149,13 @@ struct ExitNode : public MatcherNode {
 
 //===----------------------------------------------------------------------===//
 // SuccessNode
+//===----------------------------------------------------------------------===//
 
 /// A SuccessNode denotes that a given high level pattern has successfully been
 /// matched. This does not terminate the matcher, as there may be multiple
 /// successful matches.
 struct SuccessNode : public MatcherNode {
-  explicit SuccessNode(pdl::PatternOp pattern,
+  explicit SuccessNode(pdl::PatternOp pattern, Value root,
                        std::unique_ptr<MatcherNode> failureNode);
 
   /// Returns if the given matcher node is an instance of this class, used to
@@ -164,14 +167,21 @@ struct SuccessNode : public MatcherNode {
   /// Return the high level pattern operation that is matched with this node.
   pdl::PatternOp getPattern() const { return pattern; }
 
+  /// Return the chosen root of the pattern.
+  Value getRoot() const { return root; }
+
 private:
   /// The high level pattern operation that was successfully matched with this
   /// node.
   pdl::PatternOp pattern;
+
+  /// The chosen root of the pattern.
+  Value root;
 };
 
 //===----------------------------------------------------------------------===//
 // SwitchNode
+//===----------------------------------------------------------------------===//
 
 /// A SwitchNode denotes a question with multiple potential results. These nodes
 /// branch to a specific node based on the result of the question.
@@ -202,7 +212,7 @@ private:
   ChildMapT children;
 };
 
-} // end namespace pdl_to_pdl_interp
-} // end namespace mlir
+} // namespace pdl_to_pdl_interp
+} // namespace mlir
 
 #endif // MLIR_CONVERSION_PDLTOPDLINTERP_PREDICATETREE_H_

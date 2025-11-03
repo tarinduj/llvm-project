@@ -52,6 +52,7 @@
 #include <cassert>
 #include <cstdlib>
 
+#include "polly/Support/PollyDebug.h"
 #define DEBUG_TYPE "polly-ast"
 
 using namespace llvm;
@@ -62,27 +63,24 @@ using IslAstUserPayload = IslAstInfo::IslAstUserPayload;
 static cl::opt<bool>
     PollyParallel("polly-parallel",
                   cl::desc("Generate thread parallel code (isl codegen only)"),
-                  cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+                  cl::cat(PollyCategory));
 
 static cl::opt<bool> PrintAccesses("polly-ast-print-accesses",
                                    cl::desc("Print memory access functions"),
-                                   cl::init(false), cl::ZeroOrMore,
                                    cl::cat(PollyCategory));
 
 static cl::opt<bool> PollyParallelForce(
     "polly-parallel-force",
     cl::desc(
         "Force generation of thread parallel code ignoring any cost model"),
-    cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::cat(PollyCategory));
 
 static cl::opt<bool> UseContext("polly-ast-use-context",
                                 cl::desc("Use context"), cl::Hidden,
-                                cl::init(true), cl::ZeroOrMore,
-                                cl::cat(PollyCategory));
+                                cl::init(true), cl::cat(PollyCategory));
 
 static cl::opt<bool> DetectParallel("polly-ast-detect-parallel",
                                     cl::desc("Detect parallelism"), cl::Hidden,
-                                    cl::init(false), cl::ZeroOrMore,
                                     cl::cat(PollyCategory));
 
 STATISTIC(ScopsProcessed, "Number of SCoPs processed");
@@ -136,7 +134,7 @@ static isl_printer *printLine(__isl_take isl_printer *Printer,
 }
 
 /// Return all broken reductions as a string of clauses (OpenMP style).
-static const std::string getBrokenReductionsStr(const isl::ast_node &Node) {
+static std::string getBrokenReductionsStr(const isl::ast_node &Node) {
   IslAstInfo::MemoryAccessSet *BrokenReductions;
   std::string str;
 
@@ -641,23 +639,19 @@ isl::ast_build IslAstInfo::getBuild(const isl::ast_node &Node) {
 static std::unique_ptr<IslAstInfo> runIslAst(
     Scop &Scop,
     function_ref<const Dependences &(Dependences::AnalysisLevel)> GetDeps) {
-  // Skip SCoPs in case they're already handled by PPCGCodeGeneration.
-  if (Scop.isToBeSkipped())
-    return {};
-
   ScopsProcessed++;
 
   const Dependences &D = GetDeps(Dependences::AL_Statement);
 
   if (D.getSharedIslCtx() != Scop.getSharedIslCtx()) {
-    LLVM_DEBUG(
+    POLLY_DEBUG(
         dbgs() << "Got dependence analysis for different SCoP/isl_ctx\n");
     return {};
   }
 
   std::unique_ptr<IslAstInfo> Ast = std::make_unique<IslAstInfo>(Scop, D);
 
-  LLVM_DEBUG({
+  POLLY_DEBUG({
     if (Ast)
       Ast->print(dbgs());
   });
@@ -671,15 +665,15 @@ IslAstInfo IslAstAnalysis::run(Scop &S, ScopAnalysisManager &SAM,
     return SAM.getResult<DependenceAnalysis>(S, SAR).getDependences(Lvl);
   };
 
-  return std::move(*runIslAst(S, GetDeps).release());
+  return std::move(*runIslAst(S, GetDeps));
 }
 
 static __isl_give isl_printer *cbPrintUser(__isl_take isl_printer *P,
                                            __isl_take isl_ast_print_options *O,
                                            __isl_keep isl_ast_node *Node,
                                            void *User) {
-  isl::ast_node AstNode = isl::manage_copy(Node);
-  isl::ast_expr NodeExpr = AstNode.user_get_expr();
+  isl::ast_node_user AstNode = isl::manage_copy(Node).as<isl::ast_node_user>();
+  isl::ast_expr NodeExpr = AstNode.expr();
   isl::ast_expr CallExpr = NodeExpr.get_op_arg(0);
   isl::id CallExprId = CallExpr.get_id();
   ScopStmt *AccessStmt = (ScopStmt *)CallExprId.get_user();
@@ -758,7 +752,7 @@ void IslAstInfo::print(raw_ostream &OS) {
   P = isl_ast_node_print(RootNode.get(), P, Options);
   AstStr = isl_printer_get_str(P);
 
-  LLVM_DEBUG({
+  POLLY_DEBUG({
     dbgs() << S.getContextStr() << "\n";
     dbgs() << stringFromIslObj(S.getScheduleTree(), "null");
   });
@@ -823,3 +817,49 @@ INITIALIZE_PASS_DEPENDENCY(ScopInfoRegionPass);
 INITIALIZE_PASS_DEPENDENCY(DependenceInfo);
 INITIALIZE_PASS_END(IslAstInfoWrapperPass, "polly-ast",
                     "Polly - Generate an AST from the SCoP (isl)", false, false)
+
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// Print result from IslAstInfoWrapperPass.
+class IslAstInfoPrinterLegacyPass final : public ScopPass {
+public:
+  static char ID;
+
+  IslAstInfoPrinterLegacyPass() : IslAstInfoPrinterLegacyPass(outs()) {}
+  explicit IslAstInfoPrinterLegacyPass(llvm::raw_ostream &OS)
+      : ScopPass(ID), OS(OS) {}
+
+  bool runOnScop(Scop &S) override {
+    IslAstInfoWrapperPass &P = getAnalysis<IslAstInfoWrapperPass>();
+
+    OS << "Printing analysis '" << P.getPassName() << "' for region: '"
+       << S.getRegion().getNameStr() << "' in function '"
+       << S.getFunction().getName() << "':\n";
+    P.printScop(OS, S);
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    ScopPass::getAnalysisUsage(AU);
+    AU.addRequired<IslAstInfoWrapperPass>();
+    AU.setPreservesAll();
+  }
+
+private:
+  llvm::raw_ostream &OS;
+};
+
+char IslAstInfoPrinterLegacyPass::ID = 0;
+} // namespace
+
+Pass *polly::createIslAstInfoPrinterLegacyPass(raw_ostream &OS) {
+  return new IslAstInfoPrinterLegacyPass(OS);
+}
+
+INITIALIZE_PASS_BEGIN(IslAstInfoPrinterLegacyPass, "polly-print-ast",
+                      "Polly - Print the AST from a SCoP (isl)", false, false);
+INITIALIZE_PASS_DEPENDENCY(IslAstInfoWrapperPass);
+INITIALIZE_PASS_END(IslAstInfoPrinterLegacyPass, "polly-print-ast",
+                    "Polly - Print the AST from a SCoP (isl)", false, false)

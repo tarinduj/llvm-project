@@ -1,5 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1
-! REQUIRES: shell
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! C746, C747, and C748
 module m
   use ISO_FORTRAN_ENV
@@ -42,17 +41,17 @@ module m
   end type goodC_funptrCoarrayType
 
   type team_typeCoarrayType
-    !ERROR: A coarray component may not be of type TEAM_TYPE from ISO_FORTRAN_ENV
+    !ERROR: Coarray 'field' may not have type TEAM_TYPE, C_PTR, or C_FUNPTR
     type(team_type), allocatable, codimension[:] :: field
   end type team_typeCoarrayType
 
   type c_ptrCoarrayType
-    !ERROR: A coarray component may not be of type C_PTR or C_FUNPTR from ISO_C_BINDING
+    !ERROR: Coarray 'field' may not have type TEAM_TYPE, C_PTR, or C_FUNPTR
     type(c_ptr), allocatable, codimension[:] :: field
   end type c_ptrCoarrayType
 
   type c_funptrCoarrayType
-    !ERROR: A coarray component may not be of type C_PTR or C_FUNPTR from ISO_C_BINDING
+    !ERROR: Coarray 'field' may not have type TEAM_TYPE, C_PTR, or C_FUNPTR
     type(c_funptr), allocatable, codimension[:] :: field
   end type c_funptrCoarrayType
 
@@ -65,11 +64,11 @@ module m
 
   type testType
     type(coarrayType) :: goodField
-    !ERROR: A component with a POINTER or ALLOCATABLE attribute may not be of a type with a coarray ultimate component (named 'goodcoarrayfield')
+    !ERROR: Pointer 'pointerfield' may not have a coarray potential component '%goodcoarrayfield'
     type(coarrayType), pointer :: pointerField
-    !ERROR: A component with a POINTER or ALLOCATABLE attribute may not be of a type with a coarray ultimate component (named 'goodcoarrayfield')
+    !ERROR: Allocatable or array component 'allocatablefield' may not have a coarray ultimate component '%goodcoarrayfield'
     type(coarrayType), allocatable :: allocatableField
-    !ERROR: An array or coarray component may not be of a type with a coarray ultimate component (named 'goodcoarrayfield')
+    !ERROR: Allocatable or array component 'arrayfield' may not have a coarray ultimate component '%goodcoarrayfield'
     type(coarrayType), dimension(3) :: arrayField
   end type testType
 

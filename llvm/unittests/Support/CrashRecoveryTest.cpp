@@ -6,16 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/Config/config.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_ON_UNIX
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include "gtest/gtest.h"
 
 #ifdef _WIN32
@@ -25,9 +26,7 @@
 #endif
 
 #ifdef LLVM_ON_UNIX
-#ifdef HAVE_SIGNAL_H
 #include <signal.h>
-#endif
 #endif
 
 using namespace llvm;
@@ -103,15 +102,14 @@ TEST(CrashRecoveryTest, DumpStackCleanup) {
 }
 
 TEST(CrashRecoveryTest, LimitedStackTrace) {
+  // FIXME: Handle "Depth" parameter in PrintStackTrace() function
+  // to print stack trace upto a specified Depth.
+  if (Triple(sys::getProcessTriple()).isOSWindows())
+    GTEST_SKIP();
   std::string Res;
   llvm::raw_string_ostream RawStream(Res);
   PrintStackTrace(RawStream, 1);
-  std::string Str = RawStream.str();
-  // FIXME: Handle "Depth" parameter in PrintStackTrace() function
-  // to print stack trace upto a specified Depth.
-  if (!Triple(sys::getProcessTriple()).isOSWindows()) {
-    EXPECT_EQ(std::string::npos, Str.find("#1"));
-  }
+  EXPECT_EQ(std::string::npos, Res.find("#1"));
 }
 
 #ifdef _WIN32
@@ -176,6 +174,11 @@ TEST(CrashRecoveryTest, UnixCRCReturnCode) {
 
   // Add LLVM_CRC_UNIXCRCRETURNCODE to the environment of the child process.
   int Res = setenv("LLVM_CRC_UNIXCRCRETURNCODE", "1", 0);
+  ASSERT_EQ(Res, 0);
+
+  Res = unsetenv("GTEST_SHARD_INDEX");
+  ASSERT_EQ(Res, 0);
+  Res = unsetenv("GTEST_TOTAL_SHARDS");
   ASSERT_EQ(Res, 0);
 
   std::string Error;

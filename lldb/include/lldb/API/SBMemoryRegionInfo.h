@@ -20,6 +20,10 @@ public:
 
   SBMemoryRegionInfo(const lldb::SBMemoryRegionInfo &rhs);
 
+  SBMemoryRegionInfo(const char *name, lldb::addr_t begin, lldb::addr_t end,
+                     uint32_t permissions, bool mapped,
+                     bool stack_memory = false);
+
   ~SBMemoryRegionInfo();
 
   const lldb::SBMemoryRegionInfo &
@@ -111,11 +115,24 @@ public:
 
   bool operator!=(const lldb::SBMemoryRegionInfo &rhs) const;
 
+  /// writes a description of the memory region to a SBStream.
+  ///
+  /// \param[in,out] description
+  ///     A stream object where the description will be written.
+  ///
+  /// \return
+  ///     Returns true if the description was successfully written,
+  ///     false otherwise.
+  ///
+  /// The description format is: [Hex start - Hex End) with associated
+  /// permissions (RWX)
   bool GetDescription(lldb::SBStream &description);
 
 private:
   friend class SBProcess;
   friend class SBMemoryRegionInfoList;
+  friend class SBSaveCoreOptions;
+  friend class lldb_private::ScriptInterpreter;
 
   lldb_private::MemoryRegionInfo &ref();
 

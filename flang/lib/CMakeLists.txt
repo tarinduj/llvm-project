@@ -1,13 +1,15 @@
-add_subdirectory(Common)
 add_subdirectory(Evaluate)
 add_subdirectory(Decimal)
 add_subdirectory(Lower)
 add_subdirectory(Parser)
 add_subdirectory(Semantics)
-
-if(FLANG_BUILD_NEW_DRIVER)
-  add_subdirectory(Frontend)
-  add_subdirectory(FrontendTool)
-endif()
+add_subdirectory(Support)
+add_subdirectory(Frontend)
+add_subdirectory(FrontendTool)
+add_subdirectory(Utils)
 
 add_subdirectory(Optimizer)
+
+if (FLANG_INCLUDE_TESTS)
+  add_subdirectory(Testing)
+endif ()

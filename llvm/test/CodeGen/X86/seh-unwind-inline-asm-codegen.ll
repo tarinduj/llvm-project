@@ -10,7 +10,7 @@ entry:
   unreachable
 }
 
-define dso_local void @test() personality i8* bitcast (i32 (...)* @__CxxFrameHandler3 to i8*) {
+define dso_local void @test() personality ptr @__CxxFrameHandler3 {
 entry:
 
 ; CHECK-LABEL: .Ltmp0:
@@ -29,24 +29,24 @@ except:
 ; CHECK: callq	printf
 
   %0 = cleanuppad within none []
-  call void (i8*, ...) @printf(i8* getelementptr inbounds ([6 x i8], [6 x i8]* @str, i64 0, i64 0)) [ "funclet"(token %0) ]
+  call void (ptr, ...) @printf(ptr @str) [ "funclet"(token %0) ]
   cleanupret from %0 unwind to caller
 }
 
 declare dso_local i32 @__CxxFrameHandler3(...)
 
-declare dso_local void @printf(i8*, ...)
+declare dso_local void @printf(ptr, ...)
 
 ; SEH Table
 
 ; CHECK-LABEL: $cppxdata$test:
 ; CHECK-NEXT:    .long    429065506                       # MagicNumber
 ; CHECK-NEXT:    .long    1                               # MaxState
-; CHECK-NEXT:    .long    ($stateUnwindMap$test)@IMGREL   # UnwindMap
+; CHECK-NEXT:    .long    $stateUnwindMap$test@IMGREL   # UnwindMap
 ; CHECK-NEXT:    .long    0                               # NumTryBlocks
 ; CHECK-NEXT:    .long    0                               # TryBlockMap
 ; CHECK-NEXT:    .long    3                               # IPMapEntries
-; CHECK-NEXT:    .long    ($ip2state$test)@IMGREL         # IPToStateXData
+; CHECK-NEXT:    .long    $ip2state$test@IMGREL         # IPToStateXData
 ; CHECK-NEXT:    .long    40                              # UnwindHelp
 ; CHECK-NEXT:    .long    0                               # ESTypeList
 ; CHECK-NEXT:    .long    1                               # EHFlags
@@ -56,8 +56,8 @@ declare dso_local void @printf(i8*, ...)
 ; CHECK-NEXT:$ip2state$test:
 ; CHECK-NEXT:    .long    .Lfunc_begin0@IMGREL            # IP
 ; CHECK-NEXT:    .long    -1                              # ToState
-; CHECK-NEXT:    .long    .Ltmp0@IMGREL+1                 # IP
+; CHECK-NEXT:    .long    .Ltmp0@IMGREL                   # IP
 ; CHECK-NEXT:    .long    0                               # ToState
-; CHECK-NEXT:    .long    .Ltmp1@IMGREL+1                 # IP
+; CHECK-NEXT:    .long    .Ltmp1@IMGREL                   # IP
 ; CHECK-NEXT:    .long    -1                              # ToState
 

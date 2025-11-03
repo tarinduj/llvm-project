@@ -28,11 +28,36 @@ for adding this configuration.
    you don't have a checkout yet.
 2. Install Bazel at the version indicated by [.bazelversion](./.bazelversion),
    following the official instructions, if you don't have it installed yet:
-   https://docs.bazel.build/versions/master/install.html.
+   https://docs.bazel.build/versions/main/install.html.
+   * You can also install and use
+     [bazelisk](https://github.com/bazelbuild/bazelisk) which automates
+     downloading the proper bazel version
 3. `cd utils/bazel`
-4. `bazel build --config=generic_clang @llvm-project//...` (if building on Unix
-   with Clang). `--config=generic_gcc` and `--config=msvc` are also available.
-
+4. The `bazel build` command depends on the local compiler you want to use.
+   * For **clang**, go to step 5.
+   * For **gcc** or **MSVC**, go to step 6
+5. If you are using **clang**, it is expected that lld is also available.
+   The `--config=generic_clang` flag by default sets the compiler to be `clang`
+   binary on the `PATH`.
+   ```
+   bazel build --config=generic_clang @llvm-project//...
+   ```
+   To provide a specific path to your `clang`, use the `--repo_env` Bazel flag.
+   For example:
+   ```
+   bazel build --config=generic_clang --repo_env=CC=/usr/bin/clang --repo_env=CXX=/usr/bin/clang++  @llvm-project//...
+   ```
+6. If you are using **gcc** or **MSVC**, instead of `--config=generic_clang`
+   , pass `--config=generic_gcc` or `--config=generic_msvc`, which sets the
+   compiler to be `gcc` binary on the `PATH`.
+   ```
+   bazel build --config=generic_gcc @llvm-project//...
+   ```
+   To provide a specific path to your `gcc`, use the `--repo_env` Bazel flag.
+   For example:
+   ```
+   bazel build --config=generic_gcc --repo_env=CC=/usr/bin/gcc --repo_env=CXX=/usr/bin/g++  @llvm-project//...
+   ```
 
 # Configuration
 
@@ -45,7 +70,7 @@ build --config=generic_clang
 ```
 
 You can enable
-[disk caching](https://docs.bazel.build/versions/master/remote-caching.html#disk-cache),
+[disk caching](https://docs.bazel.build/versions/main/remote-caching.html#disk-cache),
 which will cache build results
 
 ```.bazelrc
@@ -53,8 +78,8 @@ build --disk_cache=~/.cache/bazel-disk-cache
 ```
 
 You can instruct Bazel to use a ramdisk for its sandboxing operations via
-[--sandbox_base](https://docs.bazel.build/versions/master/command-line-reference.html#flag--sandbox_base),
-which can help avoid IO bottlenecks for the symlink stragegy used for
+[--sandbox_base](https://docs.bazel.build/versions/main/command-line-reference.html#flag--sandbox_base),
+which can help avoid IO bottlenecks for the symlink strategy used for
 sandboxing. This is especially important with many inputs and many cores (see
 https://github.com/bazelbuild/bazel/issues/11868):
 
@@ -73,7 +98,19 @@ platform-specific are selected for in defines. Many are also hardcoded to the
 values currently used by all supported configurations. If there is a
 configuration you'd like to use that isn't supported, please send a patch.
 
-# Usage
+# Continuous Testing
+
+A [Buildkite pipeline](https://buildkite.com/llvm-project/upstream-bazel)
+runs the full Bazel build on every commit to the main branch. Notifications of
+failures are sent to the
+[llvm-bazel-alerts google group](https://groups.google.com/g/llvm-bazel-alerts),
+which anyone is free to join. Currently, the behavior is just to send an email
+on each failure using Buildkite's built-in notification system, so if you
+subscribe, it is highly recommended that you set up email filters or some other
+mechanism to not flood your inbox. More sophisticated notifications, e.g. only
+on status change or routed based on blamelist are TODO (contributions welcome).
+
+# Usage in Downstream Projects
 
 To use in dependent projects using Bazel, you can import LLVM and then use the
 provided configuration rule. See example usage in the `examples/` directory.

@@ -16,42 +16,21 @@
 #include "gtest/gtest.h"
 using namespace llvm;
 
-namespace llvm {
-
-std::ostream &operator<<(std::ostream &OS, const StringRef &S) {
-  OS << S.str();
-  return OS;
-}
-
-std::ostream &operator<<(std::ostream &OS,
-                         const std::pair<StringRef, StringRef> &P) {
-  OS << "(" << P.first << ", " << P.second << ")";
-  return OS;
-}
-
-}
-
 // Check that we can't accidentally assign a temporary std::string to a
 // StringRef. (Unfortunately we can't make use of the same thing with
 // constructors.)
-static_assert(
-    !std::is_assignable<StringRef&, std::string>::value,
-    "Assigning from prvalue std::string");
-static_assert(
-    !std::is_assignable<StringRef&, std::string &&>::value,
-    "Assigning from xvalue std::string");
-static_assert(
-    std::is_assignable<StringRef&, std::string &>::value,
-    "Assigning from lvalue std::string");
-static_assert(
-    std::is_assignable<StringRef&, const char *>::value,
-    "Assigning from prvalue C string");
-static_assert(
-    std::is_assignable<StringRef&, const char * &&>::value,
-    "Assigning from xvalue C string");
-static_assert(
-    std::is_assignable<StringRef&, const char * &>::value,
-    "Assigning from lvalue C string");
+static_assert(!std::is_assignable_v<StringRef &, std::string>,
+              "Assigning from prvalue std::string");
+static_assert(!std::is_assignable_v<StringRef &, std::string &&>,
+              "Assigning from xvalue std::string");
+static_assert(std::is_assignable_v<StringRef &, std::string &>,
+              "Assigning from lvalue std::string");
+static_assert(std::is_assignable_v<StringRef &, const char *>,
+              "Assigning from prvalue C string");
+static_assert(std::is_assignable_v<StringRef &, const char *&&>,
+              "Assigning from xvalue C string");
+static_assert(std::is_assignable_v<StringRef &, const char *&>,
+              "Assigning from lvalue C string");
 
 namespace {
 TEST(StringRefTest, Construction) {
@@ -59,16 +38,13 @@ TEST(StringRefTest, Construction) {
   EXPECT_EQ("hello", StringRef("hello"));
   EXPECT_EQ("hello", StringRef("hello world", 5));
   EXPECT_EQ("hello", StringRef(std::string("hello")));
-#if __cplusplus > 201402L
   EXPECT_EQ("hello", StringRef(std::string_view("hello")));
-#endif
 }
 
 TEST(StringRefTest, Conversion) {
   EXPECT_EQ("hello", std::string(StringRef("hello")));
-#if __cplusplus > 201402L
   EXPECT_EQ("hello", std::string_view(StringRef("hello")));
-#endif
+  static_assert(std::string_view(StringRef("hello")) == "hello");
 }
 
 TEST(StringRefTest, EmptyInitializerList) {
@@ -81,22 +57,43 @@ TEST(StringRefTest, EmptyInitializerList) {
 
 TEST(StringRefTest, Iteration) {
   StringRef S("hello");
-  const char *p = "hello";
-  for (const char *it = S.begin(), *ie = S.end(); it != ie; ++it, ++p)
-    EXPECT_EQ(*it, *p);
+  constexpr StringLiteral CS("hello");
+
+  // Note: Cannot use literal strings in equal() as iteration over a literal
+  // string includes the null terminator.
+  const std::string_view RefFwd("hello");
+  const std::string_view RefRev("olleh");
+
+  EXPECT_TRUE(equal(S, RefFwd));
+  EXPECT_TRUE(equal(CS, RefFwd));
+  EXPECT_TRUE(equal(make_range(S.rbegin(), S.rend()), RefRev));
+  EXPECT_TRUE(equal(make_range(CS.rbegin(), CS.rend()), RefRev));
 }
 
 TEST(StringRefTest, StringOps) {
   const char *p = "hello";
+
   EXPECT_EQ(p, StringRef(p, 0).data());
+  static_assert(StringRef("hello").data()[0] == 'h');
+  static_assert(StringRef("hello").data()[1] == 'e');
+  static_assert(StringRef("hello").data()[2] == 'l');
+  static_assert(StringRef("hello").data()[3] == 'l');
+  static_assert(StringRef("hello").data()[4] == 'o');
+  static_assert(StringRef("hello").data()[5] == '\0');
+
   EXPECT_TRUE(StringRef().empty());
+  static_assert(StringRef("").empty());
+  static_assert(!StringRef("hello").empty());
+
   EXPECT_EQ((size_t) 5, StringRef("hello").size());
-  EXPECT_EQ(-1, StringRef("aab").compare("aad"));
+  static_assert(StringRef("hello").size() == 5);
+
+  EXPECT_GT( 0, StringRef("aab").compare("aad"));
   EXPECT_EQ( 0, StringRef("aab").compare("aab"));
-  EXPECT_EQ( 1, StringRef("aab").compare("aaa"));
-  EXPECT_EQ(-1, StringRef("aab").compare("aabb"));
-  EXPECT_EQ( 1, StringRef("aab").compare("aa"));
-  EXPECT_EQ( 1, StringRef("\xFF").compare("\1"));
+  EXPECT_LT( 0, StringRef("aab").compare("aaa"));
+  EXPECT_GT( 0, StringRef("aab").compare("aabb"));
+  EXPECT_LT( 0, StringRef("aab").compare("aa"));
+  EXPECT_LT( 0, StringRef("\xFF").compare("\1"));
 
   EXPECT_EQ(-1, StringRef("AaB").compare_insensitive("aAd"));
   EXPECT_EQ( 0, StringRef("AaB").compare_insensitive("aab"));
@@ -360,20 +357,22 @@ TEST(StringRefTest, Trim) {
 
 TEST(StringRefTest, StartsWith) {
   StringRef Str("hello");
-  EXPECT_TRUE(Str.startswith(""));
-  EXPECT_TRUE(Str.startswith("he"));
-  EXPECT_FALSE(Str.startswith("helloworld"));
-  EXPECT_FALSE(Str.startswith("hi"));
+  EXPECT_TRUE(Str.starts_with(""));
+  EXPECT_TRUE(Str.starts_with("he"));
+  EXPECT_FALSE(Str.starts_with("helloworld"));
+  EXPECT_FALSE(Str.starts_with("hi"));
+  EXPECT_TRUE(Str.starts_with('h'));
+  EXPECT_FALSE(Str.starts_with('i'));
 }
 
 TEST(StringRefTest, StartsWithInsensitive) {
   StringRef Str("heLLo");
-  EXPECT_TRUE(Str.startswith_insensitive(""));
-  EXPECT_TRUE(Str.startswith_insensitive("he"));
-  EXPECT_TRUE(Str.startswith_insensitive("hell"));
-  EXPECT_TRUE(Str.startswith_insensitive("HELlo"));
-  EXPECT_FALSE(Str.startswith_insensitive("helloworld"));
-  EXPECT_FALSE(Str.startswith_insensitive("hi"));
+  EXPECT_TRUE(Str.starts_with_insensitive(""));
+  EXPECT_TRUE(Str.starts_with_insensitive("he"));
+  EXPECT_TRUE(Str.starts_with_insensitive("hell"));
+  EXPECT_TRUE(Str.starts_with_insensitive("HELlo"));
+  EXPECT_FALSE(Str.starts_with_insensitive("helloworld"));
+  EXPECT_FALSE(Str.starts_with_insensitive("hi"));
 }
 
 TEST(StringRefTest, ConsumeFront) {
@@ -412,21 +411,23 @@ TEST(StringRefTest, ConsumeFrontInsensitive) {
 
 TEST(StringRefTest, EndsWith) {
   StringRef Str("hello");
-  EXPECT_TRUE(Str.endswith(""));
-  EXPECT_TRUE(Str.endswith("lo"));
-  EXPECT_FALSE(Str.endswith("helloworld"));
-  EXPECT_FALSE(Str.endswith("worldhello"));
-  EXPECT_FALSE(Str.endswith("so"));
+  EXPECT_TRUE(Str.ends_with(""));
+  EXPECT_TRUE(Str.ends_with("lo"));
+  EXPECT_FALSE(Str.ends_with("helloworld"));
+  EXPECT_FALSE(Str.ends_with("worldhello"));
+  EXPECT_FALSE(Str.ends_with("so"));
+  EXPECT_TRUE(Str.ends_with('o'));
+  EXPECT_FALSE(Str.ends_with('p'));
 }
 
 TEST(StringRefTest, EndsWithInsensitive) {
   StringRef Str("heLLo");
-  EXPECT_TRUE(Str.endswith_insensitive(""));
-  EXPECT_TRUE(Str.endswith_insensitive("lo"));
-  EXPECT_TRUE(Str.endswith_insensitive("LO"));
-  EXPECT_TRUE(Str.endswith_insensitive("ELlo"));
-  EXPECT_FALSE(Str.endswith_insensitive("helloworld"));
-  EXPECT_FALSE(Str.endswith_insensitive("hi"));
+  EXPECT_TRUE(Str.ends_with_insensitive(""));
+  EXPECT_TRUE(Str.ends_with_insensitive("lo"));
+  EXPECT_TRUE(Str.ends_with_insensitive("LO"));
+  EXPECT_TRUE(Str.ends_with_insensitive("ELlo"));
+  EXPECT_FALSE(Str.ends_with_insensitive("helloworld"));
+  EXPECT_FALSE(Str.ends_with_insensitive("hi"));
 }
 
 TEST(StringRefTest, ConsumeBack) {
@@ -584,6 +585,15 @@ TEST(StringRefTest, EditDistance) {
                                        "people soiled our green "));
 }
 
+TEST(StringRefTest, EditDistanceInsensitive) {
+  StringRef Hello("HELLO");
+  EXPECT_EQ(2U, Hello.edit_distance_insensitive("hill"));
+  EXPECT_EQ(0U, Hello.edit_distance_insensitive("hello"));
+
+  StringRef Industry("InDuStRy");
+  EXPECT_EQ(6U, Industry.edit_distance_insensitive("iNtErEsT"));
+}
+
 TEST(StringRefTest, Misc) {
   std::string Storage;
   raw_string_ostream OS(Storage);
@@ -607,6 +617,19 @@ TEST(StringRefTest, Hashing) {
   EXPECT_EQ(H, hash_value(StringRef("hello world\0")));
   EXPECT_NE(hash_value(std::string("ello worl")),
             hash_value(StringRef("hello world").slice(1, -1)));
+}
+
+TEST(StringRefTest, getAutoSenseRadix) {
+  struct RadixPair {
+    const char *Str;
+    unsigned Expected;
+  } RadixNumbers[] = {{"123", 10}, {"1", 10}, {"0b1", 2}, {"01", 8}, {"0o1", 8},
+                      {"0x1", 16}, {"0", 10}, {"00", 8},  {"", 10}};
+  for (size_t i = 0; i < std::size(RadixNumbers); ++i) {
+    StringRef number = RadixNumbers[i].Str;
+    unsigned radix = getAutoSenseRadix(number);
+    EXPECT_EQ(radix, RadixNumbers[i].Expected);
+  }
 }
 
 struct UnsignedPair {
@@ -659,7 +682,7 @@ TEST(StringRefTest, getAsInteger) {
   uint32_t U32;
   uint64_t U64;
 
-  for (size_t i = 0; i < array_lengthof(Unsigned); ++i) {
+  for (size_t i = 0; i < std::size(Unsigned); ++i) {
     bool U8Success = StringRef(Unsigned[i].Str).getAsInteger(0, U8);
     if (static_cast<uint8_t>(Unsigned[i].Expected) == Unsigned[i].Expected) {
       ASSERT_FALSE(U8Success);
@@ -691,7 +714,7 @@ TEST(StringRefTest, getAsInteger) {
   int32_t S32;
   int64_t S64;
 
-  for (size_t i = 0; i < array_lengthof(Signed); ++i) {
+  for (size_t i = 0; i < std::size(Signed); ++i) {
     bool S8Success = StringRef(Signed[i].Str).getAsInteger(0, S8);
     if (static_cast<int8_t>(Signed[i].Expected) == Signed[i].Expected) {
       ASSERT_FALSE(S8Success);
@@ -737,7 +760,7 @@ static const char* BadStrings[] = {
 
 TEST(StringRefTest, getAsUnsignedIntegerBadStrings) {
   unsigned long long U64;
-  for (size_t i = 0; i < array_lengthof(BadStrings); ++i) {
+  for (size_t i = 0; i < std::size(BadStrings); ++i) {
     bool IsBadNumber = StringRef(BadStrings[i]).getAsInteger(0, U64);
     ASSERT_TRUE(IsBadNumber);
   }
@@ -819,8 +842,9 @@ TEST(StringRefTest, consumeIntegerUnsigned) {
   uint16_t U16;
   uint32_t U32;
   uint64_t U64;
+  APInt U;
 
-  for (size_t i = 0; i < array_lengthof(ConsumeUnsigned); ++i) {
+  for (size_t i = 0; i < std::size(ConsumeUnsigned); ++i) {
     StringRef Str = ConsumeUnsigned[i].Str;
     bool U8Success = Str.consumeInteger(0, U8);
     if (static_cast<uint8_t>(ConsumeUnsigned[i].Expected) ==
@@ -859,6 +883,12 @@ TEST(StringRefTest, consumeIntegerUnsigned) {
     ASSERT_FALSE(U64Success);
     EXPECT_EQ(U64, ConsumeUnsigned[i].Expected);
     EXPECT_EQ(Str, ConsumeUnsigned[i].Leftover);
+
+    Str = ConsumeUnsigned[i].Str;
+    U64Success = Str.consumeInteger(0, U);
+    ASSERT_FALSE(U64Success);
+    EXPECT_EQ(U.getZExtValue(), ConsumeUnsigned[i].Expected);
+    EXPECT_EQ(Str, ConsumeUnsigned[i].Leftover);
   }
 }
 
@@ -868,7 +898,7 @@ TEST(StringRefTest, consumeIntegerSigned) {
   int32_t S32;
   int64_t S64;
 
-  for (size_t i = 0; i < array_lengthof(ConsumeSigned); ++i) {
+  for (size_t i = 0; i < std::size(ConsumeSigned); ++i) {
     StringRef Str = ConsumeSigned[i].Str;
     bool S8Success = Str.consumeInteger(0, S8);
     if (static_cast<int8_t>(ConsumeSigned[i].Expected) ==
@@ -915,16 +945,17 @@ struct GetDoubleStrings {
   bool AllowInexact;
   bool ShouldFail;
   double D;
-} DoubleStrings[] = {{"0", false, false, 0.0},
-                     {"0.0", false, false, 0.0},
-                     {"-0.0", false, false, -0.0},
-                     {"123.45", false, true, 123.45},
-                     {"123.45", true, false, 123.45},
-                     {"1.8e308", true, false, std::numeric_limits<double>::infinity()},
-                     {"1.8e308", false, true, std::numeric_limits<double>::infinity()},
-                     {"0x0.0000000000001P-1023", false, true, 0.0},
-                     {"0x0.0000000000001P-1023", true, false, 0.0},
-                    };
+} DoubleStrings[] = {
+    {"0", false, false, 0.0},
+    {"0.0", false, false, 0.0},
+    {"-0.0", false, false, -0.0},
+    {"123.45", false, true, 123.45},
+    {"123.45", true, false, 123.45},
+    {"1.8e308", true, false, std::numeric_limits<double>::infinity()},
+    {"1.8e308", false, true, std::numeric_limits<double>::infinity()},
+    {"0x0.0000000000001P-1023", false, true, 0.0},
+    {"0x0.0000000000001P-1023", true, false, 0.0},
+};
 
 TEST(StringRefTest, getAsDouble) {
   for (const auto &Entry : DoubleStrings) {
@@ -945,7 +976,7 @@ static const char join_result3[] = "a::b::c";
 TEST(StringRefTest, joinStrings) {
   std::vector<StringRef> v1;
   std::vector<std::string> v2;
-  for (size_t i = 0; i < array_lengthof(join_input); ++i) {
+  for (size_t i = 0; i < std::size(join_input); ++i) {
     v1.push_back(join_input[i]);
     v2.push_back(join_input[i]);
   }
@@ -974,7 +1005,7 @@ TEST(StringRefTest, AllocatorCopy) {
   // allocator.
   StringRef StrEmpty = "";
   StringRef StrEmptyc = StrEmpty.copy(Alloc);
-  EXPECT_TRUE(StrEmpty.equals(StrEmptyc));
+  EXPECT_TRUE(StrEmpty == StrEmptyc);
   EXPECT_EQ(StrEmptyc.data(), nullptr);
   EXPECT_EQ(StrEmptyc.size(), 0u);
   EXPECT_EQ(Alloc.getTotalMemory(), 0u);
@@ -983,9 +1014,9 @@ TEST(StringRefTest, AllocatorCopy) {
   StringRef Str2 = "bye";
   StringRef Str1c = Str1.copy(Alloc);
   StringRef Str2c = Str2.copy(Alloc);
-  EXPECT_TRUE(Str1.equals(Str1c));
+  EXPECT_TRUE(Str1 == Str1c);
   EXPECT_NE(Str1.data(), Str1c.data());
-  EXPECT_TRUE(Str2.equals(Str2c));
+  EXPECT_TRUE(Str2 == Str2c);
   EXPECT_NE(Str2.data(), Str2c.data());
 }
 
@@ -1092,10 +1123,14 @@ TEST(StringRefTest, DropWhileUntil) {
 TEST(StringRefTest, StringLiteral) {
   constexpr StringRef StringRefs[] = {"Foo", "Bar"};
   EXPECT_EQ(StringRef("Foo"), StringRefs[0]);
+  EXPECT_EQ(3u, (std::integral_constant<size_t, StringRefs[0].size()>::value));
+  EXPECT_EQ(false, (std::bool_constant<StringRefs[0].empty()>::value));
   EXPECT_EQ(StringRef("Bar"), StringRefs[1]);
 
   constexpr StringLiteral Strings[] = {"Foo", "Bar"};
   EXPECT_EQ(StringRef("Foo"), Strings[0]);
+  EXPECT_EQ(3u, (std::integral_constant<size_t, Strings[0].size()>::value));
+  EXPECT_EQ(false, (std::bool_constant<Strings[0].empty()>::value));
   EXPECT_EQ(StringRef("Bar"), Strings[1]);
 }
 
@@ -1105,7 +1140,36 @@ TEST(StringRefTest, GTestPrinter) {
   EXPECT_EQ(R"("foo")", ::testing::PrintToString(StringRef("foo")));
 }
 
-static_assert(std::is_trivially_copyable<StringRef>::value,
-              "trivially copyable");
+TEST(StringRefTest, LFLineEnding) {
+  constexpr StringRef Cases[] = {"\nDoggo\nPupper", "Floofer\n", "Woofer"};
+  EXPECT_EQ(StringRef("\n"), Cases[0].detectEOL());
+  EXPECT_EQ(StringRef("\n"), Cases[1].detectEOL());
+  EXPECT_EQ(StringRef("\n"), Cases[2].detectEOL());
+}
+
+TEST(StringRefTest, CRLineEnding) {
+  constexpr StringRef Cases[] = {"\rDoggo\rPupper", "Floofer\r", "Woo\rfer\n"};
+  EXPECT_EQ(StringRef("\r"), Cases[0].detectEOL());
+  EXPECT_EQ(StringRef("\r"), Cases[1].detectEOL());
+  EXPECT_EQ(StringRef("\r"), Cases[2].detectEOL());
+}
+
+TEST(StringRefTest, CRLFLineEnding) {
+  constexpr StringRef Cases[] = {"\r\nDoggo\r\nPupper", "Floofer\r\n",
+                                 "Woofer\r\nSubWoofer\n"};
+  EXPECT_EQ(StringRef("\r\n"), Cases[0].detectEOL());
+  EXPECT_EQ(StringRef("\r\n"), Cases[1].detectEOL());
+  EXPECT_EQ(StringRef("\r\n"), Cases[2].detectEOL());
+}
+
+TEST(StringRefTest, LFCRLineEnding) {
+  constexpr StringRef Cases[] = {"\n\rDoggo\n\rPupper", "Floofer\n\r",
+                                 "Woofer\n\rSubWoofer\n"};
+  EXPECT_EQ(StringRef("\n\r"), Cases[0].detectEOL());
+  EXPECT_EQ(StringRef("\n\r"), Cases[1].detectEOL());
+  EXPECT_EQ(StringRef("\n\r"), Cases[2].detectEOL());
+}
+
+static_assert(std::is_trivially_copyable_v<StringRef>, "trivially copyable");
 
 } // end anonymous namespace

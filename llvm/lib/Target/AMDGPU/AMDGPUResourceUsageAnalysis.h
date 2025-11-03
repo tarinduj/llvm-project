@@ -15,20 +15,19 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPURESOURCEUSAGEANALYSIS_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPURESOURCEUSAGEANALYSIS_H
 
-#include "llvm/Analysis/CallGraphSCCPass.h"
-#include "llvm/CodeGen/MachineModuleInfo.h"
-#include "llvm/IR/ValueMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/IR/PassManager.h"
 
 namespace llvm {
 
 class GCNSubtarget;
 class MachineFunction;
-class TargetMachine;
+class GCNTargetMachine;
 
-struct AMDGPUResourceUsageAnalysis : public CallGraphSCCPass {
-  static char ID;
-
+struct AMDGPUResourceUsageAnalysisImpl {
 public:
+  static char ID;
   // Track resource usage for callee functions.
   struct SIFunctionResourceInfo {
     // Track the number of explicitly used VGPRs. Special registers reserved at
@@ -36,44 +35,55 @@ public:
     int32_t NumVGPR = 0;
     int32_t NumAGPR = 0;
     int32_t NumExplicitSGPR = 0;
+    int32_t NumNamedBarrier = 0;
+    uint64_t CalleeSegmentSize = 0;
     uint64_t PrivateSegmentSize = 0;
     bool UsesVCC = false;
     bool UsesFlatScratch = false;
     bool HasDynamicallySizedStack = false;
     bool HasRecursion = false;
     bool HasIndirectCall = false;
-
-    int32_t getTotalNumSGPRs(const GCNSubtarget &ST) const;
-    int32_t getTotalNumVGPRs(const GCNSubtarget &ST) const;
+    SmallVector<const Function *, 16> Callees;
   };
 
-  AMDGPUResourceUsageAnalysis() : CallGraphSCCPass(ID) {}
+  SIFunctionResourceInfo
+  analyzeResourceUsage(const MachineFunction &MF,
+                       uint32_t AssumedStackSizeForDynamicSizeObjects,
+                       uint32_t AssumedStackSizeForExternalCall) const;
+};
 
-  bool runOnSCC(CallGraphSCC &SCC) override;
+struct AMDGPUResourceUsageAnalysisWrapperPass : public MachineFunctionPass {
+  using FunctionResourceInfo =
+      AMDGPUResourceUsageAnalysisImpl::SIFunctionResourceInfo;
+  FunctionResourceInfo ResourceInfo;
 
-  bool doInitialization(CallGraph &CG) override {
-    CallGraphResourceInfo.clear();
-    return CallGraphSCCPass::doInitialization(CG);
-  }
+public:
+  static char ID;
+  AMDGPUResourceUsageAnalysisWrapperPass() : MachineFunctionPass(ID) {}
+
+  bool runOnMachineFunction(MachineFunction &MF) override;
+
+  const FunctionResourceInfo &getResourceInfo() const { return ResourceInfo; }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<MachineModuleInfoWrapperPass>();
     AU.setPreservesAll();
+    MachineFunctionPass::getAnalysisUsage(AU);
   }
-
-  const SIFunctionResourceInfo &getResourceInfo(const Function *F) const {
-    auto Info = CallGraphResourceInfo.find(F);
-    assert(Info != CallGraphResourceInfo.end() &&
-           "Failed to find resource info for function");
-    return Info->getSecond();
-  }
-
-private:
-  SIFunctionResourceInfo analyzeResourceUsage(const MachineFunction &MF,
-                                              const TargetMachine &TM) const;
-  void propagateIndirectCallRegisterUsage();
-
-  DenseMap<const Function *, SIFunctionResourceInfo> CallGraphResourceInfo;
 };
+
+class AMDGPUResourceUsageAnalysis
+    : public AnalysisInfoMixin<AMDGPUResourceUsageAnalysis> {
+  friend AnalysisInfoMixin<AMDGPUResourceUsageAnalysis>;
+  static AnalysisKey Key;
+
+  const GCNTargetMachine &TM;
+
+public:
+  using Result = AMDGPUResourceUsageAnalysisImpl::SIFunctionResourceInfo;
+  Result run(MachineFunction &MF, MachineFunctionAnalysisManager &MFAM);
+
+  AMDGPUResourceUsageAnalysis(const GCNTargetMachine &TM_) : TM(TM_) {}
+};
+
 } // namespace llvm
 #endif // LLVM_LIB_TARGET_AMDGPU_AMDGPURESOURCEUSAGEANALYSIS_H

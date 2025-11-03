@@ -14,6 +14,7 @@
 #include "lld/Common/LLVM.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/xxhash.h"
+#include <algorithm>
 
 #define DEBUG_TYPE "lld"
 
@@ -51,7 +52,7 @@ bool relocIs64(uint8_t relocType) {
 }
 
 std::string toString(const wasm::InputChunk *c) {
-  return (toString(c->file) + ":(" + c->getName() + ")").str();
+  return (toString(c->file) + ":(" + c->name + ")").str();
 }
 
 namespace wasm {
@@ -67,7 +68,7 @@ uint32_t InputChunk::getSize() const {
     return ms->builder.getSize();
 
   if (const auto *f = dyn_cast<InputFunction>(this)) {
-    if (config->compressRelocations && f->file) {
+    if (ctx.arg.compressRelocations && f->file) {
       return f->getCompressedSize();
     }
   }
@@ -84,7 +85,7 @@ uint32_t InputChunk::getInputSize() const {
 // Copy this input chunk to an mmap'ed output file and apply relocations.
 void InputChunk::writeTo(uint8_t *buf) const {
   if (const auto *f = dyn_cast<InputFunction>(this)) {
-    if (file && config->compressRelocations)
+    if (file && ctx.arg.compressRelocations)
       return f->writeCompressed(buf);
   } else if (const auto *ms = dyn_cast<SyntheticMergedChunk>(this)) {
     ms->builder.write(buf + outSecOff);
@@ -116,7 +117,10 @@ void InputChunk::relocate(uint8_t *buf) const {
       LLVM_DEBUG(dbgs() << " sym=" << file->getSymbols()[rel.Index]->getName());
     LLVM_DEBUG(dbgs() << " addend=" << rel.Addend << " index=" << rel.Index
                       << " offset=" << rel.Offset << "\n");
-    auto value = file->calcNewValue(rel, tombstone, this);
+    // TODO(sbc): Check that the value is within the range of the
+    // relocation type below.  Most likely we must error out here
+    // if its not with range.
+    uint64_t value = file->calcNewValue(rel, tombstone, this);
 
     switch (rel.Type) {
     case R_WASM_TYPE_INDEX_LEB:
@@ -125,7 +129,7 @@ void InputChunk::relocate(uint8_t *buf) const {
     case R_WASM_TAG_INDEX_LEB:
     case R_WASM_MEMORY_ADDR_LEB:
     case R_WASM_TABLE_NUMBER_LEB:
-      encodeULEB128(value, loc, 5);
+      encodeULEB128(static_cast<uint32_t>(value), loc, 5);
       break;
     case R_WASM_MEMORY_ADDR_LEB64:
       encodeULEB128(value, loc, 10);
@@ -147,6 +151,7 @@ void InputChunk::relocate(uint8_t *buf) const {
     case R_WASM_TABLE_INDEX_I32:
     case R_WASM_MEMORY_ADDR_I32:
     case R_WASM_FUNCTION_OFFSET_I32:
+    case R_WASM_FUNCTION_INDEX_I32:
     case R_WASM_SECTION_OFFSET_I32:
     case R_WASM_GLOBAL_INDEX_I32:
     case R_WASM_MEMORY_ADDR_LOCREL_I32:
@@ -163,6 +168,17 @@ void InputChunk::relocate(uint8_t *buf) const {
   }
 }
 
+static bool relocIsLive(const WasmRelocation &rel, ObjFile *file) {
+  return rel.Type == R_WASM_TYPE_INDEX_LEB ||
+         file->getSymbol(rel.Index)->isLive();
+}
+
+size_t InputChunk::getNumLiveRelocations() const {
+  return llvm::count_if(relocations, [this](const WasmRelocation &rel) {
+    return relocIsLive(rel, file);
+  });
+}
+
 // Copy relocation entries to a given output stream.
 // This function is used only when a user passes "-r". For a regular link,
 // we consume relocations instead of copying them to an output file.
@@ -175,6 +191,8 @@ void InputChunk::writeRelocations(raw_ostream &os) const {
                     << " offset=" << Twine(off) << "\n");
 
   for (const WasmRelocation &rel : relocations) {
+    if (!relocIsLive(rel, file))
+      continue;
     writeUleb128(os, rel.Type, "reloc type");
     writeUleb128(os, rel.Offset + off, "reloc offset");
     writeUleb128(os, file->calcNewIndex(rel), "reloc index");
@@ -193,14 +211,14 @@ uint64_t InputChunk::getTombstone() const {
 }
 
 void InputFunction::setFunctionIndex(uint32_t index) {
-  LLVM_DEBUG(dbgs() << "InputFunction::setFunctionIndex: " << getName()
-                    << " -> " << index << "\n");
+  LLVM_DEBUG(dbgs() << "InputFunction::setFunctionIndex: " << name << " -> "
+                    << index << "\n");
   assert(!hasFunctionIndex());
   functionIndex = index;
 }
 
 void InputFunction::setTableIndex(uint32_t index) {
-  LLVM_DEBUG(dbgs() << "InputFunction::setTableIndex: " << getName() << " -> "
+  LLVM_DEBUG(dbgs() << "InputFunction::setTableIndex: " << name << " -> "
                     << index << "\n");
   assert(!hasTableIndex());
   tableIndex = index;
@@ -210,7 +228,7 @@ void InputFunction::setTableIndex(uint32_t index) {
 // witten.
 static unsigned writeCompressedReloc(uint8_t *buf, const WasmRelocation &rel,
                                      uint64_t value) {
-  switch (rel.Type) {
+  switch (rel.getType()) {
   case R_WASM_TYPE_INDEX_LEB:
   case R_WASM_FUNCTION_INDEX_LEB:
   case R_WASM_GLOBAL_INDEX_LEB:
@@ -221,16 +239,33 @@ static unsigned writeCompressedReloc(uint8_t *buf, const WasmRelocation &rel,
     return encodeULEB128(value, buf);
   case R_WASM_TABLE_INDEX_SLEB:
   case R_WASM_TABLE_INDEX_SLEB64:
+  case R_WASM_TABLE_INDEX_REL_SLEB64:
   case R_WASM_MEMORY_ADDR_SLEB:
   case R_WASM_MEMORY_ADDR_SLEB64:
+  case R_WASM_MEMORY_ADDR_REL_SLEB:
+  case R_WASM_MEMORY_ADDR_REL_SLEB64:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB64:
+  case R_WASM_TABLE_INDEX_REL_SLEB:
     return encodeSLEB128(static_cast<int64_t>(value), buf);
-  default:
-    llvm_unreachable("unexpected relocation type");
+  case R_WASM_TABLE_INDEX_I32:
+  case R_WASM_MEMORY_ADDR_I32:
+  case R_WASM_FUNCTION_OFFSET_I32:
+  case R_WASM_SECTION_OFFSET_I32:
+  case R_WASM_GLOBAL_INDEX_I32:
+  case R_WASM_MEMORY_ADDR_I64:
+  case R_WASM_TABLE_INDEX_I64:
+  case R_WASM_FUNCTION_OFFSET_I64:
+  case R_WASM_MEMORY_ADDR_LOCREL_I32:
+  case R_WASM_FUNCTION_INDEX_I32:
+    fatal("relocation compression not supported for " +
+          relocTypeToString(rel.Type));
   }
+  llvm_unreachable("unhandled relocation type");
 }
 
 static unsigned getRelocWidthPadded(const WasmRelocation &rel) {
-  switch (rel.Type) {
+  switch (rel.getType()) {
   case R_WASM_TYPE_INDEX_LEB:
   case R_WASM_FUNCTION_INDEX_LEB:
   case R_WASM_GLOBAL_INDEX_LEB:
@@ -238,15 +273,32 @@ static unsigned getRelocWidthPadded(const WasmRelocation &rel) {
   case R_WASM_MEMORY_ADDR_LEB:
   case R_WASM_TABLE_NUMBER_LEB:
   case R_WASM_TABLE_INDEX_SLEB:
+  case R_WASM_TABLE_INDEX_REL_SLEB:
   case R_WASM_MEMORY_ADDR_SLEB:
+  case R_WASM_MEMORY_ADDR_REL_SLEB:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB:
     return 5;
   case R_WASM_TABLE_INDEX_SLEB64:
+  case R_WASM_TABLE_INDEX_REL_SLEB64:
   case R_WASM_MEMORY_ADDR_LEB64:
   case R_WASM_MEMORY_ADDR_SLEB64:
+  case R_WASM_MEMORY_ADDR_REL_SLEB64:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB64:
     return 10;
-  default:
-    llvm_unreachable("unexpected relocation type");
+  case R_WASM_TABLE_INDEX_I32:
+  case R_WASM_MEMORY_ADDR_I32:
+  case R_WASM_FUNCTION_OFFSET_I32:
+  case R_WASM_SECTION_OFFSET_I32:
+  case R_WASM_GLOBAL_INDEX_I32:
+  case R_WASM_MEMORY_ADDR_I64:
+  case R_WASM_TABLE_INDEX_I64:
+  case R_WASM_FUNCTION_OFFSET_I64:
+  case R_WASM_MEMORY_ADDR_LOCREL_I32:
+  case R_WASM_FUNCTION_INDEX_I32:
+    fatal("relocation compression not supported for " +
+          relocTypeToString(rel.Type));
   }
+  llvm_unreachable("unhandled relocation type");
 }
 
 static unsigned getRelocWidth(const WasmRelocation &rel, uint64_t value) {
@@ -265,10 +317,10 @@ static unsigned getRelocWidth(const WasmRelocation &rel, uint64_t value) {
 // This function only computes the final output size.  It must be called
 // before getSize() is used to calculate of layout of the code section.
 void InputFunction::calculateSize() {
-  if (!file || !config->compressRelocations)
+  if (!file || !ctx.arg.compressRelocations)
     return;
 
-  LLVM_DEBUG(dbgs() << "calculateSize: " << getName() << "\n");
+  LLVM_DEBUG(dbgs() << "calculateSize: " << name << "\n");
 
   const uint8_t *secStart = file->codeSection->Content.data();
   const uint8_t *funcStart = secStart + getInputSectionOffset();
@@ -315,7 +367,7 @@ void InputFunction::writeCompressed(uint8_t *buf) const {
   decodeULEB128(funcStart, &count);
   funcStart += count;
 
-  LLVM_DEBUG(dbgs() << "write func: " << getName() << "\n");
+  LLVM_DEBUG(dbgs() << "write func: " << name << "\n");
   buf += encodeULEB128(compressedFuncSize, buf);
   const uint8_t *lastRelocEnd = funcStart;
   for (const WasmRelocation &rel : relocations) {
@@ -336,7 +388,7 @@ void InputFunction::writeCompressed(uint8_t *buf) const {
 
 uint64_t InputChunk::getChunkOffset(uint64_t offset) const {
   if (const auto *ms = dyn_cast<MergeInputChunk>(this)) {
-    LLVM_DEBUG(dbgs() << "getChunkOffset(merged): " << getName() << "\n");
+    LLVM_DEBUG(dbgs() << "getChunkOffset(merged): " << name << "\n");
     LLVM_DEBUG(dbgs() << "offset: " << offset << "\n");
     LLVM_DEBUG(dbgs() << "parentOffset: " << ms->getParentOffset(offset)
                       << "\n");
@@ -354,14 +406,23 @@ uint64_t InputChunk::getVA(uint64_t offset) const {
   return (outputSeg ? outputSeg->startVA : 0) + getChunkOffset(offset);
 }
 
+bool isValidRuntimeRelocation(WasmRelocType type) {
+  // TODO(https://github.com/llvm/llvm-project/issues/146923): Currently
+  // this means that R_WASM_FUNCTION_INDEX_I32 is not valid in `-pie` data
+  // sections.
+  return type == R_WASM_TABLE_INDEX_I32 || type == R_WASM_TABLE_INDEX_I64 ||
+         type == R_WASM_MEMORY_ADDR_I32 || type == R_WASM_MEMORY_ADDR_I64;
+}
+
 // Generate code to apply relocations to the data section at runtime.
-// This is only called when generating shared libaries (PIC) where address are
+// This is only called when generating shared libraries (PIC) where address are
 // not known at static link time.
-void InputChunk::generateRelocationCode(raw_ostream &os) const {
-  LLVM_DEBUG(dbgs() << "generating runtime relocations: " << getName()
+bool InputChunk::generateRelocationCode(raw_ostream &os) const {
+  LLVM_DEBUG(dbgs() << "generating runtime relocations: " << name
                     << " count=" << relocations.size() << "\n");
 
-  bool is64 = config->is64.getValueOr(false);
+  bool is64 = ctx.arg.is64.value_or(false);
+  bool generated = false;
   unsigned opcode_ptr_const = is64 ? WASM_OPCODE_I64_CONST
                                    : WASM_OPCODE_I32_CONST;
   unsigned opcode_ptr_add = is64 ? WASM_OPCODE_I64_ADD
@@ -371,21 +432,39 @@ void InputChunk::generateRelocationCode(raw_ostream &os) const {
   // TODO(sbc): Encode the relocations in the data section and write a loop
   // here to apply them.
   for (const WasmRelocation &rel : relocations) {
-    uint64_t offset = getVA(rel.Offset) - getInputSectionOffset();
+    Symbol *sym = file->getSymbol(rel);
+    // Runtime relocations are needed when we don't know the address of
+    // a symbol statically.
+    bool requiresRuntimeReloc = ctx.isPic || sym->hasGOTIndex();
+    if (!requiresRuntimeReloc)
+      continue;
 
+    if (!isValidRuntimeRelocation(rel.getType())) {
+      error("invalid runtime relocation type in data section: " +
+            relocTypetoString(rel.Type));
+      continue;
+    }
+
+    uint64_t offset = getVA(rel.Offset) - getInputSectionOffset();
     LLVM_DEBUG(dbgs() << "gen reloc: type=" << relocTypeToString(rel.Type)
                       << " addend=" << rel.Addend << " index=" << rel.Index
                       << " output offset=" << offset << "\n");
 
-    // Get __memory_base
-    writeU8(os, WASM_OPCODE_GLOBAL_GET, "GLOBAL_GET");
-    writeUleb128(os, WasmSym::memoryBase->getGlobalIndex(), "memory_base");
-
-    // Add the offset of the relocation
+    // Calculate the address at which to apply the relocation
     writeU8(os, opcode_ptr_const, "CONST");
     writeSleb128(os, offset, "offset");
-    writeU8(os, opcode_ptr_add, "ADD");
 
+    // In PIC mode we need to add the __memory_base
+    if (ctx.isPic) {
+      writeU8(os, WASM_OPCODE_GLOBAL_GET, "GLOBAL_GET");
+      if (isTLS())
+        writeUleb128(os, ctx.sym.tlsBase->getGlobalIndex(), "tls_base");
+      else
+        writeUleb128(os, ctx.sym.memoryBase->getGlobalIndex(), "memory_base");
+      writeU8(os, opcode_ptr_add, "ADD");
+    }
+
+    // Now figure out what we want to store at this location
     bool is64 = relocIs64(rel.Type);
     unsigned opcode_reloc_const =
         is64 ? WASM_OPCODE_I64_CONST : WASM_OPCODE_I32_CONST;
@@ -394,8 +473,6 @@ void InputChunk::generateRelocationCode(raw_ostream &os) const {
     unsigned opcode_reloc_store =
         is64 ? WASM_OPCODE_I64_STORE : WASM_OPCODE_I32_STORE;
 
-    Symbol *sym = file->getSymbol(rel);
-    // Now figure out what we want to store
     if (sym->hasGOTIndex()) {
       writeU8(os, WASM_OPCODE_GLOBAL_GET, "GLOBAL_GET");
       writeUleb128(os, sym->getGOTIndex(), "global index");
@@ -405,10 +482,13 @@ void InputChunk::generateRelocationCode(raw_ostream &os) const {
         writeU8(os, opcode_reloc_add, "ADD");
       }
     } else {
-      const GlobalSymbol* baseSymbol = WasmSym::memoryBase;
+      assert(ctx.isPic);
+      const GlobalSymbol *baseSymbol = ctx.sym.memoryBase;
       if (rel.Type == R_WASM_TABLE_INDEX_I32 ||
           rel.Type == R_WASM_TABLE_INDEX_I64)
-        baseSymbol = WasmSym::tableBase;
+        baseSymbol = ctx.sym.tableBase;
+      else if (sym->isTLS())
+        baseSymbol = ctx.sym.tlsBase;
       writeU8(os, WASM_OPCODE_GLOBAL_GET, "GLOBAL_GET");
       writeUleb128(os, baseSymbol->getGlobalIndex(), "base");
       writeU8(os, opcode_reloc_const, "CONST");
@@ -420,7 +500,9 @@ void InputChunk::generateRelocationCode(raw_ostream &os) const {
     writeU8(os, opcode_reloc_store, "I32_STORE");
     writeUleb128(os, 2, "align");
     writeUleb128(os, 0, "offset");
+    generated = true;
   }
+  return generated;
 }
 
 // Split WASM_SEG_FLAG_STRINGS section. Such a section is a sequence of
@@ -436,7 +518,7 @@ void MergeInputChunk::splitStrings(ArrayRef<uint8_t> data) {
       fatal(toString(this) + ": string is not null terminated");
     size_t size = end + 1;
 
-    pieces.emplace_back(off, xxHash64(s.substr(0, size)), true);
+    pieces.emplace_back(off, xxh3_64bits(s.substr(0, size)), true);
     s = s.substr(size);
     off += size;
   }
@@ -505,13 +587,17 @@ uint64_t InputSection::getTombstoneForSection(StringRef name) {
   // function to -1 to avoid overlapping with a valid range. However for the
   // debug_ranges and debug_loc sections that would conflict with the existing
   // meaning of -1 so we use -2.
+  if (name == ".debug_ranges" || name == ".debug_loc")
+    return UINT64_C(-2);
+  if (name.starts_with(".debug_"))
+    return UINT64_C(-1);
+  // If the function occurs in an function attribute section change it to -1 since
+  // 0 is a valid function index.
+  if (name.starts_with("llvm.func_attr."))
+    return UINT64_C(-1);
   // Returning 0 means there is no tombstone value for this section, and relocation
   // will just use the addend.
-  if (!name.startswith(".debug_"))
-    return 0;
-  if (name.equals(".debug_ranges") || name.equals(".debug_loc"))
-    return UINT64_C(-2);
-  return UINT64_C(-1);
+  return 0;
 }
 
 } // namespace wasm

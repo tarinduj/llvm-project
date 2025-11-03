@@ -1,10 +1,11 @@
 add_mlir_library(MLIRPresburger
-  Simplex.cpp
+  Barvinok.cpp
+  IntegerRelation.cpp
+  LinearTransform.cpp
   Matrix.cpp
-
-  DEPENDS
-  MLIRBuiltinLocationAttributesIncGen
-
-  LINK_LIBS PUBLIC
-  MLIRIR
-  )
+  PresburgerRelation.cpp
+  PresburgerSpace.cpp
+  PWMAFunction.cpp
+  QuasiPolynomial.cpp
+  Simplex.cpp
+  Utils.cpp)

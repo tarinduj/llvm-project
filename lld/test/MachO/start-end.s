@@ -14,7 +14,7 @@
 # RUN:    -U 'section$start$__DYNAMIC$__unref' \
 # RUN:    -e 'section$start$__TEXT$__text'
 # RUN: llvm-objdump --macho --syms --section-headers %t.out > %t-dump.txt
-# RUN: llvm-objdump --macho -d --no-symbolic-operands --no-show-raw-insn %t.out >> %t-dump.txt
+# RUN: llvm-objdump --no-print-imm-hex --macho -d --no-symbolic-operands --no-show-raw-insn %t.out >> %t-dump.txt
 # RUN: llvm-objdump --macho --function-starts %t.out >> %t-dump.txt
 # RUN: FileCheck %s < %t-dump.txt
 
@@ -38,7 +38,7 @@
 # RUN:    -U 'section$start$__DYNAMIC$__unref' \
 # RUN:    -e 'section$start$__TEXT$__text'
 # RUN: llvm-objdump --macho --syms --section-headers %t.ordered.out > %t-ordered-dump.txt
-# RUN: llvm-objdump --macho -d --no-symbolic-operands --no-show-raw-insn %t.ordered.out >> %t-ordered-dump.txt
+# RUN: llvm-objdump --no-print-imm-hex --macho -d --no-symbolic-operands --no-show-raw-insn %t.ordered.out >> %t-ordered-dump.txt
 # RUN: llvm-objdump --macho --function-starts %t.out >> %t-ordered-dump.txt
 # RUN: FileCheck %s < %t-ordered-dump.txt
 
@@ -51,7 +51,7 @@
 # RUN:    -U 'section$start$__DYNAMIC$__unref' \
 # RUN:    -e 'section$start$__TEXT$__text'
 # RUN: llvm-objdump --macho --syms --section-headers %t.dl.out > %t-dump.dl.txt
-# RUN: llvm-objdump --macho -d --no-symbolic-operands --no-show-raw-insn %t.dl.out >> %t-dump.dl.txt
+# RUN: llvm-objdump --no-print-imm-hex --macho -d --no-symbolic-operands --no-show-raw-insn %t.dl.out >> %t-dump.dl.txt
 # RUN: llvm-objdump --macho --function-starts %t.out >> %t-dump.dl.txt
 # RUN: FileCheck %s < %t-dump.dl.txt
 
@@ -67,6 +67,13 @@
 
 ## Test that the link succeeds with dead-stripping enabled too.
 # RUN: %lld -dead_strip -lSystem %t/main.o -o %t/stripped.out
+# RUN: llvm-objdump --macho --syms --section-headers %t/stripped.out > %t-stripped-dump.txt
+# RUN: llvm-objdump --no-print-imm-hex --macho -d --no-symbolic-operands --no-show-raw-insn %t/stripped.out >> %t-stripped-dump.txt
+# RUN: FileCheck --check-prefix=STRIP %s < %t-stripped-dump.txt
+
+## -u 'section$start$*' does not cause an undefined symbol error. This matches ld64.
+# RUN: %lld -dead_strip -lSystem %t/main.o -u 'section$start$__FOO$__notexist' -o %t/stripped1.out
+# RUN: llvm-objdump --section-headers %t/stripped1.out | FileCheck --check-prefix=STRIP2 %s
 
 ## (Fun fact: `-e 'section$start$__TEXT$__text -dead_strip` strips
 ## everything in the text section because markLive runs well before
@@ -76,6 +83,40 @@
 ## and the output program crashes when running. This matches ld64's
 ## behavior.)
 
+# STRIP-LABEL: Sections:
+# STRIP-NEXT:  Idx Name           Size     VMA              Type
+# STRIP-NEXT:  0 __text           {{[0-9a-f]*}} [[#%x, TEXTSTART:]] TEXT
+# STRIP-NEXT:  1 __cstring        00000000      [[#%x, CSTRINGSTART:]] DATA
+# STRIP-NEXT:  2 __data           00000000
+# STRIP-NEXT:  3 __mybss          00000000
+# STRIP-NEXT:  4 __bar            00000000
+# STRIP-NEXT:  5 __ever           00000000
+# STRIP-NEXT:  6 __lookup         00000000
+# STRIP-NEXT:  7 symbol           00000000
+# STRIP-NEXT:  8 __quux           00000000
+
+# STRIP-LABEL: SYMBOL TABLE:
+# STRIP-NOT:   section$start$__FOO$__bar
+
+# STRIP-LABEL: _main:
+# STRIP:      [[#%x, PC1:]]:
+# STRIP-SAME: leaq [[#%d, TEXTSTART - PC1 - 7]](%rip), %rax
+# STRIP-NEXT: [[#%x, PC2:]]:
+# STRIP-SAME: leaq [[#%d, CSTRINGSTART - PC2 - 7]](%rip), %rbx
+
+# STRIP2-LABEL: Sections:
+# STRIP2-NEXT:  Idx Name           Size     VMA              Type
+# STRIP2-NEXT:  0 __text           {{[0-9a-f]*}} [[#%x, TEXTSTART:]] TEXT
+# STRIP2-NEXT:  1 __cstring        00000000      [[#%x, CSTRINGSTART:]] DATA
+# STRIP2-NEXT:  2 __data           00000000
+# STRIP2-NEXT:  3 __mybss          00000000
+# STRIP2-NEXT:  4 __bar            00000000
+# STRIP2-NEXT:  5 __notexist       00000000
+# STRIP2-NEXT:  6 __ever           00000000
+# STRIP2-NEXT:  7 __lookup         00000000
+# STRIP2-NEXT:  8 symbol           00000000
+# STRIP2-NEXT:  9 __quux           00000000
+
 # CHECK-LABEL: Sections:
 # CHECK-NEXT:  Idx Name           Size     VMA              Type
 # CHECK:       0 __text           {{[0-9a-f]*}} [[#%x, TEXTSTART:]] TEXT
@@ -83,12 +124,11 @@
 # CHECK:       2 __cstring        {{[0-9a-f]*}} [[#%x, CSTRINGSTART:]] DATA
 # CHECK:       3 __aftercstring   {{[0-9a-f]*}} [[#%x, CSTRINGEND:]]
 # CHECK:       4 __data           00000008      [[#%x, DATASTART:]] DATA
-# CHECK:       5 __llvm_orderfile 00000000      [[#%x, LLVMORDERFILESTART:]] DATA
-# CHECK:       6 __mybss          00008000      [[#%x, MYBSSSTART:]] BSS
-# CHECK:       7 __quux           0000002a      [[#%x, QUUXSTART:]]
-# CHECK:       8 __bar            00000059      [[#%x, BARSTART:]]
-# CHECK:       9 __uflag_sect     00000000
-# CHECK:       10 __lookup        00000000
+# CHECK:       5 __mybss          00008000      [[#%x, MYBSSSTART:]] BSS
+# CHECK:       6 __quux           0000002a      [[#%x, QUUXSTART:]]
+# CHECK:       7 __bar            00000059      [[#%x, BARSTART:]]
+# CHECK:       8 __uflag_sect     00000000
+# CHECK:       9 __lookup         00000000
 # CHECK-NOT:   symbol
 # CHECK-NOT:   __unref
 
@@ -99,8 +139,6 @@
 # CHECK-NOT: section$end$__TEXT$__cstring
 # CHECK-NOT: section$start$__DATA$__data
 # CHECK-NOT: section$end$__DATA$__data
-# CHECK-NOT: section$start$__DATA$__llvm_orderfile
-# CHECK-NOT: section$end$__DATA$__llvm_orderfile
 # CHECK-NOT: section$start$__DYNAMIC$__lookup
 # CHECK-NOT: section$start$__DYNAMIC$__unref
 # CHECK: section$end$ACTUAL$symbol
@@ -136,13 +174,6 @@
 # CHECK-SAME: leaq [[#%d, MYBSSSTART - PC7 - 7]](%rip), %rax
 # CHECK-NEXT: [[#%x, PC8:]]:
 # CHECK-SAME: leaq [[#%d, MYBSSSTART + 0x8000 - PC8 - 7]](%rip), %rbx
-
-## section$start$__DATA$__llvm_orderfile / section$end$__DATA$__llvm_orderfile
-## This section has size 0.
-# CHECK:      [[#%x, PC9:]]:
-# CHECK-SAME: leaq [[#%d, LLVMORDERFILESTART - PC9 - 7]](%rip), %rax
-# CHECK-NEXT: [[#%x, PC10:]]:
-# CHECK-SAME: leaq [[#%d, LLVMORDERFILESTART - PC10 - 7]](%rip), %rbx
 
 ## Section-rename tests.
 ## Input section __FOO/__bar is renamed to output section
@@ -181,7 +212,7 @@
 # RUN: llvm-objdump --macho --syms %t.seg.out > %t-seg-dump.txt
 ## llvm-objdump can't dump segment names; use lld-otool for this.
 # RUN: llvm-otool -l %t.seg.out | grep -A6 LC_SEGMENT >> %t-seg-dump.txt
-# RUN: llvm-objdump --macho -d --no-symbolic-operands --no-show-raw-insn %t.seg.out >> %t-seg-dump.txt
+# RUN: llvm-objdump --no-print-imm-hex --macho -d --no-symbolic-operands --no-show-raw-insn %t.seg.out >> %t-seg-dump.txt
 # RUN: llvm-objdump --macho --function-starts %t.out >> %t-seg-dump.txt
 # RUN: FileCheck %s --check-prefix=SEG < %t-seg-dump.txt
 
@@ -196,8 +227,8 @@
 # SEG-NOT: segment$end$__WHAT
 # SEG-NOT: segment$start$__UFLAG_SEG
 # SEG-NOT: segment$start$__UFLAG_SEG
-# SEG: segment$start$REGULAR
-# SEG: segment$end$REGULAR
+# SEG-DAG: segment$end$REGULAR
+# SEG-DAG: segment$start$REGULAR
 
 # SEG:           cmd LC_SEGMENT_64
 # SEG-NEXT:  cmdsize
@@ -233,7 +264,7 @@
 # SEG-NEXT:   vmaddr 0x[[#%x, ASDFSTART:]]
 # SEG-NEXT:   vmsize 0x0000000000000000
 
-# SEG: _main
+# SEG: _main:
 
 ## segment$start$__TEXT / segment$end$__TEXT
 # SEG:      [[#%x, PC1:]]:
@@ -306,12 +337,6 @@ _main:
   # Vanilla zerofill.
   movq section$start$__MYBSS$__mybss@GOTPCREL(%rip), %rax
   movq section$end$__MYBSS$__mybss@GOTPCREL(%rip), %rbx
-
-  # Referring to a non-existent section wills it into existence.
-  # This is needed for e.g. __DATA/__llvm_orderfile in libclang_rt.profile.
-  # This means `-u` can be used as a janky `-sectcreate`.
-  movq section$start$__DATA$__llvm_orderfile@GOTPCREL(%rip), %rax
-  movq section$end$__DATA$__llvm_orderfile@GOTPCREL(%rip), %rbx
 
   # Section-rename tests.
   movq section$start$__FOO$__bar@GOTPCREL(%rip), %rax

@@ -8,6 +8,7 @@
 
 #include "WriterUtils.h"
 #include "lld/Common/ErrorHandler.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/LEB128.h"
@@ -34,6 +35,10 @@ std::string toString(ValType type) {
     return "funcref";
   case ValType::EXTERNREF:
     return "externref";
+  case ValType::EXNREF:
+    return "exnref";
+  case ValType::OTHERREF:
+    return "otherref";
   }
   llvm_unreachable("Invalid wasm::ValType");
 }
@@ -50,18 +55,12 @@ std::string toString(const WasmSignature &sig) {
     s += "void";
   else
     s += toString(sig.Returns[0]);
-  return std::string(s.str());
+  return std::string(s);
 }
 
 std::string toString(const WasmGlobalType &type) {
   return (type.Mutable ? "var " : "const ") +
          toString(static_cast<ValType>(type.Type));
-}
-
-std::string toString(const WasmTagType &type) {
-  if (type.Attribute == WASM_TAG_ATTRIBUTE_EXCEPTION)
-    return "exception";
-  return "unknown";
 }
 
 static std::string toString(const llvm::wasm::WasmLimits &limits) {
@@ -70,19 +69,22 @@ static std::string toString(const llvm::wasm::WasmLimits &limits) {
   ret += "; min=" + std::to_string(limits.Minimum);
   if (limits.Flags & WASM_LIMITS_FLAG_HAS_MAX)
     ret += "; max=" + std::to_string(limits.Maximum);
+  if (limits.Flags & WASM_LIMITS_FLAG_HAS_PAGE_SIZE)
+    ret += "; pagesize=" + std::to_string(limits.PageSize);
   return ret;
 }
 
 std::string toString(const WasmTableType &type) {
-  SmallString<128> ret("");
   return "type=" + toString(static_cast<ValType>(type.ElemType)) +
          "; limits=[" + toString(type.Limits) + "]";
 }
 
 namespace wasm {
+#ifdef LLVM_DEBUG
 void debugWrite(uint64_t offset, const Twine &msg) {
   LLVM_DEBUG(dbgs() << format("  | %08lld: ", offset) << msg << "\n");
 }
+#endif
 
 void writeUleb128(raw_ostream &os, uint64_t number, const Twine &msg) {
   debugWrite(os.tell(), msg + "[" + utohexstr(number) + "]");
@@ -114,12 +116,12 @@ void writeU8(raw_ostream &os, uint8_t byte, const Twine &msg) {
 
 void writeU32(raw_ostream &os, uint32_t number, const Twine &msg) {
   debugWrite(os.tell(), msg + "[0x" + utohexstr(number) + "]");
-  support::endian::write(os, number, support::little);
+  support::endian::write(os, number, llvm::endianness::little);
 }
 
 void writeU64(raw_ostream &os, uint64_t number, const Twine &msg) {
   debugWrite(os.tell(), msg + "[0x" + utohexstr(number) + "]");
-  support::endian::write(os, number, support::little);
+  support::endian::write(os, number, llvm::endianness::little);
 }
 
 void writeValueType(raw_ostream &os, ValType type, const Twine &msg) {
@@ -163,6 +165,11 @@ void writeMemArg(raw_ostream &os, uint32_t alignment, uint64_t offset) {
 }
 
 void writeInitExpr(raw_ostream &os, const WasmInitExpr &initExpr) {
+  assert(!initExpr.Extended);
+  writeInitExprMVP(os, initExpr.Inst);
+}
+
+void writeInitExprMVP(raw_ostream &os, const WasmInitExprMVP &initExpr) {
   writeU8(os, initExpr.Opcode, "opcode");
   switch (initExpr.Opcode) {
   case WASM_OPCODE_I32_CONST:
@@ -194,21 +201,14 @@ void writeLimits(raw_ostream &os, const WasmLimits &limits) {
   writeUleb128(os, limits.Minimum, "limits min");
   if (limits.Flags & WASM_LIMITS_FLAG_HAS_MAX)
     writeUleb128(os, limits.Maximum, "limits max");
+  if (limits.Flags & WASM_LIMITS_FLAG_HAS_PAGE_SIZE)
+    writeUleb128(os, llvm::Log2_64(limits.PageSize), "page size");
 }
 
 void writeGlobalType(raw_ostream &os, const WasmGlobalType &type) {
   // TODO: Update WasmGlobalType to use ValType and remove this cast.
   writeValueType(os, ValType(type.Type), "global type");
   writeU8(os, type.Mutable, "global mutable");
-}
-
-void writeTagType(raw_ostream &os, const WasmTagType &type) {
-  writeUleb128(os, type.Attribute, "tag attribute");
-  writeUleb128(os, type.SigIndex, "sig index");
-}
-
-void writeTag(raw_ostream &os, const WasmTag &tag) {
-  writeTagType(os, tag.Type);
 }
 
 void writeTableType(raw_ostream &os, const WasmTableType &type) {
@@ -228,7 +228,8 @@ void writeImport(raw_ostream &os, const WasmImport &import) {
     writeGlobalType(os, import.Global);
     break;
   case WASM_EXTERNAL_TAG:
-    writeTagType(os, import.Tag);
+    writeUleb128(os, 0, "tag attribute"); // Reserved "attribute" field
+    writeUleb128(os, import.SigIndex, "import sig index");
     break;
   case WASM_EXTERNAL_MEMORY:
     writeLimits(os, import.Memory);

@@ -131,7 +131,7 @@ define <8 x i16> @sll8_nosplat(<8 x i16> %A) nounwind {
 ; X86:       # %bb.0: # %entry
 ; X86-NEXT:    movdqa {{.*#+}} xmm1 = [2,4,8,64,4,4,4,4]
 ; X86-NEXT:    pmullw %xmm0, %xmm1
-; X86-NEXT:    pmullw {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0
+; X86-NEXT:    pmullw {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0 # [512,128,32,2,16,2,2,2]
 ; X86-NEXT:    pxor %xmm1, %xmm0
 ; X86-NEXT:    retl
 ;
@@ -139,7 +139,7 @@ define <8 x i16> @sll8_nosplat(<8 x i16> %A) nounwind {
 ; X64:       # %bb.0: # %entry
 ; X64-NEXT:    movdqa {{.*#+}} xmm1 = [2,4,8,64,4,4,4,4]
 ; X64-NEXT:    pmullw %xmm0, %xmm1
-; X64-NEXT:    pmullw {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; X64-NEXT:    pmullw {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0 # [512,128,32,2,16,2,2,2]
 ; X64-NEXT:    pxor %xmm1, %xmm0
 ; X64-NEXT:    retq
 entry:
@@ -152,14 +152,13 @@ entry:
 define <2 x i64> @shr2_nosplat(<2 x i64> %A) nounwind {
 ; CHECK-LABEL: shr2_nosplat:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    movdqa %xmm0, %xmm2
-; CHECK-NEXT:    psrlq $8, %xmm2
 ; CHECK-NEXT:    movdqa %xmm0, %xmm1
-; CHECK-NEXT:    psrlq $1, %xmm1
-; CHECK-NEXT:    shufps {{.*#+}} xmm2 = xmm2[0,1],xmm1[2,3]
-; CHECK-NEXT:    shufps {{.*#+}} xmm1 = xmm1[0,1],xmm0[2,3]
-; CHECK-NEXT:    xorps %xmm2, %xmm1
-; CHECK-NEXT:    movaps %xmm1, %xmm0
+; CHECK-NEXT:    psrlq $8, %xmm1
+; CHECK-NEXT:    movdqa %xmm0, %xmm2
+; CHECK-NEXT:    psrlq $1, %xmm2
+; CHECK-NEXT:    shufpd {{.*#+}} xmm1 = xmm1[0],xmm2[1]
+; CHECK-NEXT:    movsd {{.*#+}} xmm0 = xmm2[0],xmm0[1]
+; CHECK-NEXT:    xorpd %xmm1, %xmm0
 ; CHECK-NEXT:    ret{{[l|q]}}
 entry:
   %B = lshr <2 x i64> %A,  < i64 8, i64 1>

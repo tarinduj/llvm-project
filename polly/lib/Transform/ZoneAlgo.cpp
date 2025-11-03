@@ -156,6 +156,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "polly/Support/PollyDebug.h"
 #define DEBUG_TYPE "polly-zone"
 
 STATISTIC(NumIncompatibleArrays, "Number of not zone-analyzable arrays");
@@ -246,7 +247,8 @@ static isl::map makeUnknownForDomain(isl::set Domain) {
 static bool isMapToUnknown(const isl::map &Map) {
   isl::space Space = Map.get_space().range();
   return Space.has_tuple_id(isl::dim::set).is_false() &&
-         Space.is_wrapping().is_false() && Space.dim(isl::dim::set) == 0;
+         Space.is_wrapping().is_false() &&
+         Space.dim(isl::dim::set).release() == 0;
 }
 
 isl::union_map polly::filterKnownValInst(const isl::union_map &UMap) {
@@ -341,7 +343,7 @@ void ZoneAlgorithm::collectIncompatibleElts(ScopStmt *Stmt,
     if (MA->isRead()) {
       // Reject load after store to same location.
       if (!Stores.is_disjoint(AccRel)) {
-        LLVM_DEBUG(
+        POLLY_DEBUG(
             dbgs() << "Load after store of same element in same statement\n");
         OptimizationRemarkMissed R(PassName, "LoadAfterStore",
                                    MA->getAccessInstruction());
@@ -361,7 +363,7 @@ void ZoneAlgorithm::collectIncompatibleElts(ScopStmt *Stmt,
     // In region statements the order is less clear, eg. the load and store
     // might be in a boxed loop.
     if (Stmt->isRegionStmt() && !Loads.is_disjoint(AccRel)) {
-      LLVM_DEBUG(dbgs() << "WRITE in non-affine subregion not supported\n");
+      POLLY_DEBUG(dbgs() << "WRITE in non-affine subregion not supported\n");
       OptimizationRemarkMissed R(PassName, "StoreInSubregion",
                                  MA->getAccessInstruction());
       R << "store is in a non-affine subregion";
@@ -372,7 +374,7 @@ void ZoneAlgorithm::collectIncompatibleElts(ScopStmt *Stmt,
 
     // Do not allow more than one store to the same location.
     if (!Stores.is_disjoint(AccRel) && !onlySameValueWrites(Stmt)) {
-      LLVM_DEBUG(dbgs() << "WRITE after WRITE to same element\n");
+      POLLY_DEBUG(dbgs() << "WRITE after WRITE to same element\n");
       OptimizationRemarkMissed R(PassName, "StoreAfterStore",
                                  MA->getAccessInstruction());
       R << "store after store of same element in same statement";
@@ -685,10 +687,11 @@ isl::map ZoneAlgorithm::getDefToTarget(ScopStmt *DefStmt,
                    TargetStmt->getSurroundingLoop())) {
     isl::set DefDomain = getDomainFor(DefStmt);
     isl::set TargetDomain = getDomainFor(TargetStmt);
-    assert(DefDomain.tuple_dim() <= TargetDomain.tuple_dim());
+    assert(unsignedFromIslSize(DefDomain.tuple_dim()) <=
+           unsignedFromIslSize(TargetDomain.tuple_dim()));
 
     Result = isl::map::from_domain_and_range(DefDomain, TargetDomain);
-    for (unsigned i = 0, DefDims = DefDomain.tuple_dim(); i < DefDims; i += 1)
+    for (unsigned i : rangeIslSize(0, DefDomain.tuple_dim()))
       Result = Result.equate(isl::dim::in, i, isl::dim::out, i);
   }
 

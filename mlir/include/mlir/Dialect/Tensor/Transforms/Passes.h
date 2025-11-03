@@ -10,29 +10,27 @@
 #define MLIR_DIALECT_TENSOR_TRANSFORMS_PASSES_H_
 
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/Bufferize.h"
 
 namespace mlir {
+namespace tensor {
 
-class RewritePatternSet;
-using OwningRewritePatternList = RewritePatternSet;
+//===----------------------------------------------------------------------===//
+// Passes
+//===----------------------------------------------------------------------===//
 
-void populateTensorBufferizePatterns(BufferizeTypeConverter &typeConverter,
-                                     RewritePatternSet &patterns);
-
-/// Creates an instance of `tensor` dialect bufferization pass.
-std::unique_ptr<Pass> createTensorBufferizePass();
+/// Creates an instance of the `tensor` subset folding pass.
+#define GEN_PASS_DECL_FOLDTENSORSUBSETOPSPASS
+#include "mlir/Dialect/Tensor/Transforms/Passes.h.inc"
 
 //===----------------------------------------------------------------------===//
 // Registration
 //===----------------------------------------------------------------------===//
 
-namespace tensor {
 /// Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION
 #include "mlir/Dialect/Tensor/Transforms/Passes.h.inc"
-} // namespace tensor
 
-} // end namespace mlir
+} // namespace tensor
+} // namespace mlir
 
 #endif // MLIR_DIALECT_TENSOR_TRANSFORMS_PASSES_H_

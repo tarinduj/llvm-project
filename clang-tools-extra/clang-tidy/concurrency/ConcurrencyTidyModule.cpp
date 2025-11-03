@@ -1,4 +1,4 @@
-//===--- ConcurrencyTidyModule.cpp - clang-tidy ---------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,8 +12,7 @@
 #include "MtUnsafeCheck.h"
 #include "ThreadCanceltypeAsynchronousCheck.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace concurrency {
 
 class ConcurrencyModule : public ClangTidyModule {
@@ -28,13 +27,14 @@ public:
 
 } // namespace concurrency
 
-// Register the ConcurrencyTidyModule using this statically initialized variable.
+// Register the ConcurrencyTidyModule using this statically initialized
+// variable.
 static ClangTidyModuleRegistry::Add<concurrency::ConcurrencyModule>
     X("concurrency-module", "Adds concurrency checks.");
 
 // This anchor is used to force the linker to link in the generated object file
 // and thus register the ConcurrencyModule.
+// NOLINTNEXTLINE(misc-use-internal-linkage)
 volatile int ConcurrencyModuleAnchorSource = 0;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

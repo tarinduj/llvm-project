@@ -1,4 +1,4 @@
-//===--- AvoidNSObjectNewCheck.cpp - clang-tidy ---------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,10 +19,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace google {
-namespace objc {
+namespace clang::tidy::google::objc {
 
 static bool isMessageExpressionInsideMacro(const ObjCMessageExpr *Expr) {
   SourceLocation ReceiverLocation = Expr->getReceiverRange().getBegin();
@@ -123,7 +120,4 @@ void AvoidNSObjectNewCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace objc
-} // namespace google
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::google::objc

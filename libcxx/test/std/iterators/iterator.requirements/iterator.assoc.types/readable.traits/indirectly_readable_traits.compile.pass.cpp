@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<class T>
 // struct indirectly_readable_traits;
@@ -15,9 +14,9 @@
 #include <iterator>
 
 #include <concepts>
+#include <cstddef>
 #include <memory>
 #include <optional>
-#include <string>
 #include <vector>
 
 template <class T>

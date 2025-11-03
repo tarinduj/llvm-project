@@ -8,33 +8,20 @@
 #ifndef MLIR_CONVERSION_SCFTOGPU_SCFTOGPUPASS_H_
 #define MLIR_CONVERSION_SCFTOGPU_SCFTOGPUPASS_H_
 
+#include "mlir/Interfaces/FunctionInterfaces.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
 
 #include <memory>
 
 namespace mlir {
-class FuncOp;
 template <typename T>
-class OperationPass;
+class InterfacePass;
 class Pass;
 
-/// Create a pass that converts loop nests into GPU kernels.  It considers
-/// top-level affine.for operations as roots of loop nests and converts them to
-/// the gpu.launch operations if possible.
-///
-/// No check on the size of the block or grid, or on the validity of
-/// parallelization is performed, it is under the responsibility of the caller
-/// to strip-mine the loops and to perform the dependence analysis before
-/// calling the conversion.
-std::unique_ptr<OperationPass<FuncOp>>
-createAffineForToGPUPass(unsigned numBlockDims, unsigned numThreadDims);
-std::unique_ptr<OperationPass<FuncOp>> createAffineForToGPUPass();
-
-/// Creates a pass that converts scf.parallel operations into a gpu.launch
-/// operation. The mapping of loop dimensions to launch dimensions is derived
-/// from mapping attributes. See ParallelToGpuLaunchLowering::matchAndRewrite
-/// for a description of the used attributes.
-std::unique_ptr<Pass> createParallelLoopToGpuPass();
+#define GEN_PASS_DECL_CONVERTAFFINEFORTOGPUPASS
+#define GEN_PASS_DECL_CONVERTPARALLELLOOPTOGPUPASS
+#include "mlir/Conversion/Passes.h.inc"
 
 } // namespace mlir
 

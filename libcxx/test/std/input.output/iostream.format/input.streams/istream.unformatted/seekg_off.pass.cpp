@@ -6,14 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
-
 // <istream>
 
 // basic_istream<charT,traits>& seekg(off_type off, ios_base::seekdir dir);
 
 #include <istream>
 #include <cassert>
+#include <streambuf>
 
 #include "test_macros.h"
 
@@ -64,6 +63,7 @@ int main(int, char**)
         assert(is.fail());
         assert(seekoff_called == 2);
     }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     {
         testbuf<wchar_t> sb(L" 123456789");
         std::wistream is(&sb);
@@ -74,6 +74,7 @@ int main(int, char**)
         assert(is.fail());
         assert(seekoff_called == 4);
     }
+#endif
     {
         testbuf<char> sb(" 123456789");
         std::istream is(&sb);

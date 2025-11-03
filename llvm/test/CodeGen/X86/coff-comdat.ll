@@ -52,8 +52,8 @@ define x86_fastcallcc void @f8() comdat($f8) {
 
 $vftable = comdat largest
 
-@some_name = private unnamed_addr constant [2 x i8*] zeroinitializer, comdat($vftable)
-@vftable = alias i8*, getelementptr([2 x i8*], [2 x i8*]* @some_name, i32 0, i32 1)
+@some_name = private unnamed_addr constant [2 x ptr] zeroinitializer, comdat($vftable)
+@vftable = alias ptr, getelementptr([2 x ptr], ptr @some_name, i32 0, i32 1)
 
 ; CHECK: .section        .text,"xr",discard,_f1
 ; CHECK: .globl  _f1
@@ -89,4 +89,4 @@ $vftable = comdat largest
 ; CHECK: .globl  _f6
 ; CHECK: .section        .rdata,"dr",largest,_vftable
 ; CHECK: .globl  _vftable
-; CHECK: .set _vftable, L_some_name+4
+; CHECK: _vftable = L_some_name+4

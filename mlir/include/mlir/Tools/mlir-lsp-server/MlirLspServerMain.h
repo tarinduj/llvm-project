@@ -10,19 +10,29 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_TOOLS_MLIRLSPSERVER_MLIRLSPSERVERMAIN_H
-#define MLIR_TOOLS_MLIRLSPSERVER_MLIRLSPSERVERMAIN_H
+#ifndef MLIR_TOOLS_MLIR_LSP_SERVER_MLIRLSPSERVERMAIN_H
+#define MLIR_TOOLS_MLIR_LSP_SERVER_MLIRLSPSERVERMAIN_H
+#include "mlir/Tools/mlir-lsp-server/MlirLspRegistryFunction.h"
+
+namespace llvm {
+struct LogicalResult;
+} // namespace llvm
 
 namespace mlir {
-class DialectRegistry;
-struct LogicalResult;
 
 /// Implementation for tools like `mlir-lsp-server`.
 /// - registry should contain all the dialects that can be parsed in source IR
-/// passed to the server.
-LogicalResult MlirLspServerMain(int argc, char **argv,
-                                DialectRegistry &registry);
+///   passed to the server.
+llvm::LogicalResult MlirLspServerMain(int argc, char **argv,
+                                      DialectRegistry &registry);
 
-} // end namespace mlir
+/// Implementation for tools like `mlir-lsp-server`.
+/// - registry should contain all the dialects that can be parsed in source IR
+///   passed to the server and may register different dialects depending on the
+///   input URI.
+llvm::LogicalResult MlirLspServerMain(int argc, char **argv,
+                                      lsp::DialectRegistryFn registry_fn);
 
-#endif // MLIR_TOOLS_MLIRLSPSERVER_MLIRLSPSERVERMAIN_H
+} // namespace mlir
+
+#endif // MLIR_TOOLS_MLIR_LSP_SERVER_MLIRLSPSERVERMAIN_H

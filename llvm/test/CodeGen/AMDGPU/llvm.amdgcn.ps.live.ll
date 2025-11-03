@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck %s
+; RUN: llc -mtriple=amdgcn -mcpu=tahiti < %s | FileCheck %s
 
 ; CHECK-LABEL: {{^}}test1:
 ; CHECK: s_mov_b64 s[0:1], exec
@@ -28,7 +28,7 @@ define amdgpu_ps float @test2() #0 {
   %live = call i1 @llvm.amdgcn.ps.live()
   %live.32 = zext i1 %live to i32
   %live.32.bc = bitcast i32 %live.32 to float
-  %t = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %live.32.bc, <8 x i32> undef, <4 x i32> undef, i1 0, i32 0, i32 0)
+  %t = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %live.32.bc, <8 x i32> poison, <4 x i32> poison, i1 0, i32 0, i32 0)
   %r = extractelement <4 x float> %t, i32 0
   ret float %r
 }
@@ -37,7 +37,7 @@ define amdgpu_ps float @test2() #0 {
 ; CHECK: s_mov_b64 [[LIVE:s\[[0-9]+:[0-9]+\]]], exec
 ; CHECK-DAG: s_wqm_b64 exec, exec
 ; CHECK-DAG: s_xor_b64 [[HELPER:s\[[0-9]+:[0-9]+\]]], [[LIVE]], -1
-; CHECK_DAG: s_and_saveexec_b64 [[SAVED:s\[[0-9]+:[0-9]+\]]], [[HELPER]]
+; CHECK-DAG: s_and_saveexec_b64 [[SAVED:s\[[0-9]+:[0-9]+\]]], [[HELPER]]
 ; CHECK: ; %dead
 define amdgpu_ps float @test3(i32 %in) #0 {
 entry:
@@ -51,7 +51,7 @@ dead:
 end:
   %tc = phi i32 [ %in, %entry ], [ %tc.dead, %dead ]
   %tc.bc = bitcast i32 %tc to float
-  %t = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %tc.bc, <8 x i32> undef, <4 x i32> undef, i1 0, i32 0, i32 0) #0
+  %t = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %tc.bc, <8 x i32> poison, <4 x i32> poison, i1 0, i32 0, i32 0) #0
   %r = extractelement <4 x float> %t, i32 0
   ret float %r
 }

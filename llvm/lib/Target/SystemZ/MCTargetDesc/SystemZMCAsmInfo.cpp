@@ -8,41 +8,81 @@
 
 #include "SystemZMCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
-#include "llvm/MC/MCSectionELF.h"
+#include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCValue.h"
 
 using namespace llvm;
 
-SystemZMCAsmInfo::SystemZMCAsmInfo(const Triple &TT) {
-  CodePointerSize = 8;
+const MCAsmInfo::AtSpecifier atSpecifiers[] = {
+    {SystemZ::S_DTPOFF, "DTPOFF"}, {SystemZ::S_GOT, "GOT"},
+    {SystemZ::S_GOTENT, "GOTENT"}, {SystemZ::S_INDNTPOFF, "INDNTPOFF"},
+    {SystemZ::S_NTPOFF, "NTPOFF"}, {SystemZ::S_PLT, "PLT"},
+    {SystemZ::S_TLSGD, "TLSGD"},   {SystemZ::S_TLSLD, "TLSLD"},
+    {SystemZ::S_TLSLDM, "TLSLDM"},
+};
+
+SystemZMCAsmInfoELF::SystemZMCAsmInfoELF(const Triple &TT) {
+  AssemblerDialect = AD_GNU;
   CalleeSaveStackSlotSize = 8;
-  IsLittleEndian = false;
-
-  AssemblerDialect = TT.isOSzOS() ? AD_HLASM : AD_ATT;
-
-  MaxInstLength = 6;
-
-  CommentString = AssemblerDialect == AD_HLASM ? "*" : "#";
-  RestrictCommentStringToStartOfStatement = (AssemblerDialect == AD_HLASM);
-  AllowAdditionalComments = (AssemblerDialect == AD_ATT);
-  AllowAtAtStartOfIdentifier = (AssemblerDialect == AD_HLASM);
-  AllowDollarAtStartOfIdentifier = (AssemblerDialect == AD_HLASM);
-  AllowHashAtStartOfIdentifier = (AssemblerDialect == AD_HLASM);
-  DotIsPC = (AssemblerDialect == AD_ATT);
-  StarIsPC = (AssemblerDialect == AD_HLASM);
-  EmitGNUAsmStartIndentationMarker = (AssemblerDialect == AD_ATT);
-  AllowAtInName = (AssemblerDialect == AD_HLASM);
-  EmitLabelsInUpperCase = (AssemblerDialect == AD_HLASM);
-
-  ZeroDirective = "\t.space\t";
+  CodePointerSize = 8;
   Data64bitsDirective = "\t.quad\t";
-  UsesELFSectionDirectiveForBSS = true;
-  SupportsDebugInformation = true;
   ExceptionsType = ExceptionHandling::DwarfCFI;
+  IsLittleEndian = false;
+  MaxInstLength = 6;
+  SupportsDebugInformation = true;
+  UsesELFSectionDirectiveForBSS = true;
+  ZeroDirective = "\t.space\t";
+
+  initializeAtSpecifiers(atSpecifiers);
 }
 
-bool SystemZMCAsmInfo::isAcceptableChar(char C) const {
-  if (AssemblerDialect == AD_ATT)
-    return MCAsmInfo::isAcceptableChar(C);
+SystemZMCAsmInfoGOFF::SystemZMCAsmInfoGOFF(const Triple &TT) {
+  AllowAdditionalComments = false;
+  AllowAtInName = true;
+  AllowAtAtStartOfIdentifier = true;
+  AllowDollarAtStartOfIdentifier = true;
+  AssemblerDialect = AD_HLASM;
+  CalleeSaveStackSlotSize = 8;
+  CodePointerSize = 8;
+  CommentString = "*";
+  UsesSetToEquateSymbol = true;
+  ExceptionsType = ExceptionHandling::ZOS;
+  IsHLASM = true;
+  IsLittleEndian = false;
+  MaxInstLength = 6;
+  SupportsDebugInformation = true;
 
+  initializeAtSpecifiers(atSpecifiers);
+}
+
+bool SystemZMCAsmInfoGOFF::isAcceptableChar(char C) const {
   return MCAsmInfo::isAcceptableChar(C) || C == '#';
+}
+
+void SystemZMCAsmInfoGOFF::printSpecifierExpr(
+    raw_ostream &OS, const MCSpecifierExpr &Expr) const {
+  switch (Expr.getSpecifier()) {
+  case SystemZ::S_None:
+    OS << "A";
+    break;
+  case SystemZ::S_RCon:
+    OS << "R";
+    break;
+  case SystemZ::S_VCon:
+    OS << "V";
+    break;
+  default:
+    llvm_unreachable("Invalid kind");
+  }
+  OS << '(';
+  printExpr(OS, *Expr.getSubExpr());
+  OS << ')';
+}
+
+bool SystemZMCAsmInfoGOFF::evaluateAsRelocatableImpl(
+    const MCSpecifierExpr &Expr, MCValue &Res, const MCAssembler *Asm) const {
+  if (!Expr.getSubExpr()->evaluateAsRelocatable(Res, Asm))
+    return false;
+  Res.setSpecifier(Expr.getSpecifier());
+  return true;
 }

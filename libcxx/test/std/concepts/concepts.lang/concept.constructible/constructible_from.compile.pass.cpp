@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<class T, class... Args>
 // concept constructible_from;
@@ -15,6 +14,7 @@
 
 #include <array>
 #include <concepts>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -149,5 +149,3 @@ void test() {
   test<std::array<int, 1>, int>();
   test<std::array<int, 1>, int, int>();
 }
-
-int main(int, char**) { return 0; }

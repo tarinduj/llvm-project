@@ -8,8 +8,6 @@
 
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
-#include "llvm/IR/Value.h"
-#include <new>
 
 namespace llvm {
 
@@ -21,11 +19,15 @@ void Use::swap(Use &RHS) {
   std::swap(Next, RHS.Next);
   std::swap(Prev, RHS.Prev);
 
-  *Prev = this;
+  if (Prev)
+    *Prev = this;
+
   if (Next)
     Next->Prev = &Next;
 
-  *RHS.Prev = &RHS;
+  if (RHS.Prev)
+    *RHS.Prev = &RHS;
+
   if (RHS.Next)
     RHS.Next->Prev = &RHS.Next;
 }

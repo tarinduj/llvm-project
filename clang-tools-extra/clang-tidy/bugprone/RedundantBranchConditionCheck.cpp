@@ -1,4 +1,4 @@
-//===--- RedundantBranchConditionCheck.cpp - clang-tidy -------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,9 +16,7 @@
 using namespace clang::ast_matchers;
 using clang::tidy::utils::hasPtrOrReferenceInFunc;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 static const char CondVarStr[] = "cond_var";
 static const char OuterIfStr[] = "outer_if";
@@ -72,13 +70,14 @@ void RedundantBranchConditionCheck::registerMatchers(MatchFinder *Finder) {
   // FIXME: Handle longer conjunctive and disjunctive clauses.
 }
 
-void RedundantBranchConditionCheck::check(const MatchFinder::MatchResult &Result) {
+void RedundantBranchConditionCheck::check(
+    const MatchFinder::MatchResult &Result) {
   const auto *OuterIf = Result.Nodes.getNodeAs<IfStmt>(OuterIfStr);
   const auto *InnerIf = Result.Nodes.getNodeAs<IfStmt>(InnerIfStr);
   const auto *CondVar = Result.Nodes.getNodeAs<VarDecl>(CondVarStr);
   const auto *Func = Result.Nodes.getNodeAs<FunctionDecl>(FuncStr);
 
-  const DeclRefExpr *OuterIfVar, *InnerIfVar;
+  const DeclRefExpr *OuterIfVar = nullptr, *InnerIfVar = nullptr;
   if (const auto *Inner = Result.Nodes.getNodeAs<DeclRefExpr>(InnerIfVar1Str))
     InnerIfVar = Inner;
   else
@@ -177,6 +176,4 @@ void RedundantBranchConditionCheck::check(const MatchFinder::MatchResult &Result
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

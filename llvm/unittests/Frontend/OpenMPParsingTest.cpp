@@ -23,11 +23,11 @@ TEST(OpenMPParsingTest, OpenMPDirectiveKind) {
 }
 
 TEST(OpenMPParsingTest, getOpenMPDirectiveName) {
-  EXPECT_EQ(getOpenMPDirectiveName(OMPD_unknown), "unknown");
+  EXPECT_EQ(getOpenMPDirectiveName(OMPD_unknown, FallbackVersion), "unknown");
 
-  EXPECT_EQ(getOpenMPDirectiveName(OMPD_for), "for");
-  EXPECT_EQ(getOpenMPDirectiveName(OMPD_simd), "simd");
-  EXPECT_EQ(getOpenMPDirectiveName(OMPD_for_simd), "for simd");
+  EXPECT_EQ(getOpenMPDirectiveName(OMPD_for, FallbackVersion), "for");
+  EXPECT_EQ(getOpenMPDirectiveName(OMPD_simd, FallbackVersion), "simd");
+  EXPECT_EQ(getOpenMPDirectiveName(OMPD_for_simd, FallbackVersion), "for simd");
 }
 
 TEST(OpenMPParsingTest, getOpenMPClauseKind) {
@@ -55,8 +55,9 @@ TEST(OpenMPParsingTest, isAllowedClauseForDirective) {
 }
 
 TEST(OpenMPParsingTest, getOrderKind) {
-  EXPECT_EQ(getOrderKind("foobar"), OMP_ORDER_concurrent);
-  EXPECT_EQ(getOrderKind("default"), OMP_ORDER_concurrent);
+  EXPECT_EQ(getOrderKind("foobar"), OMP_ORDER_unknown);
+  EXPECT_EQ(getOrderKind("unknown"), OMP_ORDER_unknown);
+  EXPECT_EQ(getOrderKind("concurrent"), OMP_ORDER_concurrent);
 }
 
 TEST(OpenMPParsingTest, getProcBindKind) {
@@ -72,13 +73,12 @@ TEST(OpenMPParsingTest, getProcBindKind) {
 TEST(OpenMPParsingTest, getScheduleKind) {
   EXPECT_EQ(getScheduleKind("foobar"), OMP_SCHEDULE_Default);
 
-  // FIXME: Why are these not lower case?
-  EXPECT_EQ(getScheduleKind("Static"), OMP_SCHEDULE_Static);
-  EXPECT_EQ(getScheduleKind("Dynamic"), OMP_SCHEDULE_Dynamic);
-  EXPECT_EQ(getScheduleKind("Guided"), OMP_SCHEDULE_Guided);
-  EXPECT_EQ(getScheduleKind("Auto"), OMP_SCHEDULE_Auto);
-  EXPECT_EQ(getScheduleKind("Runtime"), OMP_SCHEDULE_Runtime);
-  EXPECT_EQ(getScheduleKind("Default"), OMP_SCHEDULE_Default);
+  EXPECT_EQ(getScheduleKind("static"), OMP_SCHEDULE_Static);
+  EXPECT_EQ(getScheduleKind("dynamic"), OMP_SCHEDULE_Dynamic);
+  EXPECT_EQ(getScheduleKind("guided"), OMP_SCHEDULE_Guided);
+  EXPECT_EQ(getScheduleKind("auto"), OMP_SCHEDULE_Auto);
+  EXPECT_EQ(getScheduleKind("runtime"), OMP_SCHEDULE_Runtime);
+  EXPECT_EQ(getScheduleKind("default"), OMP_SCHEDULE_Default);
 }
 
 } // namespace

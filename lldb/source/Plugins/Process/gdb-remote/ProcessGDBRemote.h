@@ -12,6 +12,7 @@
 #include <atomic>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,7 @@
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/ThreadSafeValue.h"
 #include "lldb/Host/HostThread.h"
+#include "lldb/Target/DynamicRegisterInfo.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ArchSpec.h"
@@ -33,15 +35,12 @@
 #include "lldb/lldb-private-forward.h"
 
 #include "GDBRemoteCommunicationClient.h"
-#include "GDBRemoteCommunicationReplayServer.h"
 #include "GDBRemoteRegisterContext.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringMap.h"
 
 namespace lldb_private {
-namespace repro {
-class Loader;
-}
 namespace process_gdb_remote {
 
 class ThreadGDBRemote;
@@ -49,8 +48,6 @@ class ThreadGDBRemote;
 class ProcessGDBRemote : public Process,
                          private GDBRemoteClientBase::ContinueDelegate {
 public:
-  ProcessGDBRemote(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
-
   ~ProcessGDBRemote() override;
 
   static lldb::ProcessSP CreateInstance(lldb::TargetSP target_sp,
@@ -64,29 +61,33 @@ public:
 
   static void Terminate();
 
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "gdb-remote"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static std::chrono::seconds GetPacketTimeout();
+
+  ArchSpec GetSystemArchitecture() override;
 
   // Check if a given Process
   bool CanDebug(lldb::TargetSP target_sp,
                 bool plugin_specified_by_name) override;
 
   CommandObject *GetPluginCommandObject() override;
+  
+  void DumpPluginHistory(Stream &s) override;
 
   // Creating a new process, or attaching to an existing one
-  Status WillLaunch(Module *module) override;
+  Status DoWillLaunch(Module *module) override;
 
   Status DoLaunch(Module *exe_module, ProcessLaunchInfo &launch_info) override;
 
   void DidLaunch() override;
 
-  Status WillAttachToProcessWithID(lldb::pid_t pid) override;
+  Status DoWillAttachToProcessWithID(lldb::pid_t pid) override;
 
-  Status WillAttachToProcessWithName(const char *process_name,
-                                     bool wait_for_launch) override;
+  Status DoWillAttachToProcessWithName(const char *process_name,
+                                       bool wait_for_launch) override;
 
   Status DoConnectRemote(llvm::StringRef remote_url) override;
 
@@ -102,14 +103,14 @@ public:
   void DidAttach(ArchSpec &process_arch) override;
 
   // PluginInterface protocol
-  ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   // Process Control
   Status WillResume() override;
 
-  Status DoResume() override;
+  bool SupportsReverseDirection() override;
+
+  Status DoResume(lldb::RunDirection direction) override;
 
   Status DoHalt(bool &caused_stop) override;
 
@@ -136,6 +137,22 @@ public:
   size_t DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
                       Status &error) override;
 
+  /// Override of ReadMemoryRanges that uses MultiMemRead to optimize this
+  /// operation.
+  llvm::SmallVector<llvm::MutableArrayRef<uint8_t>>
+  ReadMemoryRanges(llvm::ArrayRef<Range<lldb::addr_t, size_t>> ranges,
+                   llvm::MutableArrayRef<uint8_t> buf) override;
+
+private:
+  llvm::Expected<StringExtractorGDBRemote>
+  SendMultiMemReadPacket(llvm::ArrayRef<Range<lldb::addr_t, size_t>> ranges);
+
+  llvm::Expected<llvm::SmallVector<llvm::MutableArrayRef<uint8_t>>>
+  ParseMultiMemReadPacket(llvm::StringRef response_str,
+                          llvm::MutableArrayRef<uint8_t> buffer,
+                          unsigned expected_num_ranges);
+
+public:
   Status
   WriteObjectFile(std::vector<ObjectFile::LoadableData> entries) override;
 
@@ -144,9 +161,6 @@ public:
 
   lldb::addr_t DoAllocateMemory(size_t size, uint32_t permissions,
                                 Status &error) override;
-
-  Status GetMemoryRegionInfo(lldb::addr_t load_addr,
-                             MemoryRegionInfo &region_info) override;
 
   Status DoDeallocateMemory(lldb::addr_t ptr) override;
 
@@ -159,11 +173,13 @@ public:
   Status DisableBreakpointSite(BreakpointSite *bp_site) override;
 
   // Process Watchpoints
-  Status EnableWatchpoint(Watchpoint *wp, bool notify = true) override;
+  Status EnableWatchpoint(lldb::WatchpointSP wp_sp,
+                          bool notify = true) override;
 
-  Status DisableWatchpoint(Watchpoint *wp, bool notify = true) override;
+  Status DisableWatchpoint(lldb::WatchpointSP wp_sp,
+                           bool notify = true) override;
 
-  Status GetWatchpointSupportInfo(uint32_t &num) override;
+  std::optional<uint32_t> GetWatchpointSlotCount() override;
 
   llvm::Expected<TraceSupportedResponse> TraceSupported() override;
 
@@ -176,7 +192,7 @@ public:
   llvm::Expected<std::vector<uint8_t>>
   TraceGetBinaryData(const TraceGetBinaryDataRequest &request) override;
 
-  Status GetWatchpointSupportInfo(uint32_t &num, bool &after) override;
+  std::optional<bool> DoGetWatchpointReportedAfter() override;
 
   bool StartNoticingNewThreads() override;
 
@@ -214,7 +230,7 @@ public:
                                  lldb::addr_t image_count) override;
 
   Status
-  ConfigureStructuredData(ConstString type_name,
+  ConfigureStructuredData(llvm::StringRef type_name,
                           const StructuredData::ObjectSP &config_sp) override;
 
   StructuredData::ObjectSP GetLoadedDynamicLibrariesInfos() override;
@@ -227,13 +243,26 @@ public:
 
   StructuredData::ObjectSP GetSharedCacheInfo() override;
 
+  StructuredData::ObjectSP GetDynamicLoaderProcessState() override;
+
   std::string HarmonizeThreadIdsForProfileData(
       StringExtractorGDBRemote &inputStringExtractor);
+
+  void DidFork(lldb::pid_t child_pid, lldb::tid_t child_tid) override;
+  void DidVFork(lldb::pid_t child_pid, lldb::tid_t child_tid) override;
+  void DidVForkDone() override;
+  void DidExec() override;
+
+  llvm::Expected<bool> SaveCore(llvm::StringRef outfile) override;
 
 protected:
   friend class ThreadGDBRemote;
   friend class GDBRemoteCommunicationClient;
   friend class GDBRemoteRegisterContext;
+
+  ProcessGDBRemote(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
+
+  virtual std::shared_ptr<ThreadGDBRemote> CreateThread(lldb::tid_t tid);
 
   bool SupportsMemoryTagging() override;
 
@@ -245,13 +274,11 @@ protected:
   };
 
   GDBRemoteCommunicationClient m_gdb_comm;
-  GDBRemoteCommunicationReplayServer m_gdb_replay_server;
   std::atomic<lldb::pid_t> m_debugserver_pid;
-  std::vector<StringExtractorGDBRemote> m_stop_packet_stack; // The stop packet
-                                                             // stack replaces
-                                                             // the last stop
-                                                             // packet variable
+
+  std::optional<StringExtractorGDBRemote> m_last_stop_packet;
   std::recursive_mutex m_last_stop_packet_mutex;
+
   GDBRemoteDynamicRegisterInfoSP m_register_info_sp;
   Broadcaster m_async_broadcaster;
   lldb::ListenerSP m_async_listener_sp;
@@ -281,17 +308,18 @@ protected:
   MMapMap m_addr_to_mmap_size;
   lldb::BreakpointSP m_thread_create_bp_sp;
   bool m_waiting_for_attach;
-  bool m_destroy_tried_resuming;
   lldb::CommandObjectSP m_command_sp;
   int64_t m_breakpoint_pc_offset;
   lldb::tid_t m_initial_tid; // The initial thread ID, given by stub on attach
   bool m_use_g_packet_for_reading;
 
-  bool m_replay_mode;
   bool m_allow_flash_writes;
   using FlashRangeVector = lldb_private::RangeVector<lldb::addr_t, size_t>;
   using FlashRange = FlashRangeVector::Entry;
   FlashRangeVector m_erased_flash_ranges;
+
+  // Number of vfork() operations being handled.
+  uint32_t m_vfork_in_progress_count;
 
   // Accessors
   bool IsRunning(lldb::StateType state) {
@@ -306,14 +334,10 @@ protected:
 
   bool HasExited(lldb::StateType state) { return state == lldb::eStateExited; }
 
-  bool ProcessIDIsValid() const;
-
   void Clear();
 
   bool DoUpdateThreadList(ThreadList &old_thread_list,
                           ThreadList &new_thread_list) override;
-
-  Status ConnectToReplayServer();
 
   Status EstablishConnectionIfNeeded(const ProcessInfo &process_info);
 
@@ -335,22 +359,19 @@ protected:
 
   bool CalculateThreadStopInfo(ThreadGDBRemote *thread);
 
-  size_t UpdateThreadPCsFromStopReplyThreadsValue(std::string &value);
+  size_t UpdateThreadPCsFromStopReplyThreadsValue(llvm::StringRef value);
 
   size_t UpdateThreadIDsFromStopReplyThreadsValue(llvm::StringRef value);
-
-  bool HandleNotifyPacket(StringExtractorGDBRemote &packet);
 
   bool StartAsyncThread();
 
   void StopAsyncThread();
 
-  static lldb::thread_result_t AsyncThread(void *arg);
+  lldb::thread_result_t AsyncThread();
 
-  static bool
+  static void
   MonitorDebugserverProcess(std::weak_ptr<ProcessGDBRemote> process_wp,
-                            lldb::pid_t pid, bool exited, int signo,
-                            int exit_status);
+                            lldb::pid_t pid, int signo, int exit_status);
 
   lldb::StateType SetThreadStopInfo(StringExtractor &stop_packet);
 
@@ -371,13 +392,12 @@ protected:
                     lldb::addr_t dispatch_queue_t, std::string &queue_name,
                     lldb::QueueKind queue_kind, uint64_t queue_serial);
 
-  void HandleStopReplySequence();
-
   void ClearThreadIDList();
 
   bool UpdateThreadIDList();
 
   void DidLaunchOrAttach(ArchSpec &process_arch);
+  void LoadStubBinaries();
   void MaybeLoadExecutableModule();
 
   Status ConnectToDebugserver(llvm::StringRef host_port);
@@ -387,11 +407,14 @@ protected:
 
   DynamicLoader *GetDynamicLoader() override;
 
-  bool GetGDBServerRegisterInfoXMLAndProcess(ArchSpec &arch_to_use,
-                                             std::string xml_filename,
-                                             uint32_t &cur_reg_remote,
-                                             uint32_t &cur_reg_local);
+  bool GetGDBServerRegisterInfoXMLAndProcess(
+    ArchSpec &arch_to_use, std::string xml_filename,
+    std::vector<DynamicRegisterInfo::Register> &registers);
 
+  // Convert DynamicRegisterInfo::Registers into RegisterInfos and add
+  // to the dynamic register list.
+  void AddRemoteRegisters(std::vector<DynamicRegisterInfo::Register> &registers,
+                          const ArchSpec &arch_to_use);
   // Query remote GDBServer for register information
   bool GetGDBServerRegisterInfo(ArchSpec &arch);
 
@@ -414,6 +437,9 @@ protected:
   Status DoWriteMemoryTags(lldb::addr_t addr, size_t len, int32_t type,
                            const std::vector<uint8_t> &tags) override;
 
+  Status DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                               MemoryRegionInfo &region_info) override;
+
 private:
   // For ProcessGDBRemote only
   std::string m_partial_profile_data;
@@ -425,11 +451,18 @@ private:
                                            lldb::user_id_t break_id,
                                            lldb::user_id_t break_loc_id);
 
+  /// Remove the breakpoints associated with thread creation from the Target.
+  void RemoveNewThreadBreakpoints();
+
   // ContinueDelegate interface
   void HandleAsyncStdout(llvm::StringRef out) override;
   void HandleAsyncMisc(llvm::StringRef data) override;
   void HandleStopReply() override;
   void HandleAsyncStructuredDataPacket(llvm::StringRef data) override;
+
+  lldb::ThreadSP
+  HandleThreadAsyncInterrupt(uint8_t signo,
+                             const std::string &description) override;
 
   void SetThreadPc(const lldb::ThreadSP &thread_sp, uint64_t index);
   using ModuleCacheKey = std::pair<std::string, std::string>;
@@ -459,6 +492,27 @@ private:
 
   ProcessGDBRemote(const ProcessGDBRemote &) = delete;
   const ProcessGDBRemote &operator=(const ProcessGDBRemote &) = delete;
+
+  // fork helpers
+  void DidForkSwitchSoftwareBreakpoints(bool enable);
+  void DidForkSwitchHardwareTraps(bool enable);
+
+  void ParseExpeditedRegisters(ExpeditedRegisterMap &expedited_register_map,
+                               lldb::ThreadSP thread_sp);
+
+  // Lists of register fields generated from the remote's target XML.
+  // Pointers to these RegisterFlags will be set in the register info passed
+  // back to the upper levels of lldb. Doing so is safe because this class will
+  // live at least as long as the debug session. We therefore do not store the
+  // data directly in the map because the map may reallocate it's storage as new
+  // entries are added. Which would invalidate any pointers set in the register
+  // info up to that point.
+  llvm::StringMap<std::unique_ptr<RegisterFlags>> m_registers_flags_types;
+
+  // Enum types are referenced by register fields. This does not store the data
+  // directly because the map may reallocate. Pointers to these are contained
+  // within instances of RegisterFlags.
+  llvm::StringMap<std::unique_ptr<FieldEnum>> m_registers_enum_types;
 };
 
 } // namespace process_gdb_remote

@@ -1,9 +1,8 @@
 //===----- SVEIntrinsicOpts - SVE ACLE Intrinsics Opts --------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -32,25 +31,20 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/Debug.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
 
 #define DEBUG_TYPE "aarch64-sve-intrinsic-opts"
 
-namespace llvm {
-void initializeSVEIntrinsicOptsPass(PassRegistry &);
-}
-
 namespace {
 struct SVEIntrinsicOpts : public ModulePass {
   static char ID; // Pass identification, replacement for typeid
-  SVEIntrinsicOpts() : ModulePass(ID) {
-    initializeSVEIntrinsicOptsPass(*PassRegistry::getPassRegistry());
-  }
+  SVEIntrinsicOpts() : ModulePass(ID) {}
 
   bool runOnModule(Module &M) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
@@ -59,6 +53,10 @@ private:
   bool coalescePTrueIntrinsicCalls(BasicBlock &BB,
                                    SmallSetVector<IntrinsicInst *, 4> &PTrues);
   bool optimizePTrueIntrinsicCalls(SmallSetVector<Function *, 4> &Functions);
+  bool optimizePredicateStore(Instruction *I);
+  bool optimizePredicateLoad(Instruction *I);
+
+  bool optimizeInstructions(SmallSetVector<Function *, 4> &Functions);
 
   /// Operates at the function-scope. I.e., optimizations are applied local to
   /// the functions themselves.
@@ -138,8 +136,8 @@ bool SVEIntrinsicOpts::coalescePTrueIntrinsicCalls(
     return false;
 
   // Find the ptrue with the most lanes.
-  auto *MostEncompassingPTrue = *std::max_element(
-      PTrues.begin(), PTrues.end(), [](auto *PTrue1, auto *PTrue2) {
+  auto *MostEncompassingPTrue =
+      *llvm::max_element(PTrues, [](auto *PTrue1, auto *PTrue2) {
         auto *PTrue1VTy = cast<ScalableVectorType>(PTrue1->getType());
         auto *PTrue2VTy = cast<ScalableVectorType>(PTrue2->getType());
         return PTrue1VTy->getElementCount().getKnownMinValue() <
@@ -149,7 +147,7 @@ bool SVEIntrinsicOpts::coalescePTrueIntrinsicCalls(
   // Remove the most encompassing ptrue, as well as any promoted ptrues, leaving
   // behind only the ptrues to be coalesced.
   PTrues.remove(MostEncompassingPTrue);
-  PTrues.remove_if([](auto *PTrue) { return isPTruePromoted(PTrue); });
+  PTrues.remove_if(isPTruePromoted);
 
   // Hoist MostEncompassingPTrue to the start of the basic block. It is always
   // safe to do this, since ptrue intrinsic calls are guaranteed to have no
@@ -276,11 +274,158 @@ bool SVEIntrinsicOpts::optimizePTrueIntrinsicCalls(
   return Changed;
 }
 
+// This is done in SVEIntrinsicOpts rather than InstCombine so that we introduce
+// scalable stores as late as possible
+bool SVEIntrinsicOpts::optimizePredicateStore(Instruction *I) {
+  auto *F = I->getFunction();
+  auto Attr = F->getFnAttribute(Attribute::VScaleRange);
+  if (!Attr.isValid())
+    return false;
+
+  unsigned MinVScale = Attr.getVScaleRangeMin();
+  std::optional<unsigned> MaxVScale = Attr.getVScaleRangeMax();
+  // The transform needs to know the exact runtime length of scalable vectors
+  if (!MaxVScale || MinVScale != MaxVScale)
+    return false;
+
+  auto *PredType =
+      ScalableVectorType::get(Type::getInt1Ty(I->getContext()), 16);
+  auto *FixedPredType =
+      FixedVectorType::get(Type::getInt8Ty(I->getContext()), MinVScale * 2);
+
+  // If we have a store..
+  auto *Store = dyn_cast<StoreInst>(I);
+  if (!Store || !Store->isSimple())
+    return false;
+
+  // ..that is storing a predicate vector sized worth of bits..
+  if (Store->getOperand(0)->getType() != FixedPredType)
+    return false;
+
+  // ..where the value stored comes from a vector extract..
+  auto *IntrI = dyn_cast<IntrinsicInst>(Store->getOperand(0));
+  if (!IntrI || IntrI->getIntrinsicID() != Intrinsic::vector_extract)
+    return false;
+
+  // ..that is extracting from index 0..
+  if (!cast<ConstantInt>(IntrI->getOperand(1))->isZero())
+    return false;
+
+  // ..where the value being extract from comes from a bitcast
+  auto *BitCast = dyn_cast<BitCastInst>(IntrI->getOperand(0));
+  if (!BitCast)
+    return false;
+
+  // ..and the bitcast is casting from predicate type
+  if (BitCast->getOperand(0)->getType() != PredType)
+    return false;
+
+  IRBuilder<> Builder(I->getContext());
+  Builder.SetInsertPoint(I);
+
+  Builder.CreateStore(BitCast->getOperand(0), Store->getPointerOperand());
+
+  Store->eraseFromParent();
+  if (IntrI->use_empty())
+    IntrI->eraseFromParent();
+  if (BitCast->use_empty())
+    BitCast->eraseFromParent();
+
+  return true;
+}
+
+// This is done in SVEIntrinsicOpts rather than InstCombine so that we introduce
+// scalable loads as late as possible
+bool SVEIntrinsicOpts::optimizePredicateLoad(Instruction *I) {
+  auto *F = I->getFunction();
+  auto Attr = F->getFnAttribute(Attribute::VScaleRange);
+  if (!Attr.isValid())
+    return false;
+
+  unsigned MinVScale = Attr.getVScaleRangeMin();
+  std::optional<unsigned> MaxVScale = Attr.getVScaleRangeMax();
+  // The transform needs to know the exact runtime length of scalable vectors
+  if (!MaxVScale || MinVScale != MaxVScale)
+    return false;
+
+  auto *PredType =
+      ScalableVectorType::get(Type::getInt1Ty(I->getContext()), 16);
+  auto *FixedPredType =
+      FixedVectorType::get(Type::getInt8Ty(I->getContext()), MinVScale * 2);
+
+  // If we have a bitcast..
+  auto *BitCast = dyn_cast<BitCastInst>(I);
+  if (!BitCast || BitCast->getType() != PredType)
+    return false;
+
+  // ..whose operand is a vector_insert..
+  auto *IntrI = dyn_cast<IntrinsicInst>(BitCast->getOperand(0));
+  if (!IntrI || IntrI->getIntrinsicID() != Intrinsic::vector_insert)
+    return false;
+
+  // ..that is inserting into index zero of an undef vector..
+  if (!isa<UndefValue>(IntrI->getOperand(0)) ||
+      !cast<ConstantInt>(IntrI->getOperand(2))->isZero())
+    return false;
+
+  // ..where the value inserted comes from a load..
+  auto *Load = dyn_cast<LoadInst>(IntrI->getOperand(1));
+  if (!Load || !Load->isSimple())
+    return false;
+
+  // ..that is loading a predicate vector sized worth of bits..
+  if (Load->getType() != FixedPredType)
+    return false;
+
+  IRBuilder<> Builder(I->getContext());
+  Builder.SetInsertPoint(Load);
+
+  auto *LoadPred = Builder.CreateLoad(PredType, Load->getPointerOperand());
+
+  BitCast->replaceAllUsesWith(LoadPred);
+  BitCast->eraseFromParent();
+  if (IntrI->use_empty())
+    IntrI->eraseFromParent();
+  if (Load->use_empty())
+    Load->eraseFromParent();
+
+  return true;
+}
+
+bool SVEIntrinsicOpts::optimizeInstructions(
+    SmallSetVector<Function *, 4> &Functions) {
+  bool Changed = false;
+
+  for (auto *F : Functions) {
+    DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>(*F).getDomTree();
+
+    // Traverse the DT with an rpo walk so we see defs before uses, allowing
+    // simplification to be done incrementally.
+    BasicBlock *Root = DT->getRoot();
+    ReversePostOrderTraversal<BasicBlock *> RPOT(Root);
+    for (auto *BB : RPOT) {
+      for (Instruction &I : make_early_inc_range(*BB)) {
+        switch (I.getOpcode()) {
+        case Instruction::Store:
+          Changed |= optimizePredicateStore(&I);
+          break;
+        case Instruction::BitCast:
+          Changed |= optimizePredicateLoad(&I);
+          break;
+        }
+      }
+    }
+  }
+
+  return Changed;
+}
+
 bool SVEIntrinsicOpts::optimizeFunctions(
     SmallSetVector<Function *, 4> &Functions) {
   bool Changed = false;
 
   Changed |= optimizePTrueIntrinsicCalls(Functions);
+  Changed |= optimizeInstructions(Functions);
 
   return Changed;
 }
@@ -297,6 +442,8 @@ bool SVEIntrinsicOpts::runOnModule(Module &M) {
       continue;
 
     switch (F.getIntrinsicID()) {
+    case Intrinsic::vector_extract:
+    case Intrinsic::vector_insert:
     case Intrinsic::aarch64_sve_ptrue:
       for (User *U : F.users())
         Functions.insert(cast<Instruction>(U)->getFunction());

@@ -53,8 +53,8 @@ MismatchOffsetDistribution::MismatchOffsetDistribution(size_t BufferSize,
     : MismatchAt(MismatchAt) {
   if (MismatchAt <= 1)
     return;
-  for (size_t I = MaxSizeValue + 1; I < BufferSize; I += MaxSizeValue)
-    MismatchIndices.push_back(I);
+  for (size_t i = MaxSizeValue + 1; i < BufferSize; i += MaxSizeValue)
+    MismatchIndices.push_back(i);
   if (MismatchIndices.empty())
     report_fatal_error("Unable to generate mismatch");
   MismatchIndexSelector =
@@ -72,18 +72,27 @@ static size_t getL1DataCacheSize() {
   report_fatal_error("Unable to read L1 Cache Data Size");
 }
 
+static constexpr int64_t KiB = 1024;
+static constexpr int64_t ParameterStorageBytes = 4 * KiB;
+static constexpr int64_t L1LeftAsideBytes = 1 * KiB;
+
 static size_t getAvailableBufferSize() {
-  static constexpr int64_t KiB = 1024;
-  static constexpr int64_t ParameterStorageBytes = 4 * KiB;
-  static constexpr int64_t L1LeftAsideBytes = 1 * KiB;
   return getL1DataCacheSize() - L1LeftAsideBytes - ParameterStorageBytes;
 }
 
 ParameterBatch::ParameterBatch(size_t BufferCount)
     : BufferSize(getAvailableBufferSize() / BufferCount),
-      BatchSize(BufferSize / sizeof(ParameterType)), Parameters(BatchSize) {
+      BatchSize(ParameterStorageBytes / sizeof(ParameterType)),
+      Parameters(BatchSize) {
   if (BufferSize <= 0 || BatchSize < 100)
     report_fatal_error("Not enough L1 cache");
+  const size_t ParameterBytes = Parameters.size() * sizeof(ParameterType);
+  const size_t BufferBytes = BufferSize * BufferCount;
+  if (ParameterBytes + BufferBytes + L1LeftAsideBytes > getL1DataCacheSize())
+    report_fatal_error(
+        "We're splitting a buffer of the size of the L1 cache between a data "
+        "buffer and a benchmark parameters buffer, so by construction the "
+        "total should not exceed the size of the L1 cache");
 }
 
 size_t ParameterBatch::getBatchBytes() const {
@@ -104,18 +113,14 @@ void ParameterBatch::checkValid(const ParameterType &P) const {
             .concat(llvm::Twine(BufferSize)));
 }
 
-const ArrayRef<MemorySizeDistribution> CopyHarness::Distributions =
-    getMemcpySizeDistributions();
-const ArrayRef<MemorySizeDistribution> ComparisonHarness::Distributions =
-    getMemcmpSizeDistributions();
-const ArrayRef<MemorySizeDistribution> SetHarness::Distributions =
-    getMemsetSizeDistributions();
-
-CopyHarness::CopyHarness()
+CopySetup::CopySetup()
     : ParameterBatch(2), SrcBuffer(ParameterBatch::BufferSize),
       DstBuffer(ParameterBatch::BufferSize) {}
 
-ComparisonHarness::ComparisonHarness()
+MoveSetup::MoveSetup()
+    : ParameterBatch(3), Buffer(ParameterBatch::BufferSize * 3) {}
+
+ComparisonSetup::ComparisonSetup()
     : ParameterBatch(2), LhsBuffer(ParameterBatch::BufferSize),
       RhsBuffer(ParameterBatch::BufferSize) {
   // The memcmp buffers always compare equal.
@@ -123,7 +128,7 @@ ComparisonHarness::ComparisonHarness()
   memset(RhsBuffer.begin(), 0xF, BufferSize);
 }
 
-SetHarness::SetHarness()
+SetSetup::SetSetup()
     : ParameterBatch(1), DstBuffer(ParameterBatch::BufferSize) {}
 
 } // namespace libc_benchmarks

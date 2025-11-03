@@ -1,4 +1,4 @@
-//===--- MutatingCopyCheck.cpp - clang-tidy -------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace cert {
+namespace clang::tidy::cert {
 
 static constexpr llvm::StringLiteral SourceDeclName = "ChangedPVD";
 static constexpr llvm::StringLiteral MutatingOperatorName = "MutatingOp";
@@ -71,6 +69,4 @@ void MutatingCopyCheck::check(const MatchFinder::MatchResult &Result) {
     diag(Assignment->getBeginLoc(), "mutating copied object");
 }
 
-} // namespace cert
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cert

@@ -11,9 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "VESubtarget.h"
-#include "VE.h"
-#include "llvm/Support/MathExtras.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 

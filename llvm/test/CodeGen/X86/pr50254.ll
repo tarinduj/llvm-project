@@ -8,8 +8,7 @@ define void @PR50254() {
 ; X86-LABEL: PR50254:
 ; X86:       # %bb.0: # %entry
 ; X86-NEXT:    movswl d.e, %eax
-; X86-NEXT:    xorl %ecx, %ecx
-; X86-NEXT:    testb %cl, %cl
+; X86-NEXT:    testb %al, %al
 ; X86-NEXT:    jne .LBB0_2
 ; X86-NEXT:  # %bb.1: # %for.end
 ; X86-NEXT:    movw %ax, d.e
@@ -19,15 +18,14 @@ define void @PR50254() {
 ; X64-LABEL: PR50254:
 ; X64:       # %bb.0: # %entry
 ; X64-NEXT:    movswq d.e(%rip), %rax
-; X64-NEXT:    xorl %ecx, %ecx
-; X64-NEXT:    testb %cl, %cl
+; X64-NEXT:    testb %al, %al
 ; X64-NEXT:    jne .LBB0_2
 ; X64-NEXT:  # %bb.1: # %for.end
 ; X64-NEXT:    movw %ax, d.e(%rip)
 ; X64-NEXT:  .LBB0_2: # %for.body.1
 ; X64-NEXT:    retq
 entry:
-  %load = load i16, i16* bitcast (i32* @d.e to i16*), align 4
+  %load = load i16, ptr @d.e, align 4
   %xor1 = xor i16 %load, 0
   %xor2 = xor i64 undef, 3821908120
   %xor3 = xor i16 %load, -1
@@ -37,10 +35,10 @@ entry:
   br label %for.body
 
 for.body:                                         ; preds = %entry
-  br i1 undef, label %for.end, label %for.body.1
+  br i1 poison, label %for.end, label %for.body.1
 
 for.end:                                          ; preds = %for.body
-  store i16 %xor1, i16* bitcast (i32* @d.e to i16*), align 4
+  store i16 %xor1, ptr @d.e, align 4
   ret void
 
 for.body.1:                                       ; preds = %for.body

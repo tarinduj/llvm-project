@@ -1,5 +1,4 @@
-! RUN: %S/test_folding.sh %s %t %flang_fc1
-! REQUIRES: shell
+! RUN: %python %S/test_folding.py %s %flang_fc1
 ! Test implementations of IEEE inquiry functions
 module m
   use ieee_arithmetic
@@ -52,6 +51,7 @@ module m
     .and. ieee_support_sqrt(1.0_8) &
     .and. ieee_support_sqrt(1.0_10) &
     .and. ieee_support_sqrt(1.0_16)
+#if __x86_64__
   logical, parameter :: test_ieee_support_standard = ieee_support_standard() &
     .and. ieee_support_standard(1.0_2) &
     .and. ieee_support_standard(1.0_3) &
@@ -59,6 +59,7 @@ module m
     .and. ieee_support_standard(1.0_8) &
     .and. ieee_support_standard(1.0_10) &
     .and. ieee_support_standard(1.0_16)
+#endif
   logical, parameter :: test_ieee_support_subnormal = ieee_support_subnormal() &
     .and. ieee_support_subnormal(1.0_2) &
     .and. ieee_support_subnormal(1.0_3) &
@@ -66,11 +67,12 @@ module m
     .and. ieee_support_subnormal(1.0_8) &
     .and. ieee_support_subnormal(1.0_10) &
     .and. ieee_support_subnormal(1.0_16)
-  logical, parameter :: test_ieee_support_underflow_control = ieee_support_underflow_control() &
-    .and. ieee_support_underflow_control(1.0_2) &
-    .and. ieee_support_underflow_control(1.0_3) &
-    .and. ieee_support_underflow_control(1.0_4) &
-    .and. ieee_support_underflow_control(1.0_8) &
-    .and. ieee_support_underflow_control(1.0_10) &
-    .and. ieee_support_underflow_control(1.0_16)
+! varies by architecture
+! logical, parameter :: test_ieee_support_underflow_control = .not. ieee_support_underflow_control() &
+!   .and. .not. ieee_support_underflow_control(1.0_2) &
+!   .and. ieee_support_underflow_control(1.0_3) &
+!   .and. ieee_support_underflow_control(1.0_4) &
+!   .and. ieee_support_underflow_control(1.0_8) &
+!   .and. .not. ieee_support_underflow_control(1.0_10) &
+!   .and. .not. ieee_support_underflow_control(1.0_16)
 end module

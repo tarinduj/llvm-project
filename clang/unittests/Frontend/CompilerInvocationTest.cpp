@@ -12,7 +12,8 @@
 #include "clang/Frontend/TextDiagnosticBuffer.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Serialization/ModuleFileExtension.h"
-#include "llvm/Support/Host.h"
+#include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/Host.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -23,23 +24,27 @@ using namespace clang;
 using ::testing::Contains;
 using ::testing::HasSubstr;
 using ::testing::StrEq;
+using ::testing::StartsWith;
 
 namespace {
 class CommandLineTest : public ::testing::Test {
 public:
+  DiagnosticOptions DiagOpts;
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags;
   SmallVector<const char *, 32> GeneratedArgs;
-  SmallVector<std::string, 32> GeneratedArgsStorage;
+  BumpPtrAllocator Alloc;
+  StringSaver StringPool;
   CompilerInvocation Invocation;
 
   const char *operator()(const Twine &Arg) {
-    return GeneratedArgsStorage.emplace_back(Arg.str()).c_str();
+    return StringPool.save(Arg).data();
   }
 
   CommandLineTest()
-      : Diags(CompilerInstance::createDiagnostics(new DiagnosticOptions(),
-                                                  new TextDiagnosticBuffer())) {
-  }
+      : Diags(CompilerInstance::createDiagnostics(
+            *llvm::vfs::getRealFileSystem(), DiagOpts,
+            new TextDiagnosticBuffer())),
+        StringPool(Alloc) {}
 };
 
 template <typename M>
@@ -101,23 +106,63 @@ TEST(ContainsN, Two) {
 
 TEST(CompilerInvocationTest, DeepCopyConstructor) {
   CompilerInvocation A;
-  A.getAnalyzerOpts()->Config["Key"] = "Old";
+  A.getAnalyzerOpts().Config["Key"] = "Old";
 
   CompilerInvocation B(A);
-  B.getAnalyzerOpts()->Config["Key"] = "New";
+  B.getAnalyzerOpts().Config["Key"] = "New";
 
-  ASSERT_EQ(A.getAnalyzerOpts()->Config["Key"], "Old");
+  ASSERT_EQ(A.getAnalyzerOpts().Config["Key"], "Old");
 }
 
 TEST(CompilerInvocationTest, DeepCopyAssignment) {
   CompilerInvocation A;
-  A.getAnalyzerOpts()->Config["Key"] = "Old";
+  A.getAnalyzerOpts().Config["Key"] = "Old";
 
   CompilerInvocation B;
   B = A;
-  B.getAnalyzerOpts()->Config["Key"] = "New";
+  B.getAnalyzerOpts().Config["Key"] = "New";
 
-  ASSERT_EQ(A.getAnalyzerOpts()->Config["Key"], "Old");
+  ASSERT_EQ(A.getAnalyzerOpts().Config["Key"], "Old");
+}
+
+TEST(CompilerInvocationTest, CopyOnWriteConstructor) {
+  CowCompilerInvocation A;
+  A.getMutFrontendOpts().OutputFile = "x.o";
+
+  // B's FrontendOptions are initially shared with A.
+  CowCompilerInvocation B(A);
+  EXPECT_EQ(&A.getFrontendOpts(), &B.getFrontendOpts());
+
+  // Modifying A's FrontendOptions creates new copy, does not affect other opts.
+  A.getMutFrontendOpts().OutputFile = "y.o";
+  EXPECT_NE(&A.getFrontendOpts(), &B.getFrontendOpts());
+  EXPECT_EQ(&A.getCodeGenOpts(), &B.getCodeGenOpts());
+
+  // The new copy reflects the modification, old instance remains unchanged.
+  EXPECT_EQ(A.getFrontendOpts().OutputFile, "y.o");
+  EXPECT_EQ(B.getFrontendOpts().OutputFile, "x.o");
+}
+
+TEST(CompilerInvocationTest, CopyOnWriteAssignment) {
+  CowCompilerInvocation A;
+  A.getMutFrontendOpts().OutputFile = "x.o";
+
+  // B's FrontendOptions are initially independent of A.
+  CowCompilerInvocation B;
+  EXPECT_NE(&A.getFrontendOpts(), &B.getFrontendOpts());
+
+  // B's FrontendOptions are shared with A after assignment.
+  B = A;
+  EXPECT_EQ(&A.getFrontendOpts(), &B.getFrontendOpts());
+
+  // Modifying A's FrontendOptions creates new copy, does not affect other opts.
+  A.getMutFrontendOpts().OutputFile = "y.o";
+  EXPECT_NE(&A.getFrontendOpts(), &B.getFrontendOpts());
+  EXPECT_EQ(&A.getCodeGenOpts(), &B.getCodeGenOpts());
+
+  // The new copy reflects the modification, old instance remains unchanged.
+  EXPECT_EQ(A.getFrontendOpts().OutputFile, "y.o");
+  EXPECT_EQ(B.getFrontendOpts().OutputFile, "x.o");
 }
 
 // Boolean option with a keypath that defaults to true.
@@ -143,6 +188,26 @@ TEST_F(CommandLineTest, BoolOptionDefaultTrueSingleFlagPresent) {
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fno-temp-file")));
+}
+
+TEST_F(CommandLineTest, CC1FlagPresentWhenDoingRoundTrip) {
+  const char *Args[] = {"-cc1", "-round-trip-args"};
+
+  ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
+
+  ASSERT_THAT(std::string(Invocation.getCodeGenOpts().CmdArgs.begin(),
+                          Invocation.getCodeGenOpts().CmdArgs.end()),
+              StartsWith("-cc1"));
+}
+
+TEST_F(CommandLineTest, CC1FlagPresentWhenNotDoingRoundTrip) {
+  const char *Args[] = {"-cc1", "-no-round-trip-args"};
+
+  ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
+
+  ASSERT_THAT(std::string(Invocation.getCodeGenOpts().CmdArgs.begin(),
+                          Invocation.getCodeGenOpts().CmdArgs.end()),
+              StartsWith("-cc1"));
 }
 
 TEST_F(CommandLineTest, BoolOptionDefaultTrueSingleFlagUnknownPresent) {
@@ -259,49 +324,38 @@ TEST_F(CommandLineTest, BoolOptionDefaultFalsePresentNegReset) {
 // The flag with positive spelling can set the keypath to true.
 // The flag with negative spelling can set the keypath to false.
 
-static constexpr unsigned PassManagerDefault =
-    !static_cast<unsigned>(LLVM_ENABLE_NEW_PASS_MANAGER);
-
-static constexpr const char *PassManagerResetByFlag =
-    LLVM_ENABLE_NEW_PASS_MANAGER ? "-fno-legacy-pass-manager"
-                                 : "-flegacy-pass-manager";
-
-static constexpr const char *PassManagerChangedByFlag =
-    LLVM_ENABLE_NEW_PASS_MANAGER ? "-flegacy-pass-manager"
-                                 : "-fno-legacy-pass-manager";
-
 TEST_F(CommandLineTest, BoolOptionDefaultArbitraryTwoFlagsPresentNone) {
   const char *Args = {""};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_EQ(Invocation.getCodeGenOpts().LegacyPassManager, PassManagerDefault);
+  ASSERT_EQ(Invocation.getCodeGenOpts().ClearASTBeforeBackend, false);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq(PassManagerResetByFlag))));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq(PassManagerChangedByFlag))));
+  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-no-clear-ast-before-backend"))));
+  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-clear-ast-before-backend"))));
 }
 
 TEST_F(CommandLineTest, BoolOptionDefaultArbitraryTwoFlagsPresentChange) {
-  const char *Args[] = {PassManagerChangedByFlag};
+  const char *Args[] = {"-clear-ast-before-backend"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_EQ(Invocation.getCodeGenOpts().LegacyPassManager, !PassManagerDefault);
+  ASSERT_EQ(Invocation.getCodeGenOpts().ClearASTBeforeBackend, true);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
-  ASSERT_THAT(GeneratedArgs, Contains(StrEq(PassManagerChangedByFlag)));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq(PassManagerResetByFlag))));
+  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-clear-ast-before-backend")));
+  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-no-clear-ast-before-backend"))));
 }
 
 TEST_F(CommandLineTest, BoolOptionDefaultArbitraryTwoFlagsPresentReset) {
-  const char *Args[] = {PassManagerResetByFlag};
+  const char *Args[] = {"-no-clear-ast-before-backend"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_EQ(Invocation.getCodeGenOpts().LegacyPassManager, PassManagerDefault);
+  ASSERT_EQ(Invocation.getCodeGenOpts().ClearASTBeforeBackend, false);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq(PassManagerResetByFlag))));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq(PassManagerChangedByFlag))));
+  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-no-clear-ast-before-backend"))));
+  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-clear-ast-before-backend"))));
 }
 
 // Boolean option that gets the CC1Option flag from a let statement (which
@@ -496,7 +550,7 @@ TEST_F(CommandLineTest, StringVectorCommaJoinedNone) {
   const char *Args[] = {""};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_TRUE(Invocation.getLangOpts()->CommentOpts.BlockCommandNames.empty());
+  ASSERT_TRUE(Invocation.getLangOpts().CommentOpts.BlockCommandNames.empty());
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -508,7 +562,7 @@ TEST_F(CommandLineTest, StringVectorCommaJoinedSingle) {
   const char *Args[] = {"-fcomment-block-commands=x,y"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_EQ(Invocation.getLangOpts()->CommentOpts.BlockCommandNames,
+  ASSERT_EQ(Invocation.getLangOpts().CommentOpts.BlockCommandNames,
             std::vector<std::string>({"x", "y"}));
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
@@ -522,7 +576,7 @@ TEST_F(CommandLineTest, StringVectorCommaJoinedMultiple) {
                         "-fcomment-block-commands=a,b"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_EQ(Invocation.getLangOpts()->CommentOpts.BlockCommandNames,
+  ASSERT_EQ(Invocation.getLangOpts().CommentOpts.BlockCommandNames,
             std::vector<std::string>({"x", "y", "a", "b"}));
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
@@ -539,9 +593,9 @@ TEST_F(CommandLineTest, ConditionalParsingIfFalseFlagNotPresent) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_None);
+  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsDevice);
+  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
+  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_None);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -555,9 +609,9 @@ TEST_F(CommandLineTest, ConditionalParsingIfFalseFlagPresent) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_None);
+  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsDevice);
+  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
+  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_None);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -572,9 +626,9 @@ TEST_F(CommandLineTest, ConditionalParsingIfNonsenseSyclStdArg) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_TRUE(Diags->hasErrorOccurred());
-  ASSERT_TRUE(Invocation.getLangOpts()->SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_None);
+  ASSERT_TRUE(Invocation.getLangOpts().SYCLIsDevice);
+  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
+  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_None);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -589,9 +643,9 @@ TEST_F(CommandLineTest, ConditionalParsingIfOddSyclStdArg1) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_TRUE(Invocation.getLangOpts()->SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_2017);
+  ASSERT_TRUE(Invocation.getLangOpts().SYCLIsDevice);
+  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
+  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_2017);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -606,9 +660,9 @@ TEST_F(CommandLineTest, ConditionalParsingIfOddSyclStdArg2) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_TRUE(Invocation.getLangOpts()->SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_2017);
+  ASSERT_TRUE(Invocation.getLangOpts().SYCLIsDevice);
+  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
+  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_2017);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -623,9 +677,9 @@ TEST_F(CommandLineTest, ConditionalParsingIfOddSyclStdArg3) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_TRUE(Invocation.getLangOpts()->SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts()->SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_2017);
+  ASSERT_TRUE(Invocation.getLangOpts().SYCLIsDevice);
+  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
+  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_2017);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -640,7 +694,7 @@ TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresentHost) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(),
+  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(),
             LangOptions::SYCL_Default);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
@@ -655,7 +709,7 @@ TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresentDevice) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(),
+  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(),
             LangOptions::SYCL_Default);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
@@ -670,12 +724,32 @@ TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagPresent) {
   CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
 
   ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_EQ(Invocation.getLangOpts()->getSYCLVersion(), LangOptions::SYCL_2017);
+  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_2017);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fsycl-is-device")));
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-sycl-std=2017")));
+}
+
+TEST_F(CommandLineTest, ConditionalParsingIfHLSLFlagPresent) {
+  const char *Args[] = {"-xhlsl"};
+
+  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
+
+  ASSERT_EQ(Invocation.getLangOpts().MaxMatrixDimension, 4u);
+
+  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
+}
+
+TEST_F(CommandLineTest, ConditionalParsingIfHLSLFlagNotPresent) {
+  const char *Args[] = {""};
+
+  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
+
+  ASSERT_EQ(Invocation.getLangOpts().MaxMatrixDimension, 1048575u);
+
+  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 }
 
 // Wide integer option.
@@ -695,17 +769,17 @@ TEST_F(CommandLineTest, WideIntegerHighValue) {
 //
 //   * -cl-unsafe-math-optimizations
 //     * -cl-mad-enable
-//     * -menable-unsafe-fp-math
+//     * -funsafe-math-optimizations
 //       * -freciprocal-math
 
 TEST_F(CommandLineTest, ImpliedBoolOptionsNoFlagPresent) {
   const char *Args[] = {""};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_FALSE(Invocation.getLangOpts()->CLUnsafeMath);
+  ASSERT_FALSE(Invocation.getLangOpts().CLUnsafeMath);
   ASSERT_FALSE(Invocation.getCodeGenOpts().LessPreciseFPMAD);
-  ASSERT_FALSE(Invocation.getLangOpts()->UnsafeFPMath);
-  ASSERT_FALSE(Invocation.getLangOpts()->AllowRecip);
+  ASSERT_FALSE(Invocation.getLangOpts().UnsafeFPMath);
+  ASSERT_FALSE(Invocation.getLangOpts().AllowRecip);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -713,7 +787,8 @@ TEST_F(CommandLineTest, ImpliedBoolOptionsNoFlagPresent) {
   ASSERT_THAT(GeneratedArgs,
               Not(Contains(StrEq("-cl-unsafe-math-optimizations"))));
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-cl-mad-enable"))));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-menable-unsafe-fp-math"))));
+  ASSERT_THAT(GeneratedArgs,
+              Not(Contains(StrEq("-funsafe-math-optimizations"))));
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-freciprocal-math"))));
 }
 
@@ -722,12 +797,12 @@ TEST_F(CommandLineTest, ImpliedBoolOptionsRootFlagPresent) {
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
   // Explicitly provided root flag.
-  ASSERT_TRUE(Invocation.getLangOpts()->CLUnsafeMath);
+  ASSERT_TRUE(Invocation.getLangOpts().CLUnsafeMath);
   // Directly implied by explicitly provided root flag.
   ASSERT_TRUE(Invocation.getCodeGenOpts().LessPreciseFPMAD);
-  ASSERT_TRUE(Invocation.getLangOpts()->UnsafeFPMath);
+  ASSERT_TRUE(Invocation.getLangOpts().UnsafeFPMath);
   // Transitively implied by explicitly provided root flag.
-  ASSERT_TRUE(Invocation.getLangOpts()->AllowRecip);
+  ASSERT_TRUE(Invocation.getLangOpts().AllowRecip);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -735,19 +810,20 @@ TEST_F(CommandLineTest, ImpliedBoolOptionsRootFlagPresent) {
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-cl-unsafe-math-optimizations")));
   // Not generated - implied by the generated root flag.
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-cl-mad-enable"))));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-menable-unsafe-fp-math"))));
+  ASSERT_THAT(GeneratedArgs,
+              Not(Contains(StrEq("-funsafe-math-optimizations"))));
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-freciprocal-math"))));
 }
 
 TEST_F(CommandLineTest, ImpliedBoolOptionsAllFlagsPresent) {
   const char *Args[] = {"-cl-unsafe-math-optimizations", "-cl-mad-enable",
-                        "-menable-unsafe-fp-math", "-freciprocal-math"};
+                        "-funsafe-math-optimizations", "-freciprocal-math"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_TRUE(Invocation.getLangOpts()->CLUnsafeMath);
+  ASSERT_TRUE(Invocation.getLangOpts().CLUnsafeMath);
   ASSERT_TRUE(Invocation.getCodeGenOpts().LessPreciseFPMAD);
-  ASSERT_TRUE(Invocation.getLangOpts()->UnsafeFPMath);
-  ASSERT_TRUE(Invocation.getLangOpts()->AllowRecip);
+  ASSERT_TRUE(Invocation.getLangOpts().UnsafeFPMath);
+  ASSERT_TRUE(Invocation.getLangOpts().AllowRecip);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
 
@@ -755,19 +831,20 @@ TEST_F(CommandLineTest, ImpliedBoolOptionsAllFlagsPresent) {
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-cl-unsafe-math-optimizations")));
   // Not generated - implied by their generated parent.
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-cl-mad-enable"))));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-menable-unsafe-fp-math"))));
+  ASSERT_THAT(GeneratedArgs,
+              Not(Contains(StrEq("-funsafe-math-optimizations"))));
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-freciprocal-math"))));
 }
 
 TEST_F(CommandLineTest, ImpliedBoolOptionsImpliedFlagsPresent) {
-  const char *Args[] = {"-cl-mad-enable", "-menable-unsafe-fp-math",
+  const char *Args[] = {"-cl-mad-enable", "-funsafe-math-optimizations",
                         "-freciprocal-math"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_FALSE(Invocation.getLangOpts()->CLUnsafeMath);
+  ASSERT_FALSE(Invocation.getLangOpts().CLUnsafeMath);
   ASSERT_TRUE(Invocation.getCodeGenOpts().LessPreciseFPMAD);
-  ASSERT_TRUE(Invocation.getLangOpts()->UnsafeFPMath);
-  ASSERT_TRUE(Invocation.getLangOpts()->AllowRecip);
+  ASSERT_TRUE(Invocation.getLangOpts().UnsafeFPMath);
+  ASSERT_TRUE(Invocation.getLangOpts().AllowRecip);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
   // Not generated - missing.
@@ -775,13 +852,13 @@ TEST_F(CommandLineTest, ImpliedBoolOptionsImpliedFlagsPresent) {
               Not(Contains(StrEq("-cl-unsafe-math-optimizations"))));
   // Generated - explicitly provided.
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-cl-mad-enable")));
-  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-menable-unsafe-fp-math")));
+  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-funsafe-math-optimizations")));
   // Not generated - implied by its generated parent.
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-freciprocal-math"))));
 }
 
 TEST_F(CommandLineTest, PresentAndNotImpliedGenerated) {
-  const char *Args[] = {"-cl-mad-enable", "-menable-unsafe-fp-math"};
+  const char *Args[] = {"-cl-mad-enable", "-funsafe-math-optimizations"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
 
@@ -789,7 +866,7 @@ TEST_F(CommandLineTest, PresentAndNotImpliedGenerated) {
 
   // Present options that were not implied are generated.
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-cl-mad-enable")));
-  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-menable-unsafe-fp-math")));
+  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-funsafe-math-optimizations")));
 }
 
 // Diagnostic option.
@@ -813,7 +890,7 @@ TEST_F(CommandLineTest, DigraphsImplied) {
   const char *Args[] = {""};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_TRUE(Invocation.getLangOpts()->Digraphs);
+  ASSERT_TRUE(Invocation.getLangOpts().Digraphs);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fno-digraphs"))));
@@ -824,7 +901,7 @@ TEST_F(CommandLineTest, DigraphsDisabled) {
   const char *Args[] = {"-fno-digraphs"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_FALSE(Invocation.getLangOpts()->Digraphs);
+  ASSERT_FALSE(Invocation.getLangOpts().Digraphs);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fno-digraphs")));
@@ -835,7 +912,7 @@ TEST_F(CommandLineTest, DigraphsNotImplied) {
   const char *Args[] = {"-std=c89"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_FALSE(Invocation.getLangOpts()->Digraphs);
+  ASSERT_FALSE(Invocation.getLangOpts().Digraphs);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fno-digraphs"))));
@@ -846,7 +923,7 @@ TEST_F(CommandLineTest, DigraphsEnabled) {
   const char *Args[] = {"-std=c89", "-fdigraphs"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
-  ASSERT_TRUE(Invocation.getLangOpts()->Digraphs);
+  ASSERT_TRUE(Invocation.getLangOpts().Digraphs);
 
   Invocation.generateCC1CommandLine(GeneratedArgs, *this);
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fdigraphs")));
@@ -860,9 +937,7 @@ struct DummyModuleFileExtension
     return {};
   };
 
-  llvm::hash_code hashExtension(llvm::hash_code Code) const override {
-    return {};
-  }
+  void hashExtension(ExtensionHashBuilder &HBuilder) const override {}
 
   std::unique_ptr<ModuleFileExtensionWriter>
   createExtensionWriter(ASTWriter &Writer) override {
@@ -953,8 +1028,8 @@ TEST_F(CommandLineTest, RoundTrip) {
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
 
-  ASSERT_TRUE(Invocation.getLangOpts()->C17);
-  ASSERT_EQ(Invocation.getLangOpts()->MaxTokens, 10u);
+  ASSERT_TRUE(Invocation.getLangOpts().C17);
+  ASSERT_EQ(Invocation.getLangOpts().MaxTokens, 10u);
 
   ASSERT_EQ(Invocation.getTargetOpts().SDKVersion, llvm::VersionTuple(1, 2, 3));
   ASSERT_EQ(Invocation.getTargetOpts().EABIVersion, EABI::EABI4);
@@ -971,8 +1046,8 @@ TEST_F(CommandLineTest, RoundTrip) {
               Contains(std::make_pair(std::string("XY=AB"), false)));
   ASSERT_EQ(Invocation.getPreprocessorOpts().ImplicitPCHInclude, "a.pch");
 
-  ASSERT_EQ(Invocation.getAnalyzerOpts()->Config["ctu-import-threshold"], "42");
-  ASSERT_TRUE(Invocation.getAnalyzerOpts()->UnoptimizedCFG);
+  ASSERT_EQ(Invocation.getAnalyzerOpts().Config["ctu-import-threshold"], "42");
+  ASSERT_TRUE(Invocation.getAnalyzerOpts().UnoptimizedCFG);
 
   ASSERT_TRUE(Invocation.getMigratorOpts().NoNSAllocReallocError);
 
@@ -994,5 +1069,16 @@ TEST_F(CommandLineTest, PluginArgsRoundTripDeterminism) {
       "-round-trip-args"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
+}
+
+TEST_F(CommandLineTest, WarningSuppressionMappings) {
+  const char *Args[] = {"--warning-suppression-mappings=foo.txt"};
+
+  EXPECT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
+  EXPECT_EQ(Invocation.getDiagnosticOpts().DiagnosticSuppressionMappingsFile,
+            "foo.txt");
+
+  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
+  EXPECT_THAT(GeneratedArgs, Contains(StrEq(Args[0])));
 }
 } // anonymous namespace

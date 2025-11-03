@@ -3,6 +3,7 @@
 # The subset inside debuginfo-tests invoke clang to generate programs with
 # various types of debug info, and then run those programs under a debugger
 # such as GDB or LLDB to verify the results.
+set(LLVM_SUBPROJECT_TITLE "Cross-Project")
 
 find_package(Python3 COMPONENTS Interpreter)
 
@@ -16,11 +17,16 @@ set(CROSS_PROJECT_TESTS_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 set(CROSS_PROJECT_TEST_DEPS
   FileCheck
-  count
-  llvm-config
-  llvm-objdump
   check-gdb-llvm-support
+  count
+  llvm-ar
+  llvm-config
+  llvm-dis
+  llvm-dwarfdump
+  llvm-objdump
   not
+  obj2yaml
+  split-file
   )
 
 if ("clang" IN_LIST LLVM_ENABLE_PROJECTS)
@@ -54,8 +60,7 @@ if("lldb" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND CROSS_PROJECT_TEST_DEPS lldb lldb-server)
 endif()
 
-# The Windows builder scripts pass -fuse-ld=lld.
-if (WIN32 OR "lld" IN_LIST LLVM_ENABLE_PROJECTS)
+if ("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND CROSS_PROJECT_TEST_DEPS lld)
 endif()
 
@@ -78,10 +83,28 @@ add_lit_testsuite(check-debuginfo "Running debuginfo tests"
   DEPENDS ${CROSS_PROJECT_TEST_DEPS}
   )
 
+# Add alias for intrinsic header test subset.
+add_lit_testsuite(check-intrinsic-headers "Running intrinsic header tests"
+  ${CMAKE_CURRENT_BINARY_DIR}/intrinsic-header-tests
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS ${CROSS_PROJECT_TEST_DEPS}
+  )
+
+# AMDGPU tests.
+add_lit_testsuite(check-cross-amdgpu "Running AMDGPU cross-project tests"
+  ${CMAKE_CURRENT_BINARY_DIR}/amdgpu
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS clang
+  )
+
+# DTLTO tests.
+add_lit_testsuite(check-cross-dtlto "Running DTLTO cross-project tests"
+  ${CMAKE_CURRENT_BINARY_DIR}/dtlto
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS ${CROSS_PROJECT_TEST_DEPS}
+  )
+
 # Add check-cross-project-* targets.
 add_lit_testsuites(CROSS_PROJECT ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS ${CROSS_PROJECT_TEST_DEPS}
   )
-
-set_target_properties(check-cross-project PROPERTIES FOLDER "Tests")
-set_target_properties(check-debuginfo PROPERTIES FOLDER "Tests")

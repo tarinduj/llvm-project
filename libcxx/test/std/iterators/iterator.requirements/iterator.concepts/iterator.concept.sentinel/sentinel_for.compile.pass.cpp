@@ -7,13 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // template<class S, class I>
 // concept sentinel_for;
 
 #include <iterator>
+#include <cstddef>
 
 static_assert(std::sentinel_for<int*, int*>);
 static_assert(!std::sentinel_for<int*, long*>);

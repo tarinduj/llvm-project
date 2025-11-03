@@ -1,4 +1,4 @@
-//===--------------------------- DwarfParser.hpp --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,6 +23,10 @@
 
 #include "config.h"
 
+#if defined(_LIBUNWIND_TARGET_AARCH64_AUTHENTICATED_UNWINDING)
+#include <ptrauth.h>
+#endif
+
 namespace libunwind {
 
 /// CFI_Parser does basic parsing of a CFI (Call Frame Information) records.
@@ -33,6 +37,7 @@ template <typename A>
 class CFI_Parser {
 public:
   typedef typename A::pint_t pint_t;
+  typedef pint_t __ptrauth_unwind_cie_info_personality personality_t;
 
   /// Information encoded in a CIE (Common Information Entry)
   struct CIE_Info {
@@ -43,7 +48,7 @@ public:
     uint8_t   lsdaEncoding;
     uint8_t   personalityEncoding;
     uint8_t   personalityOffsetInCIE;
-    pint_t    personality;
+    personality_t personality;
     uint32_t  codeAlignFactor;
     int       dataAlignFactor;
     bool      isSignalFrame;
@@ -51,6 +56,7 @@ public:
     uint8_t   returnAddressRegister;
 #if defined(_LIBUNWIND_TARGET_AARCH64)
     bool      addressesSignedWithBKey;
+    bool      mteTaggedFrame;
 #endif
   };
 
@@ -71,6 +77,7 @@ public:
     kRegisterUnused,
     kRegisterUndefined,
     kRegisterInCFA,
+    kRegisterInCFADecrypt, // sparc64 specific
     kRegisterOffsetFromCFA,
     kRegisterInRegister,
     kRegisterAtExpression,
@@ -89,6 +96,9 @@ public:
     int64_t           cfaExpression;      // CFA = expression
     uint32_t          spExtraArgSize;
     RegisterLocation  savedRegisters[kMaxRegisterNumber + 1];
+#if defined(_LIBUNWIND_TARGET_AARCH64)
+    pint_t ptrAuthDiversifier;
+#endif
     enum class InitializeTime { kLazy, kNormal };
 
     // When saving registers, this data structure is lazily initialized.
@@ -151,10 +161,11 @@ public:
   };
 
   static bool findFDE(A &addressSpace, pint_t pc, pint_t ehSectionStart,
-                      uintptr_t sectionLength, pint_t fdeHint, FDE_Info *fdeInfo,
+                      size_t sectionLength, pint_t fdeHint, FDE_Info *fdeInfo,
                       CIE_Info *cieInfo);
   static const char *decodeFDE(A &addressSpace, pint_t fdeStart,
-                               FDE_Info *fdeInfo, CIE_Info *cieInfo);
+                               FDE_Info *fdeInfo, CIE_Info *cieInfo,
+                               bool useCIEInfo = false);
   static bool parseFDEInstructions(A &addressSpace, const FDE_Info &fdeInfo,
                                    const CIE_Info &cieInfo, pint_t upToPC,
                                    int arch, PrologInfo *results);
@@ -162,10 +173,14 @@ public:
   static const char *parseCIE(A &addressSpace, pint_t cie, CIE_Info *cieInfo);
 };
 
-/// Parse a FDE into a CIE_Info and an FDE_Info
+/// Parse a FDE into a CIE_Info and an FDE_Info. If useCIEInfo is
+/// true, treat cieInfo as already-parsed CIE_Info (whose start offset
+/// must match the one specified by the FDE) rather than parsing the
+/// one indicated within the FDE.
 template <typename A>
 const char *CFI_Parser<A>::decodeFDE(A &addressSpace, pint_t fdeStart,
-                                     FDE_Info *fdeInfo, CIE_Info *cieInfo) {
+                                     FDE_Info *fdeInfo, CIE_Info *cieInfo,
+                                     bool useCIEInfo) {
   pint_t p = fdeStart;
   pint_t cfiLength = (pint_t)addressSpace.get32(p);
   p += 4;
@@ -181,9 +196,14 @@ const char *CFI_Parser<A>::decodeFDE(A &addressSpace, pint_t fdeStart,
     return "FDE is really a CIE"; // this is a CIE not an FDE
   pint_t nextCFI = p + cfiLength;
   pint_t cieStart = p - ciePointer;
-  const char *err = parseCIE(addressSpace, cieStart, cieInfo);
-  if (err != NULL)
-    return err;
+  if (useCIEInfo) {
+    if (cieInfo->cieStart != cieStart)
+      return "CIE start does not match";
+  } else {
+    const char *err = parseCIE(addressSpace, cieStart, cieInfo);
+    if (err != NULL)
+      return err;
+  }
   p += 4;
   // Parse pc begin and range.
   pint_t pcStart =
@@ -220,11 +240,11 @@ const char *CFI_Parser<A>::decodeFDE(A &addressSpace, pint_t fdeStart,
 /// Scan an eh_frame section to find an FDE for a pc
 template <typename A>
 bool CFI_Parser<A>::findFDE(A &addressSpace, pint_t pc, pint_t ehSectionStart,
-                            uintptr_t sectionLength, pint_t fdeHint,
+                            size_t sectionLength, pint_t fdeHint,
                             FDE_Info *fdeInfo, CIE_Info *cieInfo) {
   //fprintf(stderr, "findFDE(0x%llX)\n", (long long)pc);
   pint_t p = (fdeHint != 0) ? fdeHint : ehSectionStart;
-  const pint_t ehSectionEnd = (sectionLength == UINTPTR_MAX)
+  const pint_t ehSectionEnd = (sectionLength == SIZE_MAX)
                                   ? static_cast<pint_t>(-1)
                                   : (ehSectionStart + sectionLength);
   while (p < ehSectionEnd) {
@@ -258,7 +278,7 @@ bool CFI_Parser<A>::findFDE(A &addressSpace, pint_t pc, pint_t ehSectionStart,
           pint_t pcRange = addressSpace.getEncodedP(
               p, nextCFI, cieInfo->pointerEncoding & 0x0F);
           // Test if pc is within the function this FDE covers.
-          if ((pcStart < pc) && (pc <= pcStart + pcRange)) {
+          if ((pcStart <= pc) && (pc < pcStart + pcRange)) {
             // parse rest of info
             fdeInfo->lsda = 0;
             // check for augmentation length
@@ -314,6 +334,7 @@ const char *CFI_Parser<A>::parseCIE(A &addressSpace, pint_t cie,
   cieInfo->fdesHaveAugmentationData = false;
 #if defined(_LIBUNWIND_TARGET_AARCH64)
   cieInfo->addressesSignedWithBKey = false;
+  cieInfo->mteTaggedFrame = false;
 #endif
   cieInfo->cieStart = cie;
   pint_t p = cie;
@@ -342,7 +363,7 @@ const char *CFI_Parser<A>::parseCIE(A &addressSpace, pint_t cie,
   while (addressSpace.get8(p) != 0)
     ++p;
   ++p;
-  // parse code aligment factor
+  // parse code alignment factor
   cieInfo->codeAlignFactor = (uint32_t)addressSpace.getULEB128(p, cieContentEnd);
   // parse data alignment factor
   cieInfo->dataAlignFactor = (int)addressSpace.getSLEB128(p, cieContentEnd);
@@ -353,6 +374,7 @@ const char *CFI_Parser<A>::parseCIE(A &addressSpace, pint_t cie,
   cieInfo->returnAddressRegister = (uint8_t)raReg;
   // parse augmentation data based on augmentation string
   const char *result = NULL;
+  pint_t resultAddr = 0;
   if (addressSpace.get8(strStart) == 'z') {
     // parse augmentation data length
     addressSpace.getULEB128(p, cieContentEnd);
@@ -361,13 +383,41 @@ const char *CFI_Parser<A>::parseCIE(A &addressSpace, pint_t cie,
       case 'z':
         cieInfo->fdesHaveAugmentationData = true;
         break;
-      case 'P':
+      case 'P': {
         cieInfo->personalityEncoding = addressSpace.get8(p);
         ++p;
         cieInfo->personalityOffsetInCIE = (uint8_t)(p - cie);
-        cieInfo->personality = addressSpace
-            .getEncodedP(p, cieContentEnd, cieInfo->personalityEncoding);
+        pint_t personality = addressSpace.getEncodedP(
+            p, cieContentEnd, cieInfo->personalityEncoding,
+            /*datarelBase=*/0, &resultAddr);
+#if defined(_LIBUNWIND_TARGET_AARCH64_AUTHENTICATED_UNWINDING)
+        if (personality) {
+          // The GOT for the personality function was signed address
+          // authenticated. Manually re-sign with the CIE_Info::personality
+          // schema. If we could guarantee the encoding of the personality we
+          // could avoid this by simply giving resultAddr the correct ptrauth
+          // schema and performing an assignment.
+#if defined(__arm64e__)
+          const auto oldDiscriminator = resultAddr;
+#else
+          const auto oldDiscriminator = ptrauth_blend_discriminator(
+              (void *)resultAddr, __ptrauth_unwind_pauthtest_personality_disc);
+#endif
+          const auto discriminator = ptrauth_blend_discriminator(
+              &cieInfo->personality,
+              __ptrauth_unwind_cie_info_personality_disc);
+          void *signedPtr = ptrauth_auth_and_resign(
+              (void *)personality, ptrauth_key_function_pointer,
+              oldDiscriminator, ptrauth_key_function_pointer, discriminator);
+          personality = (pint_t)signedPtr;
+        }
+#endif
+        // We use memmove to set the CIE personality as we have already
+        // re-signed the pointer to the correct schema.
+        memmove((void *)&cieInfo->personality, (void *)&personality,
+                sizeof(personality));
         break;
+      }
       case 'L':
         cieInfo->lsdaEncoding = addressSpace.get8(p);
         ++p;
@@ -383,6 +433,9 @@ const char *CFI_Parser<A>::parseCIE(A &addressSpace, pint_t cie,
       case 'B':
         cieInfo->addressesSignedWithBKey = true;
         break;
+      case 'G':
+        cieInfo->mteTaggedFrame = true;
+        break;
 #endif
       default:
         // ignore unknown letters
@@ -396,7 +449,7 @@ const char *CFI_Parser<A>::parseCIE(A &addressSpace, pint_t cie,
 }
 
 
-/// "run" the DWARF instructions and create the abstact PrologInfo for an FDE
+/// "run" the DWARF instructions and create the abstract PrologInfo for an FDE
 template <typename A>
 bool CFI_Parser<A>::parseFDEInstructions(A &addressSpace,
                                          const FDE_Info &fdeInfo,
@@ -723,7 +776,8 @@ bool CFI_Parser<A>::parseFDEInstructions(A &addressSpace,
             "DW_CFA_GNU_negative_offset_extended(%" PRId64 ")\n", offset);
         break;
 
-#if defined(_LIBUNWIND_TARGET_AARCH64) || defined(_LIBUNWIND_TARGET_SPARC)
+#if defined(_LIBUNWIND_TARGET_AARCH64) || defined(_LIBUNWIND_TARGET_SPARC) || \
+    defined(_LIBUNWIND_TARGET_SPARC64)
         // The same constant is used to represent different instructions on
         // AArch64 (negate_ra_state) and SPARC (window_save).
         static_assert(DW_CFA_AARCH64_negate_ra_state == DW_CFA_GNU_window_save,
@@ -733,8 +787,8 @@ bool CFI_Parser<A>::parseFDEInstructions(A &addressSpace,
 #if defined(_LIBUNWIND_TARGET_AARCH64)
         case REGISTERS_ARM64: {
           int64_t value =
-              results->savedRegisters[UNW_ARM64_RA_SIGN_STATE].value ^ 0x1;
-          results->setRegisterValue(UNW_ARM64_RA_SIGN_STATE, value,
+              results->savedRegisters[UNW_AARCH64_RA_SIGN_STATE].value ^ 0x1;
+          results->setRegisterValue(UNW_AARCH64_RA_SIGN_STATE, value,
                                     initialState);
           _LIBUNWIND_TRACE_DWARF("DW_CFA_AARCH64_negate_ra_state\n");
         } break;
@@ -757,8 +811,47 @@ bool CFI_Parser<A>::parseFDEInstructions(A &addressSpace,
           }
           break;
 #endif
+
+#if defined(_LIBUNWIND_TARGET_SPARC64)
+        // case DW_CFA_GNU_window_save:
+        case REGISTERS_SPARC64:
+          // Don't save %o0-%o7 on sparc64.
+          // https://reviews.llvm.org/D32450#736405
+
+          for (reg = UNW_SPARC_L0; reg <= UNW_SPARC_I7; reg++) {
+            if (reg == UNW_SPARC_I7)
+              results->setRegister(
+                  reg, kRegisterInCFADecrypt,
+                  static_cast<int64_t>((reg - UNW_SPARC_L0) * sizeof(pint_t)),
+                  initialState);
+            else
+              results->setRegister(
+                  reg, kRegisterInCFA,
+                  static_cast<int64_t>((reg - UNW_SPARC_L0) * sizeof(pint_t)),
+                  initialState);
+          }
+          _LIBUNWIND_TRACE_DWARF("DW_CFA_GNU_window_save\n");
+          break;
+#endif
         }
         break;
+
+#if defined(_LIBUNWIND_TARGET_AARCH64)
+      case DW_CFA_AARCH64_negate_ra_state_with_pc: {
+        int64_t value =
+            results->savedRegisters[UNW_AARCH64_RA_SIGN_STATE].value ^ 0x3;
+        results->setRegisterValue(UNW_AARCH64_RA_SIGN_STATE, value,
+                                  initialState);
+        // When using Feat_PAuthLR, the PC value needs to be captured so that
+        // during unwinding, the correct PC value is used for re-authentication.
+        // It is assumed that the CFI is placed before the signing instruction.
+        results->ptrAuthDiversifier = fdeInfo.pcStart + codeOffset;
+        _LIBUNWIND_TRACE_DWARF(
+            "DW_CFA_AARCH64_negate_ra_state_with_pc(pc=0x%" PRIx64 ")\n",
+            static_cast<uint64_t>(results->ptrAuthDiversifier));
+      } break;
+#endif
+
 #else
         (void)arch;
 #endif

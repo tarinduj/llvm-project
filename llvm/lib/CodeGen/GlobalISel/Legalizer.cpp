@@ -14,25 +14,21 @@
 
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/ADT/SetVector.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/CSEMIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
+#include "llvm/CodeGen/GlobalISel/GISelValueTracking.h"
 #include "llvm/CodeGen/GlobalISel/GISelWorkList.h"
 #include "llvm/CodeGen/GlobalISel/LegalizationArtifactCombiner.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/LostDebugLocObserver.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Target/TargetMachine.h"
-
-#include <iterator>
 
 #define DEBUG_TYPE "legalizer"
 
@@ -79,6 +75,7 @@ INITIALIZE_PASS_BEGIN(Legalizer, DEBUG_TYPE,
                       false)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
 INITIALIZE_PASS_DEPENDENCY(GISelCSEAnalysisWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(GISelValueTrackingAnalysisLegacy)
 INITIALIZE_PASS_END(Legalizer, DEBUG_TYPE,
                     "Legalize the Machine IR a function's Machine IR", false,
                     false)
@@ -89,6 +86,8 @@ void Legalizer::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
   AU.addRequired<GISelCSEAnalysisWrapperPass>();
   AU.addPreserved<GISelCSEAnalysisWrapperPass>();
+  AU.addRequired<GISelValueTrackingAnalysisLegacy>();
+  AU.addPreserved<GISelValueTrackingAnalysisLegacy>();
   getSelectionDAGFallbackAnalysisUsage(AU);
   MachineFunctionPass::getAnalysisUsage(AU);
 }
@@ -177,7 +176,8 @@ Legalizer::MFResult
 Legalizer::legalizeMachineFunction(MachineFunction &MF, const LegalizerInfo &LI,
                                    ArrayRef<GISelChangeObserver *> AuxObservers,
                                    LostDebugLocObserver &LocObserver,
-                                   MachineIRBuilder &MIRBuilder) {
+                                   MachineIRBuilder &MIRBuilder,
+                                   GISelValueTracking *VT) {
   MIRBuilder.setMF(MF);
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
@@ -216,11 +216,8 @@ Legalizer::legalizeMachineFunction(MachineFunction &MF, const LegalizerInfo &LI,
   // Now install the observer as the delegate to MF.
   // This will keep all the observers notified about new insertions/deletions.
   RAIIMFObsDelInstaller Installer(MF, WrapperObserver);
-  LegalizerHelper Helper(MF, LI, WrapperObserver, MIRBuilder);
-  LegalizationArtifactCombiner ArtCombiner(MIRBuilder, MRI, LI);
-  auto RemoveDeadInstFromLists = [&WrapperObserver](MachineInstr *DeadMI) {
-    WrapperObserver.erasingInstr(*DeadMI);
-  };
+  LegalizerHelper Helper(MF, LI, WrapperObserver, MIRBuilder, VT);
+  LegalizationArtifactCombiner ArtCombiner(MIRBuilder, MRI, LI, VT);
   bool Changed = false;
   SmallVector<MachineInstr *, 128> RetryList;
   do {
@@ -232,9 +229,8 @@ Legalizer::legalizeMachineFunction(MachineFunction &MF, const LegalizerInfo &LI,
       assert(isPreISelGenericOpcode(MI.getOpcode()) &&
              "Expecting generic opcode");
       if (isTriviallyDead(MI, MRI)) {
-        LLVM_DEBUG(dbgs() << MI << "Is dead; erasing.\n");
-        MI.eraseFromParentAndMarkDBGValuesForRemoval();
-        LocObserver.checkpoint(false);
+        salvageDebugInfo(MRI, MI);
+        eraseInstr(MI, MRI, &LocObserver);
         continue;
       }
 
@@ -281,10 +277,8 @@ Legalizer::legalizeMachineFunction(MachineFunction &MF, const LegalizerInfo &LI,
       assert(isPreISelGenericOpcode(MI.getOpcode()) &&
              "Expecting generic opcode");
       if (isTriviallyDead(MI, MRI)) {
-        LLVM_DEBUG(dbgs() << MI << "Is dead\n");
-        RemoveDeadInstFromLists(&MI);
-        MI.eraseFromParentAndMarkDBGValuesForRemoval();
-        LocObserver.checkpoint(false);
+        salvageDebugInfo(MRI, MI);
+        eraseInstr(MI, MRI, &LocObserver);
         continue;
       }
       SmallVector<MachineInstr *, 4> DeadInstructions;
@@ -292,11 +286,7 @@ Legalizer::legalizeMachineFunction(MachineFunction &MF, const LegalizerInfo &LI,
       if (ArtCombiner.tryCombineInstruction(MI, DeadInstructions,
                                             WrapperObserver)) {
         WorkListObserver.printNewInstrs();
-        for (auto *DeadMI : DeadInstructions) {
-          LLVM_DEBUG(dbgs() << "Is dead: " << *DeadMI);
-          RemoveDeadInstFromLists(DeadMI);
-          DeadMI->eraseFromParentAndMarkDBGValuesForRemoval();
-        }
+        eraseInstrs(DeadInstructions, MRI, &LocObserver);
         LocObserver.checkpoint(
             VerifyDebugLocs ==
             DebugLocVerifyLevel::LegalizationsAndArtifactCombiners);
@@ -318,8 +308,7 @@ Legalizer::legalizeMachineFunction(MachineFunction &MF, const LegalizerInfo &LI,
 
 bool Legalizer::runOnMachineFunction(MachineFunction &MF) {
   // If the ISel pipeline failed, do not bother running that pass.
-  if (MF.getProperties().hasProperty(
-          MachineFunctionProperties::Property::FailedISel))
+  if (MF.getProperties().hasFailedISel())
     return false;
   LLVM_DEBUG(dbgs() << "Legalize Machine IR for: " << MF.getName() << '\n');
   init(MF);
@@ -327,8 +316,6 @@ bool Legalizer::runOnMachineFunction(MachineFunction &MF) {
   GISelCSEAnalysisWrapper &Wrapper =
       getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
   MachineOptimizationRemarkEmitter MORE(MF, /*MBFI=*/nullptr);
-
-  const size_t NumBlocks = MF.size();
 
   std::unique_ptr<MachineIRBuilder> MIRBuilder;
   GISelCSEInfo *CSEInfo = nullptr;
@@ -352,23 +339,17 @@ bool Legalizer::runOnMachineFunction(MachineFunction &MF) {
   if (VerifyDebugLocs > DebugLocVerifyLevel::None)
     AuxObservers.push_back(&LocObserver);
 
+  // This allows Known Bits Analysis in the legalizer.
+  GISelValueTracking *VT =
+      &getAnalysis<GISelValueTrackingAnalysisLegacy>().get(MF);
+
   const LegalizerInfo &LI = *MF.getSubtarget().getLegalizerInfo();
-  MFResult Result =
-      legalizeMachineFunction(MF, LI, AuxObservers, LocObserver, *MIRBuilder);
+  MFResult Result = legalizeMachineFunction(MF, LI, AuxObservers, LocObserver,
+                                            *MIRBuilder, VT);
 
   if (Result.FailedOn) {
     reportGISelFailure(MF, TPC, MORE, "gisel-legalize",
                        "unable to legalize instruction", *Result.FailedOn);
-    return false;
-  }
-  // For now don't support if new blocks are inserted - we would need to fix the
-  // outer loop for that.
-  if (MF.size() != NumBlocks) {
-    MachineOptimizationRemarkMissed R("gisel-legalize", "GISelFailure",
-                                      MF.getFunction().getSubprogram(),
-                                      /*MBB=*/nullptr);
-    R << "inserting blocks is not supported yet";
-    reportGISelFailure(MF, TPC, MORE, R);
     return false;
   }
 

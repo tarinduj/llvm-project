@@ -22,10 +22,20 @@ define dso_local double @insert_exp(double %d, i64 %ull) {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mffprd 3, 1
 ; CHECK-NEXT:    xsiexpdp 1, 3, 4
-; CHECK-NEXT:    # kill: def $f1 killed $f1 killed $vsl1
 ; CHECK-NEXT:    blr
 entry:
   %0 = tail call double @llvm.ppc.insert.exp(double %d, i64 %ull)
   ret double %0
 }
 declare double @llvm.ppc.insert.exp(double, i64)
+
+declare i64 @llvm.ppc.addex(i64, i64, i32 immarg)
+define dso_local i64 @call_addex_0(i64 %a, i64 %b) {
+; CHECK-LABEL: call_addex_0:
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addex 3, 3, 4, 0
+; CHECK-NEXT:    blr
+entry:
+  %0 = tail call i64 @llvm.ppc.addex(i64 %a, i64 %b, i32 0)
+  ret i64 %0
+}

@@ -1,6 +1,4 @@
-; RUN: opt < %s -msan-instrumentation-with-call-threshold=0 -S -passes=msan    \
-; RUN: 2>&1 | FileCheck %s
-; RUN: opt < %s -msan -msan-instrumentation-with-call-threshold=0 -S | FileCheck %s
+; RUN: opt < %s -msan-instrumentation-with-call-threshold=0 -S -passes=msan 2>&1 | FileCheck %s --implicit-check-not="call void @__msan_w" --implicit-check-not="call void @__msan_m"
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
@@ -75,13 +73,47 @@ define <4 x i32> @test64(<4 x i32> %vec, i64 %idx, i32 %x) sanitize_memory {
 ; CHECK:         call void @__msan_maybe_warning_8(i64 zeroext %{{.*}}, i32 zeroext 0)
 ; CHECK:         ret <4 x i32>
 
-; Type size too large => inline check.
+; Type size too large => use variable-size handler.
 define <4 x i32> @test65(<4 x i32> %vec, i65 %idx, i32 %x) sanitize_memory {
   %vec1 = insertelement <4 x i32> %vec, i32 %x, i65 %idx
   ret <4 x i32> %vec1
 }
 ; CHECK-LABEL: @test65(
-; CHECK-NOT:     call void @__msan_maybe_warning_
-; CHECK:         icmp ne i65 %{{.*}}, 0
-; CHECK-NOT:     call void @__msan_maybe_warning_
+; CHECK:         %[[A:.*]] = zext i65 %1 to i128
+; CHECK:         call void @__msan_maybe_warning_N(ptr %{{.*}}, i64 zeroext 16, i32 zeroext 0)
 ; CHECK:         ret <4 x i32>
+
+define <4 x i32> @test128(<4 x i32> %vec, i128 %idx, i32 %x) sanitize_memory {
+  %vec1 = insertelement <4 x i32> %vec, i32 %x, i128 %idx
+  ret <4 x i32> %vec1
+}
+; CHECK-LABEL: @test128(
+; CHECK:         call void @__msan_maybe_warning_N(ptr %{{.*}}, i64 zeroext 16, i32 zeroext 0)
+; CHECK:         ret <4 x i32>
+
+define <4 x i32> @test256(<4 x i32> %vec, i256 %idx, i32 %x) sanitize_memory {
+  %vec1 = insertelement <4 x i32> %vec, i32 %x, i256 %idx
+  ret <4 x i32> %vec1
+}
+; CHECK-LABEL: @test256(
+; CHECK:         call void @__msan_maybe_warning_N(ptr %{{.*}}, i64 zeroext 32, i32 zeroext 0)
+; CHECK:         ret <4 x i32>
+
+define <4 x i32> @testUndef(<4 x i32> %vec, i32 %x) sanitize_memory {
+  %vec1 = insertelement <4 x i32> %vec, i32 undef, i32 undef
+  ret <4 x i32> %vec1
+}
+; CHECK-LABEL: @testUndef(
+; CHECK:         call void @__msan_warning_noreturn
+; CHECK:         ret <4 x i32>
+
+declare <256 x i16> @llvm.masked.load.v256i16.p0(ptr, i32, <256 x i1>, <256 x i16>)
+define <256 x i16> @testCombine(ptr %vec, <256 x i1> %mask) sanitize_memory {
+  %vec1 = call <256 x i16> @llvm.masked.load.v256i16.p0(ptr %vec, i32 16, <256 x i1> %mask, <256 x i16> zeroinitializer)
+  ret <256 x i16> %vec1
+}
+; CHECK-LABEL: @testCombine(
+; CHECK:         %[[A:.*]] = or i1 %{{.*}}, %{{.*}}
+; CHECK:         %[[B:.*]] = zext i1 %[[A]] to i8
+; CHECK:         call void @__msan_maybe_warning_1(i8 zeroext %[[B]], i32 zeroext 0)
+; CHECK:         ret <256 x i16>

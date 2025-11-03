@@ -11,7 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Target/SPIRV/SPIRVBinaryUtils.h"
-#include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_VERSION_MAJOR
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "spirv-binary-utils"
 
 using namespace mlir;
 
@@ -31,6 +34,7 @@ void spirv::appendModuleHeader(SmallVectorImpl<uint32_t> &header,
     MIN_VERSION_CASE(3);
     MIN_VERSION_CASE(4);
     MIN_VERSION_CASE(5);
+    MIN_VERSION_CASE(6);
 #undef MIN_VERSION_CASE
   }
 
@@ -51,7 +55,7 @@ void spirv::appendModuleHeader(SmallVectorImpl<uint32_t> &header,
   // +-------------------------------------------------------------------------+
   header.push_back(spirv::kMagicNumber);
   header.push_back((majorVersion << 16) | (minorVersion << 8));
-  header.push_back(kGeneratorNumber);
+  header.push_back((kGeneratorNumber << 16) | LLVM_VERSION_MAJOR);
   header.push_back(idBound); // <id> bound
   header.push_back(0);       // Schema (reserved word)
 }
@@ -62,12 +66,22 @@ uint32_t spirv::getPrefixedOpcode(uint32_t wordCount, spirv::Opcode opcode) {
   return (wordCount << 16) | static_cast<uint32_t>(opcode);
 }
 
-LogicalResult spirv::encodeStringLiteralInto(SmallVectorImpl<uint32_t> &binary,
-                                             StringRef literal) {
+void spirv::encodeStringLiteralInto(SmallVectorImpl<uint32_t> &binary,
+                                    StringRef literal) {
   // We need to encode the literal and the null termination.
-  auto encodingSize = literal.size() / 4 + 1;
-  auto bufferStartSize = binary.size();
+  size_t encodingSize = literal.size() / 4 + 1;
+  size_t sizeOfDataToCopy = literal.size();
+  if (encodingSize >= kMaxLiteralWordCount) {
+    // Reserve one word for the null termination.
+    encodingSize = kMaxLiteralWordCount - 1;
+    // Do not override the last word (null termination) when copying.
+    sizeOfDataToCopy = (encodingSize - 1) * 4;
+    LLVM_DEBUG(llvm::dbgs()
+               << "Truncating string literal to max size ("
+               << (kMaxLiteralWordCount - 1) << "): " << literal << "\n");
+  }
+  size_t bufferStartSize = binary.size();
   binary.resize(bufferStartSize + encodingSize, 0);
-  std::memcpy(binary.data() + bufferStartSize, literal.data(), literal.size());
-  return success();
+  std::memcpy(binary.data() + bufferStartSize, literal.data(),
+              sizeOfDataToCopy);
 }

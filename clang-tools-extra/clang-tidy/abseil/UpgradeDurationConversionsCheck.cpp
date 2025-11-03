@@ -1,4 +1,4 @@
-//===--- UpgradeDurationConversionsCheck.cpp - clang-tidy -----------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 void UpgradeDurationConversionsCheck::registerMatchers(MatchFinder *Finder) {
   // For the arithmetic calls, we match only the uses of the templated operators
@@ -106,7 +104,7 @@ void UpgradeDurationConversionsCheck::registerMatchers(MatchFinder *Finder) {
                                       hasCastKind(CK_UserDefinedConversion)))),
                             hasParent(callExpr(
                                 callee(functionDecl(
-                                    DurationFactoryFunction(),
+                                    durationFactoryFunction(),
                                     unless(hasParent(functionTemplateDecl())))),
                                 hasArgument(0, expr().bind("arg")))))
                             .bind("OuterExpr")),
@@ -128,7 +126,7 @@ void UpgradeDurationConversionsCheck::check(
 
   if (!match(isInTemplateInstantiation(), *OuterExpr, *Result.Context)
            .empty()) {
-    if (MatchedTemplateLocations.count(Loc) == 0) {
+    if (!MatchedTemplateLocations.contains(Loc)) {
       // For each location matched in a template instantiation, we check if the
       // location can also be found in `MatchedTemplateLocations`. If it is not
       // found, that means the expression did not create a match without the
@@ -160,6 +158,4 @@ void UpgradeDurationConversionsCheck::check(
        << FixItHint::CreateInsertion(SourceRange.getEnd(), ")");
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

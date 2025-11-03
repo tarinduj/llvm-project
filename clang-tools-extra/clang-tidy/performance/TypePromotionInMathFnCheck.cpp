@@ -1,4 +1,4 @@
-//===--- TypePromotionInMathFnCheck.cpp - clang-tidy-----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,9 +15,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 
 namespace {
 AST_MATCHER_P(Type, isBuiltinType, BuiltinType::Kind, Kind) {
@@ -32,8 +30,8 @@ TypePromotionInMathFnCheck::TypePromotionInMathFnCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IncludeInserter(Options.getLocalOrGlobal("IncludeStyle",
-                                               utils::IncludeSorter::IS_LLVM)) {
-}
+                                               utils::IncludeSorter::IS_LLVM),
+                      areDiagsSelfContained()) {}
 
 void TypePromotionInMathFnCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
@@ -168,7 +166,7 @@ void TypePromotionInMathFnCheck::check(const MatchFinder::MatchResult &Result) {
       "log1p",     "log2",       "logb",      "lrint",  "lround",   "nearbyint",
       "nextafter", "nexttoward", "remainder", "remquo", "rint",     "round",
       "scalbln",   "scalbn",     "tgamma",    "trunc"};
-  bool StdFnRequiresCpp11 = Cpp11OnlyFns.count(OldFnName);
+  bool StdFnRequiresCpp11 = Cpp11OnlyFns.contains(OldFnName);
 
   std::string NewFnName;
   bool FnInCmath = false;
@@ -195,6 +193,4 @@ void TypePromotionInMathFnCheck::check(const MatchFinder::MatchResult &Result) {
         "<cmath>");
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

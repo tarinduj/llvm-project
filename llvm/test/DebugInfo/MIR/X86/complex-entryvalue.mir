@@ -1,4 +1,4 @@
-# RUN: llc -filetype=obj -start-after=livedebugvalues -verify-machineinstrs -march=x86-64 -o - %s | llvm-dwarfdump - | FileCheck %s
+# RUN: llc -filetype=obj -start-after=livedebugvalues -verify-machineinstrs -o - %s | llvm-dwarfdump - | FileCheck %s
 # CHECK: DW_AT_location	(DW_OP_entry_value(DW_OP_reg5 RDI), DW_OP_constu 0xffffffff, DW_OP_and, DW_OP_lit0, DW_OP_plus)
 --- |
   ; ModuleID = '/tmp/e.c'
@@ -48,6 +48,6 @@ body:             |
     frame-setup PUSH64r killed $rbp, implicit-def $rsp, implicit $rsp
     $rbp = frame-setup MOV64rr $rsp
     $rbp = frame-destroy POP64r implicit-def $rsp, implicit $rsp, debug-location !16
-    RETQ debug-location !16
+    RET64 debug-location !16
 
 ...

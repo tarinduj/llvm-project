@@ -21,17 +21,17 @@ using namespace llvm::orc;
 
 ExitOnError ExitOnErr;
 
-cl::opt<bool> DumpJITdObjects("dump-jitted-objects",
-                              cl::desc("dump jitted objects"), cl::Optional,
-                              cl::init(true));
+static cl::opt<bool> DumpJITdObjects("dump-jitted-objects",
+                                     cl::desc("dump jitted objects"),
+                                     cl::Optional, cl::init(true));
 
-cl::opt<std::string> DumpDir("dump-dir",
-                             cl::desc("directory to dump objects to"),
-                             cl::Optional, cl::init(""));
+static cl::opt<std::string> DumpDir("dump-dir",
+                                    cl::desc("directory to dump objects to"),
+                                    cl::Optional, cl::init(""));
 
-cl::opt<std::string> DumpFileStem("dump-file-stem",
-                                  cl::desc("Override default dump names"),
-                                  cl::Optional, cl::init(""));
+static cl::opt<std::string>
+    DumpFileStem("dump-file-stem", cl::desc("Override default dump names"),
+                 cl::Optional, cl::init(""));
 
 int main(int argc, char *argv[]) {
   // Initialize LLVM.
@@ -61,8 +61,8 @@ int main(int argc, char *argv[]) {
   ExitOnErr(J->addIRModule(std::move(M)));
 
   // Look up the JIT'd function, cast it to a function pointer, then call it.
-  auto Add1Sym = ExitOnErr(J->lookup("add1"));
-  int (*Add1)(int) = (int (*)(int))Add1Sym.getAddress();
+  auto Add1Addr = ExitOnErr(J->lookup("add1"));
+  int (*Add1)(int) = Add1Addr.toPtr<int(int)>();
 
   int Result = Add1(42);
   outs() << "add1(42) = " << Result << "\n";

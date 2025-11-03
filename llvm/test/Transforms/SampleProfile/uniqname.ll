@@ -10,7 +10,7 @@ target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16
 target triple = "x86_64-unknown-linux-gnu"
 
 @cond = dso_local global i8 0, align 1
-@p = dso_local global void ()* null, align 8
+@p = dso_local global ptr null, align 8
 
 ; Check the callsite in inlined function with uniq suffix is annotated with
 ; profile correctly.
@@ -22,7 +22,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Function Attrs: uwtable mustprogress
 define dso_local void @_Z3foov() #0 !dbg !7 {
 entry:
-  store void ()* @_ZL3hoov.__uniq.334154460836426447066042049082945760258, void ()** @p, align 8, !dbg !9, !tbaa !10
+  store ptr @_ZL3hoov.__uniq.334154460836426447066042049082945760258, ptr @p, align 8, !dbg !9, !tbaa !10
   call void @_ZL3goov.__uniq.334154460836426447066042049082945760258.llvm.4206369970847378271(), !dbg !14
   call void @_ZL3moov.__uniq.334154460836426447066042049082945760258(), !dbg !15
   ret void, !dbg !16
@@ -38,13 +38,13 @@ entry:
 ; Check the indirect call target with uniq suffix is promoted and the inlined
 ; body is annotated with profile.
 ; CHECK: define internal void @_ZL3goov.__uniq.334154460836426447066042049082945760258.llvm.4206369970847378271{{.*}} !prof ![[PROF_ID3:[0-9]+]]
-; CHECK: icmp eq void ()* {{.*}} @_ZL3hoov.__uniq.334154460836426447066042049082945760258
+; CHECK: icmp eq ptr {{.*}} @_ZL3hoov.__uniq.334154460836426447066042049082945760258
 ; CHECK: call void @_Z10hoo_calleev(), {{.*}} !prof ![[PROF_ID4:[0-9]+]]
 
 ; Function Attrs: noinline uwtable mustprogress
 define internal void @_ZL3goov.__uniq.334154460836426447066042049082945760258.llvm.4206369970847378271() #2 !dbg !20 {
 entry:
-  %0 = load void ()*, void ()** @p, align 8, !dbg !21, !tbaa !10
+  %0 = load ptr, ptr @p, align 8, !dbg !21, !tbaa !10
   call void %0(), !dbg !22
   ret void, !dbg !23
 }
@@ -53,7 +53,7 @@ entry:
 define internal void @_ZL3moov.__uniq.334154460836426447066042049082945760258() #1 !dbg !24 {
 entry:
   call void @_Z10moo_calleev(), !dbg !25
-  %0 = load volatile i8, i8* @cond, align 1, !dbg !26, !tbaa !27, !range !29
+  %0 = load volatile i8, ptr @cond, align 1, !dbg !26, !tbaa !27, !range !29
   %tobool.not = icmp eq i8 %0, 0, !dbg !26
   br i1 %tobool.not, label %if.end, label %if.then, !dbg !26
 
@@ -65,14 +65,14 @@ if.end:                                           ; preds = %if.then, %entry
   ret void, !dbg !31
 }
 
-declare !dbg !32 dso_local void @_Z10hoo_calleev() #3
+declare !dbg !32 dso_local void @_Z10hoo_calleev()
 
-declare !dbg !33 dso_local void @_Z10moo_calleev() #3
+declare !dbg !33 dso_local void @_Z10moo_calleev()
 
 ; Function Attrs: uwtable mustprogress
 define internal void @_ZL3noov.__uniq.334154460836426447066042049082945760258() #1 !dbg !34 {
 entry:
-  %0 = load volatile i8, i8* @cond, align 1, !dbg !35, !tbaa !27, !range !29
+  %0 = load volatile i8, ptr @cond, align 1, !dbg !35, !tbaa !27, !range !29
   %tobool.not = icmp eq i8 %0, 0, !dbg !35
   br i1 %tobool.not, label %if.end, label %if.then, !dbg !35
 
@@ -84,12 +84,11 @@ if.end:                                           ; preds = %if.then, %entry
   ret void, !dbg !37
 }
 
-declare !dbg !38 dso_local void @_Z10noo_calleev() #3
+declare !dbg !38 dso_local void @_Z10noo_calleev()
 
-attributes #0 = { uwtable mustprogress "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="false" "use-sample-profile" "use-soft-float"="false" }
-attributes #1 = { uwtable mustprogress "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "sample-profile-suffix-elision-policy"="selected" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="false" "use-sample-profile" "use-soft-float"="false" }
-attributes #2 = { noinline uwtable mustprogress "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "sample-profile-suffix-elision-policy"="selected" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="false" "use-sample-profile" "use-soft-float"="false" }
-attributes #3 = { "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { uwtable mustprogress "use-sample-profile" }
+attributes #1 = { uwtable mustprogress "use-sample-profile" "sample-profile-suffix-elision-policy"="selected" }
+attributes #2 = { noinline uwtable mustprogress "use-sample-profile" "sample-profile-suffix-elision-policy"="selected" }
 
 ; CHECK: ![[PROF_ID1]] = !{!"branch_weights", i32 5931}
 ; CHECK: ![[PROF_ID2]] = !{!"branch_weights", i32 2000}

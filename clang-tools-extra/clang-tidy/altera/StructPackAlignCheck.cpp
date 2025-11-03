@@ -1,4 +1,4 @@
-//===--- StructPackAlignCheck.cpp - clang-tidy ----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,13 +10,11 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include <math.h>
+#include <cmath>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace altera {
+namespace clang::tidy::altera {
 
 void StructPackAlignCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(recordDecl(isStruct(), isDefinition(),
@@ -26,13 +24,13 @@ void StructPackAlignCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 CharUnits
-StructPackAlignCheck::computeRecommendedAlignment(CharUnits MinByteSize) {
+StructPackAlignCheck::computeRecommendedAlignment(CharUnits MinByteSize) const {
   CharUnits NewAlign = CharUnits::fromQuantity(1);
   if (!MinByteSize.isPowerOfTwo()) {
-    int MSB = (int)MinByteSize.getQuantity();
+    CharUnits::QuantityType MSB = MinByteSize.getQuantity();
     for (; MSB > 0; MSB /= 2) {
-      NewAlign = NewAlign.alignTo(
-          CharUnits::fromQuantity(((int)NewAlign.getQuantity()) * 2));
+      NewAlign =
+          NewAlign.alignTo(CharUnits::fromQuantity(NewAlign.getQuantity() * 2));
       // Abort if the computed alignment meets the maximum configured alignment.
       if (NewAlign.getQuantity() >= MaxConfiguredAlignment)
         break;
@@ -49,7 +47,11 @@ void StructPackAlignCheck::check(const MatchFinder::MatchResult &Result) {
   // Do not trigger on templated struct declarations because the packing and
   // alignment requirements are unknown.
   if (Struct->isTemplated())
-     return;
+    return;
+
+  // Packing and alignment requirements for invalid decls are meaningless.
+  if (Struct->isInvalidDecl())
+    return;
 
   // Get sizing info for the struct.
   llvm::SmallVector<std::pair<unsigned int, unsigned int>, 10> FieldSizes;
@@ -73,9 +75,10 @@ void StructPackAlignCheck::check(const MatchFinder::MatchResult &Result) {
   uint64_t CharSize = Result.Context->getCharWidth();
   CharUnits CurrSize = Result.Context->getASTRecordLayout(Struct).getSize();
   CharUnits MinByteSize =
-      CharUnits::fromQuantity(ceil((float)TotalBitSize / CharSize));
+      CharUnits::fromQuantity(std::max<clang::CharUnits::QuantityType>(
+          std::ceil(static_cast<float>(TotalBitSize) / CharSize), 1));
   CharUnits MaxAlign = CharUnits::fromQuantity(
-      ceil((float)Struct->getMaxAlignment() / CharSize));
+      std::ceil((float)Struct->getMaxAlignment() / CharSize));
   CharUnits CurrAlign =
       Result.Context->getASTRecordLayout(Struct).getAlignment();
   CharUnits NewAlign = computeRecommendedAlignment(MinByteSize);
@@ -107,7 +110,7 @@ void StructPackAlignCheck::check(const MatchFinder::MatchResult &Result) {
   }
 
   FixItHint FixIt;
-  AlignedAttr *Attribute = Struct->getAttr<AlignedAttr>();
+  auto *Attribute = Struct->getAttr<AlignedAttr>();
   std::string NewAlignQuantity = std::to_string((int)NewAlign.getQuantity());
   if (Attribute) {
     FixIt = FixItHint::CreateReplacement(
@@ -138,6 +141,4 @@ void StructPackAlignCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "MaxConfiguredAlignment", MaxConfiguredAlignment);
 }
 
-} // namespace altera
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::altera

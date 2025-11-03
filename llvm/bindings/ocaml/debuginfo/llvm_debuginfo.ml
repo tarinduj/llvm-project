@@ -139,6 +139,12 @@ module MetadataKind = struct
     | DIMacroMetadataKind
     | DIMacroFileMetadataKind
     | DICommonBlockMetadataKind
+    | DIStringTypeMetadataKind
+    | DIGenericSubrangeMetadataKind
+    | DIArgListMetadataKind
+    | DIAssignIDMetadataKind
+    | DISubrangeTypeMetadataKind
+    | DIFixedPointTypeMetadataKind
 end
 
 (** The amount of debug information to emit. *)
@@ -231,7 +237,7 @@ external llmetadata_null : unit -> Llvm.llmetadata = "llvm_metadata_null"
 
 let dibuild_create_debug_location ?(inlined_at = llmetadata_null ()) llctx ~line
     ~column ~scope =
-  dibuild_create_debug_location_helper llctx line column scope inlined_at
+  dibuild_create_debug_location_helper llctx ~line ~column ~scope ~inlined_at
 
 external di_location_get_line : location:Llvm.llmetadata -> int
   = "llvm_di_location_get_line"
@@ -398,7 +404,7 @@ external dibuild_create_member_pointer_type :
   = "llvm_dibuild_create_member_pointer_type_bytecode" "llvm_dibuild_create_member_pointer_type_native"
 
 external dibuild_create_object_pointer_type :
-  lldibuilder -> Llvm.llmetadata -> Llvm.llmetadata
+  lldibuilder -> Llvm.llmetadata -> implicit:bool -> Llvm.llmetadata
   = "llvm_dibuild_create_object_pointer_type"
 
 external dibuild_create_qualified_type :
@@ -565,3 +571,61 @@ external di_variable_get_file : Llvm.llmetadata -> Llvm.llmetadata option
 
 external get_metadata_kind : Llvm.llmetadata -> MetadataKind.t
   = "llvm_get_metadata_kind"
+
+external dibuild_create_auto_variable :
+  lldibuilder ->
+  scope:Llvm.llmetadata ->
+  name:string ->
+  file:Llvm.llmetadata ->
+  line:int ->
+  ty:Llvm.llmetadata ->
+  always_preserve:bool ->
+  lldiflags ->
+  align_in_bits:int ->
+  Llvm.llmetadata
+  = "llvm_dibuild_create_auto_variable_bytecode" "llvm_dibuild_create_auto_variable_native"
+
+external dibuild_create_parameter_variable :
+  lldibuilder ->
+  scope:Llvm.llmetadata ->
+  name:string ->
+  argno:int ->
+  file:Llvm.llmetadata ->
+  line:int ->
+  ty:Llvm.llmetadata ->
+  always_preserve:bool ->
+  lldiflags ->
+  Llvm.llmetadata
+  = "llvm_dibuild_create_parameter_variable_bytecode" "llvm_dibuild_create_parameter_variable_native"
+
+external dibuild_insert_declare_before :
+  lldibuilder ->
+  storage:Llvm.llvalue ->
+  var_info:Llvm.llmetadata ->
+  expr:Llvm.llmetadata ->
+  location:Llvm.llmetadata ->
+  instr:Llvm.llvalue ->
+  Llvm.lldbgrecord
+  = "llvm_dibuild_insert_declare_before_bytecode" "llvm_dibuild_insert_declare_before_native"
+
+external dibuild_insert_declare_at_end :
+  lldibuilder ->
+  storage:Llvm.llvalue ->
+  var_info:Llvm.llmetadata ->
+  expr:Llvm.llmetadata ->
+  location:Llvm.llmetadata ->
+  block:Llvm.llbasicblock ->
+  Llvm.lldbgrecord
+  = "llvm_dibuild_insert_declare_at_end_bytecode" "llvm_dibuild_insert_declare_at_end_native"
+
+external dibuild_expression :
+  lldibuilder ->
+  Int64.t array ->
+  Llvm.llmetadata
+  = "llvm_dibuild_expression"
+
+external is_new_dbg_info_format : Llvm.llmodule -> bool
+                                = "llvm_is_new_dbg_info_format"
+
+external set_is_new_dbg_info_format : Llvm.llmodule -> bool -> unit
+                                    = "llvm_set_is_new_dbg_info_format"

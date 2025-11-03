@@ -8,20 +8,10 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
-// AppleClang <= 10 enables aligned allocation regardless of the deployment
-// target, so this test would fail.
-// UNSUPPORTED: apple-clang-9, apple-clang-10
-
-// GCC 5 doesn't support aligned allocation
-// UNSUPPORTED: gcc-5
-
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13}}
-
 #include <new>
 
 #include "test_macros.h"
 
-
-#ifdef _LIBCPP_HAS_NO_ALIGNED_ALLOCATION
-#   error "libc++ should have aligned allocation in C++17 and up when targeting a platform that supports it"
+#if !_LIBCPP_HAS_ALIGNED_ALLOCATION
+#  error "libc++ should have aligned allocation in C++17 and up when targeting a platform that supports it"
 #endif

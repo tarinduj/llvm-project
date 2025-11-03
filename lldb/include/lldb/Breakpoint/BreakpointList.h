@@ -138,6 +138,9 @@ public:
 
   void ClearAllBreakpointSites();
 
+  /// Resets the hit count of all breakpoints.
+  void ResetHitCounts();
+
   /// Sets the passed in Locker to hold the Breakpoint List mutex.
   ///
   /// \param[in] lock
@@ -160,8 +163,7 @@ protected:
   bool m_is_internal;
 
 public:
-  typedef LockingAdaptedIterable<bp_collection, lldb::BreakpointSP,
-                                 list_adapter, std::recursive_mutex>
+  typedef LockingAdaptedIterable<std::recursive_mutex, bp_collection>
       BreakpointIterable;
   BreakpointIterable Breakpoints() {
     return BreakpointIterable(m_breakpoints, GetMutex());

@@ -20,9 +20,9 @@
 #include "Quality.h"
 #include "TestFS.h"
 #include "TestTU.h"
+#include "index/FileIndex.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
-#include "clang/AST/Type.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "llvm/Support/Casting.h"
 #include "gmock/gmock.h"
@@ -33,7 +33,7 @@ namespace clang {
 namespace clangd {
 
 // Force the unittest URI scheme to be linked,
-static int LLVM_ATTRIBUTE_UNUSED UnittestSchemeAnchorDest =
+[[maybe_unused]] static int UnittestSchemeAnchorDest =
     UnittestSchemeAnchorSource;
 
 namespace {
@@ -54,13 +54,6 @@ TEST(QualityTests, SymbolQualitySignalExtraction) {
   auto AST = Header.build();
 
   SymbolQualitySignals Quality;
-  Quality.merge(findSymbol(Symbols, "_X"));
-  EXPECT_FALSE(Quality.Deprecated);
-  EXPECT_FALSE(Quality.ImplementationDetail);
-  EXPECT_TRUE(Quality.ReservedName);
-  EXPECT_EQ(Quality.References, SymbolQualitySignals().References);
-  EXPECT_EQ(Quality.Category, SymbolQualitySignals::Variable);
-
   Quality.merge(findSymbol(Symbols, "X_Y_Decl"));
   EXPECT_TRUE(Quality.ImplementationDetail);
 
@@ -83,6 +76,16 @@ TEST(QualityTests, SymbolQualitySignalExtraction) {
   Quality = {};
   Quality.merge(CodeCompletionResult("if"));
   EXPECT_EQ(Quality.Category, SymbolQualitySignals::Keyword);
+
+  // Testing ReservedName in main file, we don't index those symbols in headers.
+  auto MainAST = TestTU::withCode("int _X;").build();
+  SymbolSlab MainSymbols = std::get<0>(indexMainDecls(MainAST));
+
+  Quality = {};
+  Quality.merge(findSymbol(MainSymbols, "_X"));
+  EXPECT_FALSE(Quality.Deprecated);
+  EXPECT_FALSE(Quality.ImplementationDetail);
+  EXPECT_TRUE(Quality.ReservedName);
 }
 
 TEST(QualityTests, SymbolRelevanceSignalExtraction) {
@@ -105,7 +108,7 @@ TEST(QualityTests, SymbolRelevanceSignalExtraction) {
 
   using flags::FLAGS_FOO;
 
-  int ::header_main() {}
+  int ::header_main() { return 0; }
   int main();
 
   [[deprecated]]
@@ -118,7 +121,9 @@ TEST(QualityTests, SymbolRelevanceSignalExtraction) {
 
   SymbolRelevanceSignals Relevance;
   Relevance.merge(CodeCompletionResult(&findDecl(AST, "deprecated"),
-                                       /*Priority=*/42, nullptr, false,
+                                       /*Priority=*/42,
+                                       /*Qualifier=*/std::nullopt,
+                                       /*QualifierIsInformative=*/false,
                                        /*Accessible=*/false));
   EXPECT_EQ(Relevance.NameMatch, SymbolRelevanceSignals().NameMatch);
   EXPECT_TRUE(Relevance.Forbidden);
@@ -136,7 +141,7 @@ TEST(QualityTests, SymbolRelevanceSignalExtraction) {
   EXPECT_FLOAT_EQ(Relevance.SemaFileProximityScore, 1.0f)
       << "Current file and header";
 
-  auto constructShadowDeclCompletionResult = [&](const std::string DeclName) {
+  auto ConstructShadowDeclCompletionResult = [&](const std::string DeclName) {
     auto *Shadow =
         *dyn_cast<UsingDecl>(&findDecl(AST, [&](const NamedDecl &ND) {
            if (const UsingDecl *Using = dyn_cast<UsingDecl>(&ND))
@@ -151,10 +156,10 @@ TEST(QualityTests, SymbolRelevanceSignalExtraction) {
   };
 
   Relevance = {};
-  Relevance.merge(constructShadowDeclCompletionResult("Bar"));
+  Relevance.merge(ConstructShadowDeclCompletionResult("Bar"));
   EXPECT_FLOAT_EQ(Relevance.SemaFileProximityScore, 1.0f)
       << "Using declaration in main file";
-  Relevance.merge(constructShadowDeclCompletionResult("FLAGS_FOO"));
+  Relevance.merge(ConstructShadowDeclCompletionResult("FLAGS_FOO"));
   EXPECT_FLOAT_EQ(Relevance.SemaFileProximityScore, 1.0f)
       << "Using declaration in main file";
 
@@ -484,13 +489,15 @@ TEST(QualityTests, ItemWithFixItsRankedDown) {
   auto AST = Header.build();
 
   SymbolRelevanceSignals RelevanceWithFixIt;
-  RelevanceWithFixIt.merge(CodeCompletionResult(&findDecl(AST, "x"), 0, nullptr,
-                                                false, true, {FixItHint{}}));
+  RelevanceWithFixIt.merge(CodeCompletionResult(
+      &findDecl(AST, "x"), /*Priority=*/0, /*Qualifier=*/std::nullopt,
+      /*QualifierIsInformative=*/false, /*Accessible=*/true, {FixItHint{}}));
   EXPECT_TRUE(RelevanceWithFixIt.NeedsFixIts);
 
   SymbolRelevanceSignals RelevanceWithoutFixIt;
-  RelevanceWithoutFixIt.merge(
-      CodeCompletionResult(&findDecl(AST, "x"), 0, nullptr, false, true, {}));
+  RelevanceWithoutFixIt.merge(CodeCompletionResult(
+      &findDecl(AST, "x"), /*Priority=*/0, /*Qualifier=*/std::nullopt,
+      /*QualifierIsInformative=*/false, /*Accessible=*/true, {}));
   EXPECT_FALSE(RelevanceWithoutFixIt.NeedsFixIts);
 
   EXPECT_LT(RelevanceWithFixIt.evaluateHeuristics(),

@@ -8,25 +8,28 @@
 
 // ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
-// UNSUPPORTED: c++03, c++11
-
 // <functional>
 
-// make sure that we can hash enumeration values
-// Not very portable
-
-#include "test_macros.h"
+// Make sure that we can hash enumeration values.
 
 #include <functional>
 #include <cassert>
-#include <type_traits>
+#include <cstddef>
+#include <cstdint>
 #include <limits>
+#include <type_traits>
+
+#include "test_macros.h"
+
+#if TEST_STD_VER >= 11
+#  include "poisoned_hash_helper.h"
+#endif
 
 enum class Colors { red, orange, yellow, green, blue, indigo, violet };
 enum class Cardinals { zero, one, two, three, five=5 };
 enum class LongColors : short { red, orange, yellow, green, blue, indigo, violet };
 enum class ShortColors : long { red, orange, yellow, green, blue, indigo, violet };
-enum class EightBitColors : uint8_t { red, orange, yellow, green, blue, indigo, violet };
+enum class EightBitColors : std::uint8_t { red, orange, yellow, green, blue, indigo, violet };
 
 enum Fruits { apple, pear, grape, mango, cantaloupe };
 
@@ -34,6 +37,12 @@ template <class T>
 void
 test()
 {
+#if TEST_STD_VER >= 11
+    test_hash_disabled<const T>();
+    test_hash_disabled<volatile T>();
+    test_hash_disabled<const volatile T>();
+#endif
+
     typedef std::hash<T> H;
 #if TEST_STD_VER <= 17
     static_assert((std::is_same<typename H::argument_type, T>::value), "");

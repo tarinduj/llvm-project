@@ -47,7 +47,10 @@ public:
                            const LoadScriptOptions &options,
                            lldb_private::Status &error,
                            StructuredData::ObjectSP *module_sp = nullptr,
-                           FileSpec extra_search_dir = {}) override;
+                           FileSpec extra_search_dir = {},
+                           lldb::TargetSP loaded_into_target_sp = {}) override;
+
+  StructuredData::DictionarySP GetInterpreterInfo() override;
 
   // Static Functions
   static void Initialize();
@@ -56,9 +59,9 @@ public:
 
   static lldb::ScriptInterpreterSP CreateInstance(Debugger &debugger);
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "script-lua"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static bool BreakpointCallbackFunction(void *baton,
                                          StoppointCallbackContext *context,
@@ -70,9 +73,7 @@ public:
                                          lldb::user_id_t watch_id);
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   Lua &GetLua();
 
@@ -88,10 +89,12 @@ public:
                                           CommandReturnObject &result) override;
 
   Status SetBreakpointCommandCallback(BreakpointOptions &bp_options,
-                                      const char *command_body_text) override;
+                                      const char *command_body_text,
+                                      bool is_callback) override;
 
   void SetWatchpointCommandCallback(WatchpointOptions *wp_options,
-                                    const char *command_body_text) override;
+                                    const char *command_body_text,
+                                    bool is_callback) override;
 
   Status SetBreakpointCommandCallbackFunction(
       BreakpointOptions &bp_options, const char *function_name,

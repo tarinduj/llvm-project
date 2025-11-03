@@ -10,8 +10,10 @@ add_mlir_conversion_library(MLIRVectorToSPIRV
   intrinsics_gen
 
   LINK_LIBS PUBLIC
-  MLIRSPIRV
+  MLIRArithDialect
+  MLIRSPIRVDialect
   MLIRSPIRVConversion
-  MLIRVector
+  MLIRVectorDialect
   MLIRTransforms
+  MLIRUBToSPIRV
   )

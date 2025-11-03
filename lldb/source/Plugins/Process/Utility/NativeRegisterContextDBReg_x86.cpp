@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "NativeRegisterContextDBReg_x86.h"
-
-#include "lldb/Utility/Log.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/RegisterValue.h"
 
 #include "Plugins/Process/Utility/lldb-x86-register-enums.h"
@@ -19,7 +18,7 @@ using namespace lldb_private;
 static inline uint64_t GetStatusBit(uint32_t wp_index) {
   // DR6: ...BBBB
   //         3210 <- status bits for bp./wp. i; 1 if hit
-  return 1 << wp_index;
+  return 1ULL << wp_index;
 }
 
 // Returns mask/value for global enable bit of wp_index in DR7
@@ -28,14 +27,14 @@ static inline uint64_t GetEnableBit(uint32_t wp_index) {
   //         33221100 <- global/local enable for bp./wp.; 1 if enabled
   // we use global bits because NetBSD kernel does not preserve local
   // bits reliably; Linux seems fine with either
-  return 1 << (2 * wp_index + 1);
+  return 1ULL << (2 * wp_index + 1);
 }
 
 // Returns mask for both enable bits of wp_index in DR7
 static inline uint64_t GetBothEnableBitMask(uint32_t wp_index) {
   // DR7: ...GLGLGLGL
   //         33221100 <- global/local enable for bp./wp.; 1 if enabled
-  return 3 << (2 * wp_index + 1);
+  return 3ULL << (2 * wp_index + 1);
 }
 
 // Returns value for type bits of wp_index in DR7
@@ -48,7 +47,7 @@ static inline uint64_t GetWatchTypeBits(uint32_t watch_flags,
   // wp.: 3333222211110000...
   //
   // where T - type is 01 for write, 11 for r/w
-  return watch_flags << (16 + 4 * wp_index);
+  return static_cast<uint64_t>(watch_flags) << (16 + 4 * wp_index);
 }
 
 // Returns value for size bits of wp_index in DR7
@@ -64,7 +63,8 @@ static inline uint64_t GetWatchSizeBits(uint32_t size, uint32_t wp_index) {
   // 01 for 2 bytes
   // 10 for 8 bytes
   // 11 for 4 bytes
-  return (size == 8 ? 0x2 : size - 1) << (18 + 4 * wp_index);
+  return static_cast<uint64_t>(size == 8 ? 0x2 : size - 1)
+         << (18 + 4 * wp_index);
 }
 
 // Returns bitmask for all bits controlling wp_index in DR7
@@ -95,7 +95,7 @@ const RegisterInfo *NativeRegisterContextDBReg_x86::GetDR(int num) const {
 Status NativeRegisterContextDBReg_x86::IsWatchpointHit(uint32_t wp_index,
                                                        bool &is_hit) {
   if (wp_index >= NumSupportedHardwareWatchpoints())
-    return Status("Watchpoint index out of range");
+    return Status::FromErrorString("Watchpoint index out of range");
 
   RegisterValue dr6;
   Status error = ReadRegister(GetDR(6), dr6);
@@ -128,7 +128,7 @@ NativeRegisterContextDBReg_x86::GetWatchpointHitIndex(uint32_t &wp_index,
 Status NativeRegisterContextDBReg_x86::IsWatchpointVacant(uint32_t wp_index,
                                                           bool &is_vacant) {
   if (wp_index >= NumSupportedHardwareWatchpoints())
-    return Status("Watchpoint index out of range");
+    return Status::FromErrorString("Watchpoint index out of range");
 
   RegisterValue dr7;
   Status error = ReadRegister(GetDR(7), dr7);
@@ -144,7 +144,7 @@ Status NativeRegisterContextDBReg_x86::SetHardwareWatchpointWithIndex(
     lldb::addr_t addr, size_t size, uint32_t watch_flags, uint32_t wp_index) {
 
   if (wp_index >= NumSupportedHardwareWatchpoints())
-    return Status("Watchpoint index out of range");
+    return Status::FromErrorString("Watchpoint index out of range");
 
   // Read only watchpoints aren't supported on x86_64. Fall back to read/write
   // waitchpoints instead.
@@ -154,16 +154,16 @@ Status NativeRegisterContextDBReg_x86::SetHardwareWatchpointWithIndex(
     watch_flags = 3;
 
   if (watch_flags != 1 && watch_flags != 3)
-    return Status("Invalid read/write bits for watchpoint");
+    return Status::FromErrorString("Invalid read/write bits for watchpoint");
   if (size != 1 && size != 2 && size != 4 && size != 8)
-    return Status("Invalid size for watchpoint");
+    return Status::FromErrorString("Invalid size for watchpoint");
 
   bool is_vacant;
   Status error = IsWatchpointVacant(wp_index, is_vacant);
   if (error.Fail())
     return error;
   if (!is_vacant)
-    return Status("Watchpoint index not vacant");
+    return Status::FromErrorString("Watchpoint index not vacant");
 
   RegisterValue dr7, drN;
   error = ReadRegister(GetDR(7), dr7);
@@ -219,7 +219,7 @@ bool NativeRegisterContextDBReg_x86::ClearHardwareWatchpoint(
 
 Status NativeRegisterContextDBReg_x86::ClearWatchpointHit(uint32_t wp_index) {
   if (wp_index >= NumSupportedHardwareWatchpoints())
-    return Status("Watchpoint index out of range");
+    return Status::FromErrorString("Watchpoint index out of range");
 
   RegisterValue dr6;
   Status error = ReadRegister(GetDR(6), dr6);
@@ -242,7 +242,7 @@ Status NativeRegisterContextDBReg_x86::ClearAllHardwareWatchpoints() {
 
 uint32_t NativeRegisterContextDBReg_x86::SetHardwareWatchpoint(
     lldb::addr_t addr, size_t size, uint32_t watch_flags) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_WATCHPOINTS));
+  Log *log = GetLog(LLDBLog::Watchpoints);
   const uint32_t num_hw_watchpoints = NumSupportedHardwareWatchpoints();
   for (uint32_t wp_index = 0; wp_index < num_hw_watchpoints; ++wp_index) {
     bool is_vacant;

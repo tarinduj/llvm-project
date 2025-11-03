@@ -21,12 +21,12 @@ define dso_local void @fn1() local_unnamed_addr #0 {
 ; CHECK-NEXT:    movl %ecx, b(%rdx,%rax,4)
 ; CHECK-NEXT:    retq
 entry:
-  %0 = load i32, i32* @c, align 4, !tbaa !2
+  %0 = load i32, ptr @c, align 4, !tbaa !2
   %idxprom = sext i32 %0 to i64
-  %arrayidx2 = getelementptr inbounds [1 x [10 x i32]], [1 x [10 x i32]]* @a, i64 0, i64 %idxprom, i64 %idxprom
-  %1 = load i32, i32* %arrayidx2, align 4, !tbaa !2
-  %arrayidx6 = getelementptr inbounds [1 x [7 x i32]], [1 x [7 x i32]]* @b, i64 0, i64 %idxprom, i64 %idxprom
-  store i32 %1, i32* %arrayidx6, align 4, !tbaa !2
+  %arrayidx2 = getelementptr inbounds [1 x [10 x i32]], ptr @a, i64 0, i64 %idxprom, i64 %idxprom
+  %1 = load i32, ptr %arrayidx2, align 4, !tbaa !2
+  %arrayidx6 = getelementptr inbounds [1 x [7 x i32]], ptr @b, i64 0, i64 %idxprom, i64 %idxprom
+  store i32 %1, ptr %arrayidx6, align 4, !tbaa !2
   ret void
 }
 
@@ -45,16 +45,16 @@ define dso_local i32 @main() local_unnamed_addr #0 {
 ; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    retq
 entry:
-  %0 = load i32, i32* @c, align 4, !tbaa !2
+  %0 = load i32, ptr @c, align 4, !tbaa !2
   %idxprom.i = sext i32 %0 to i64
-  %arrayidx2.i = getelementptr inbounds [1 x [10 x i32]], [1 x [10 x i32]]* @a, i64 0, i64 %idxprom.i, i64 %idxprom.i
-  %1 = load i32, i32* %arrayidx2.i, align 4, !tbaa !2
-  %arrayidx6.i = getelementptr inbounds [1 x [7 x i32]], [1 x [7 x i32]]* @b, i64 0, i64 %idxprom.i, i64 %idxprom.i
-  store i32 %1, i32* %arrayidx6.i, align 4, !tbaa !2
+  %arrayidx2.i = getelementptr inbounds [1 x [10 x i32]], ptr @a, i64 0, i64 %idxprom.i, i64 %idxprom.i
+  %1 = load i32, ptr %arrayidx2.i, align 4, !tbaa !2
+  %arrayidx6.i = getelementptr inbounds [1 x [7 x i32]], ptr @b, i64 0, i64 %idxprom.i, i64 %idxprom.i
+  store i32 %1, ptr %arrayidx6.i, align 4, !tbaa !2
   ret i32 0
 }
 
-attributes #0 = { norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { norecurse nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "use-soft-float"="false" }
 
 !llvm.module.flags = !{!0}
 !llvm.ident = !{!1}

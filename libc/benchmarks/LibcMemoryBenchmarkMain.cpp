@@ -10,6 +10,7 @@
 #include "LibcBenchmark.h"
 #include "LibcMemoryBenchmark.h"
 #include "MemorySizeDistributions.h"
+#include "src/__support/macros/config.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
@@ -21,14 +22,16 @@
 #include <cstring>
 #include <unistd.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
 extern void *memcpy(void *__restrict, const void *__restrict, size_t);
+extern void *memmove(void *, const void *, size_t);
 extern void *memset(void *, int, size_t);
 extern void bzero(void *, size_t);
 extern int memcmp(const void *, const void *, size_t);
+extern int bcmp(const void *, const void *, size_t);
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL
 
 namespace llvm {
 namespace libc_benchmarks {
@@ -40,9 +43,15 @@ static cl::opt<std::string>
     SizeDistributionName("size-distribution-name",
                          cl::desc("The name of the distribution to use"));
 
-static cl::opt<bool>
-    SweepMode("sweep-mode",
-              cl::desc("If set, benchmark all sizes from 0 to sweep-max-size"));
+static cl::opt<bool> SweepMode(
+    "sweep-mode",
+    cl::desc(
+        "If set, benchmark all sizes from sweep-min-size to sweep-max-size"));
+
+static cl::opt<uint32_t>
+    SweepMinSize("sweep-min-size",
+                 cl::desc("The minimum size to use in sweep-mode"),
+                 cl::init(0));
 
 static cl::opt<uint32_t>
     SweepMaxSize("sweep-max-size",
@@ -66,21 +75,27 @@ static cl::opt<uint32_t>
 
 #if defined(LIBC_BENCHMARK_FUNCTION_MEMCPY)
 #define LIBC_BENCHMARK_FUNCTION LIBC_BENCHMARK_FUNCTION_MEMCPY
-using BenchmarkHarness = CopyHarness;
+using BenchmarkSetup = CopySetup;
+#elif defined(LIBC_BENCHMARK_FUNCTION_MEMMOVE)
+#define LIBC_BENCHMARK_FUNCTION LIBC_BENCHMARK_FUNCTION_MEMMOVE
+using BenchmarkSetup = MoveSetup;
 #elif defined(LIBC_BENCHMARK_FUNCTION_MEMSET)
 #define LIBC_BENCHMARK_FUNCTION LIBC_BENCHMARK_FUNCTION_MEMSET
-using BenchmarkHarness = SetHarness;
+using BenchmarkSetup = SetSetup;
 #elif defined(LIBC_BENCHMARK_FUNCTION_BZERO)
 #define LIBC_BENCHMARK_FUNCTION LIBC_BENCHMARK_FUNCTION_BZERO
-using BenchmarkHarness = SetHarness;
+using BenchmarkSetup = SetSetup;
 #elif defined(LIBC_BENCHMARK_FUNCTION_MEMCMP)
 #define LIBC_BENCHMARK_FUNCTION LIBC_BENCHMARK_FUNCTION_MEMCMP
-using BenchmarkHarness = ComparisonHarness;
+using BenchmarkSetup = ComparisonSetup;
+#elif defined(LIBC_BENCHMARK_FUNCTION_BCMP)
+#define LIBC_BENCHMARK_FUNCTION LIBC_BENCHMARK_FUNCTION_BCMP
+using BenchmarkSetup = ComparisonSetup;
 #else
 #error "Missing LIBC_BENCHMARK_FUNCTION_XXX definition"
 #endif
 
-struct MemfunctionBenchmarkBase : public BenchmarkHarness {
+struct MemfunctionBenchmarkBase : public BenchmarkSetup {
   MemfunctionBenchmarkBase() : ReportProgress(isatty(fileno(stdout))) {}
   virtual ~MemfunctionBenchmarkBase() {}
 
@@ -89,13 +104,13 @@ struct MemfunctionBenchmarkBase : public BenchmarkHarness {
   CircularArrayRef<ParameterBatch::ParameterType>
   generateBatch(size_t Iterations) {
     randomize();
-    return cycle(makeArrayRef(Parameters), Iterations);
+    return cycle(ArrayRef(Parameters), Iterations);
   }
 
 protected:
   Study createStudy() {
     Study Study;
-    // Harness study.
+    // Setup study.
     Study.StudyName = StudyName;
     Runtime &RI = Study.Runtime;
     RI.Host = HostState::get();
@@ -146,11 +161,11 @@ private:
     if (Percent == LastPercent)
       return;
     LastPercent = Percent;
-    size_t I = 0;
+    size_t i = 0;
     errs() << '[';
-    for (; I <= Percent; ++I)
+    for (; i <= Percent; ++i)
       errs() << '#';
-    for (; I <= 100; ++I)
+    for (; i <= 100; ++i)
       errs() << '_';
     errs() << "] " << Percent << '%' << '\r';
   }
@@ -177,7 +192,7 @@ struct MemfunctionBenchmarkSweep final : public MemfunctionBenchmarkBase {
     BO.InitialIterations = 100;
     auto &Measurements = Study.Measurements;
     Measurements.reserve(NumTrials * SweepMaxSize);
-    for (size_t Size = 0; Size <= SweepMaxSize; ++Size) {
+    for (size_t Size = SweepMinSize; Size <= SweepMaxSize; ++Size) {
       CurrentSweepSize = Size;
       runTrials(BO, Measurements);
     }
@@ -255,7 +270,7 @@ void main() {
     Benchmark.reset(new MemfunctionBenchmarkSweep());
   else
     Benchmark.reset(new MemfunctionBenchmarkDistribution(getDistributionOrDie(
-        BenchmarkHarness::Distributions, SizeDistributionName)));
+        BenchmarkSetup::getDistributions(), SizeDistributionName)));
   writeStudy(Benchmark->run());
 }
 

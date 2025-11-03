@@ -9,7 +9,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_MERGE_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_MERGE_H
 
-#include "Index.h"
+#include "index/Index.h"
 
 namespace clang {
 namespace clangd {
@@ -38,8 +38,15 @@ public:
               llvm::function_ref<void(const Symbol &)>) const override;
   bool refs(const RefsRequest &,
             llvm::function_ref<void(const Ref &)>) const override;
+  bool containedRefs(
+      const ContainedRefsRequest &,
+      llvm::function_ref<void(const ContainedRefsResult &)>) const override;
   void relations(const RelationsRequest &,
                  llvm::function_ref<void(const SymbolID &, const Symbol &)>)
+      const override;
+  void
+  reverseRelations(const RelationsRequest &,
+                   llvm::function_ref<void(const SymbolID &, const Symbol &)>)
       const override;
   llvm::unique_function<IndexContents(llvm::StringRef) const>
   indexedFiles() const override;

@@ -1,11 +1,13 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s
-// RUN: %clang_cc1 -fsyntax-only -verify -std=c++98 %s
-// RUN: %clang_cc1 -fsyntax-only -verify -std=c++11 %s
+// RUN: %clang_cc1 -fsyntax-only -verify=expected,cxx11 %s
+// RUN: %clang_cc1 -fsyntax-only -verify=expected,cxx98 -std=c++98 %s
+// RUN: %clang_cc1 -fsyntax-only -verify=expected,cxx11 -std=c++11 %s
 
 template<typename T, T Divisor>
 class X {
 public:
-  static const T value = 10 / Divisor; // expected-error{{in-class initializer for static data member is not a constant expression}}
+  static const T value = 10 / Divisor; // expected-error{{in-class initializer for static data member is not a constant expression}} \
+  // cxx11-note {{division by zero}} \
+  // cxx98-note {{subexpression not valid}}
 };
 
 int array1[X<int, 2>::value == 5? 1 : -1];
@@ -154,8 +156,8 @@ namespace ArrayBound {
     static const char kMessage[];
     // Here, kMessage is type-dependent, so we don't diagnose until
     // instantiation.
-    static void g1() { const char (&ref)[4] = kMessage; } // expected-error {{could not bind to an lvalue of type 'const char [5]'}}
-    static void g2() { const char (&ref)[5] = kMessage; } // expected-error {{could not bind to an lvalue of type 'const char [4]'}}
+    static void g1() { const char (&ref)[4] = kMessage; } // expected-error {{could not bind to an lvalue of type 'const char[5]'}}
+    static void g2() { const char (&ref)[5] = kMessage; } // expected-error {{could not bind to an lvalue of type 'const char[4]'}}
   };
   template<typename T> const char Bar<T>::kMessage[] = "foo";
   template void Bar<int>::g1();

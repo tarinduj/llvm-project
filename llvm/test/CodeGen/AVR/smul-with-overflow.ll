@@ -1,4 +1,4 @@
-; RUN: llc -mattr=avr6 < %s -march=avr | FileCheck %s
+; RUN: llc -mattr=avr6 < %s -mtriple=avr | FileCheck %s
 
 define i1 @signed_multiplication_did_overflow(i8, i8) unnamed_addr {
 ; CHECK-LABEL: signed_multiplication_did_overflow:
@@ -18,7 +18,7 @@ entry-block:
 ; CHECK: ldi    [[RET:r[0-9]+]], 1
 ; CHECK: cp     {{.*}}[[HIGH]], {{.*}}[[LOW]]
 ; CHECK: brne   [[LABEL:.LBB[_0-9]+]]
-; CHECK: ldi    {{.*}}[[RET]], 0
+; CHECK: mov    {{.*}}[[RET]], r1
 ; CHECK: {{.*}}[[LABEL]]
 ; CHECK: ret
 }

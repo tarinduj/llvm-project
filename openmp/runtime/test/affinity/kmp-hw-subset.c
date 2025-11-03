@@ -2,6 +2,7 @@
 // RUN: env OMP_PLACES=threads %libomp-run
 // RUN: env OMP_PLACES=cores %libomp-run
 // RUN: env OMP_PLACES=sockets %libomp-run
+// RUN: env OMP_PLACES=cores RUN_OUT_OF_ORDER=1 %libomp-run
 // REQUIRES: linux
 
 #include <stdio.h>
@@ -24,7 +25,7 @@ static int compare_hw_subset_places(const place_list_t *openmp_places,
     expected_per_place = nthreads_per_core;
   } else {
     expected_total = nsockets;
-    expected_per_place = ncores_per_socket;
+    expected_per_place = ncores_per_socket * nthreads_per_core;
   }
   if (openmp_places->num_places != expected_total) {
     fprintf(stderr, "error: KMP_HW_SUBSET did not half each resource layer!\n");
@@ -103,8 +104,13 @@ static int check_places() {
   if (nsockets > 1)
     nsockets /= 2;
 
-  snprintf(buf, sizeof(buf), "%ds,%dc,%dt", nsockets, ncores_per_socket,
-           nthreads_per_core);
+  if (getenv("RUN_OUT_OF_ORDER")) {
+    snprintf(buf, sizeof(buf), "%dt,%ds,%dc", nthreads_per_core, nsockets,
+             ncores_per_socket);
+  } else {
+    snprintf(buf, sizeof(buf), "%ds,%dc,%dt", nsockets, ncores_per_socket,
+             nthreads_per_core);
+  }
   setenv("KMP_HW_SUBSET", buf, 1);
 
   openmp_places = topology_alloc_openmp_places();

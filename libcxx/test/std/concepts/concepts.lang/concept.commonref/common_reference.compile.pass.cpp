@@ -7,12 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<class From, class To>
 // concept common_reference_with;
 
 #include <concepts>
+#include <type_traits>
+
+#include "test_macros.h"
 
 template <class T, class U>
 constexpr bool CheckCommonReferenceWith() noexcept {
@@ -51,7 +53,7 @@ static_assert(std::common_reference_with<void, void>);
 static_assert(CheckCommonReferenceWith<int, int>());
 static_assert(CheckCommonReferenceWith<int, long>());
 static_assert(CheckCommonReferenceWith<int, unsigned char>());
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
 static_assert(CheckCommonReferenceWith<int, __int128_t>());
 #endif
 static_assert(CheckCommonReferenceWith<int, double>());
@@ -271,17 +273,16 @@ struct BadBasicCommonReference {
 static_assert(std::convertible_to<BadBasicCommonReference, int>);
 static_assert(std::convertible_to<BadBasicCommonReference, int&>);
 
-namespace std {
 template <template <class> class X, template <class> class Y>
-struct basic_common_reference<BadBasicCommonReference, int, X, Y> {
+struct std::basic_common_reference<BadBasicCommonReference, int, X, Y> {
   using type = BadBasicCommonReference&;
 };
 
 template <template <class> class X, template <class> class Y>
-struct basic_common_reference<int, BadBasicCommonReference, X, Y> {
+struct std::basic_common_reference<int, BadBasicCommonReference, X, Y> {
   using type = int&;
 };
-} // namespace std
+
 static_assert(!std::common_reference_with<BadBasicCommonReference, int>);
 
 struct StructNotConvertibleToCommonReference {
@@ -289,19 +290,16 @@ struct StructNotConvertibleToCommonReference {
 };
 static_assert(std::convertible_to<int, StructNotConvertibleToCommonReference>);
 
-namespace std {
 template <template <class> class X, template <class> class Y>
-struct basic_common_reference<StructNotConvertibleToCommonReference, int, X,
-                              Y> {
+struct std::basic_common_reference<StructNotConvertibleToCommonReference, int, X, Y> {
   using type = int&;
 };
 
 template <template <class> class X, template <class> class Y>
-struct basic_common_reference<int, StructNotConvertibleToCommonReference, X,
-                              Y> {
+struct std::basic_common_reference<int, StructNotConvertibleToCommonReference, X, Y> {
   using type = int&;
 };
-} // namespace std
+
 static_assert(
     !std::common_reference_with<StructNotConvertibleToCommonReference, int>);
 
@@ -309,17 +307,16 @@ struct IntNotConvertibleToCommonReference {
   operator int&() const;
 };
 
-namespace std {
 template <template <class> class X, template <class> class Y>
-struct basic_common_reference<IntNotConvertibleToCommonReference, int, X, Y> {
+struct std::basic_common_reference<IntNotConvertibleToCommonReference, int, X, Y> {
   using type = int&;
 };
 
 template <template <class> class X, template <class> class Y>
-struct basic_common_reference<int, IntNotConvertibleToCommonReference, X, Y> {
+struct std::basic_common_reference<int, IntNotConvertibleToCommonReference, X, Y> {
   using type = int&;
 };
-} // namespace std
+
 static_assert(
     !std::common_reference_with<StructNotConvertibleToCommonReference, int>);
 
@@ -328,18 +325,15 @@ struct HasCommonReference {
   operator int&() const;
 };
 
-namespace std {
 template <template <class> class X, template <class> class Y>
-struct basic_common_reference<HasCommonReference, int, X, Y> {
+struct std::basic_common_reference<HasCommonReference, int, X, Y> {
   using type = int&;
 };
 
 template <template <class> class X, template <class> class Y>
-struct basic_common_reference<int, HasCommonReference, X, Y> {
+struct std::basic_common_reference<int, HasCommonReference, X, Y> {
   using type = int&;
 };
-} // namespace std
+
 static_assert(!std::common_reference_with<HasCommonReference, int>);
 static_assert(std::common_reference_with<HasCommonReference, int&>);
-
-int main(int, char**) { return 0; }

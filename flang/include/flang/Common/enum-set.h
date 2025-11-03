@@ -175,10 +175,8 @@ public:
   constexpr bool empty() const { return none(); }
   void clear() { reset(); }
   void insert(enumerationType x) { set(x); }
-  void insert(enumerationType &&x) { set(x); }
-  void emplace(enumerationType &&x) { set(x); }
+  void emplace(enumerationType x) { set(x); }
   void erase(enumerationType x) { reset(x); }
-  void erase(enumerationType &&x) { reset(x); }
 
   constexpr std::optional<enumerationType> LeastElement() const {
     if (empty()) {
@@ -206,7 +204,8 @@ public:
   }
 
   template <typename STREAM>
-  STREAM &Dump(STREAM &o, std::string EnumToString(enumerationType)) const {
+  STREAM &Dump(
+      STREAM &o, std::string_view EnumToString(enumerationType)) const {
     char sep{'{'};
     IterateOverMembers([&](auto e) {
       o << sep << EnumToString(e);

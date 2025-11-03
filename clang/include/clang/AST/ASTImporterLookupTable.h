@@ -21,7 +21,6 @@
 
 namespace clang {
 
-class ASTContext;
 class NamedDecl;
 class DeclContext;
 
@@ -35,7 +34,7 @@ class DeclContext;
 // Example 2:
 //   // The fwd decl to Foo is not found in the lookupPtr of the DC of the
 //   // translation unit decl.
-//   // Here we could find the node by doing a traverse throught the list of
+//   // Here we could find the node by doing a traverse through the list of
 //   // the Decls in the DC, but that would not scale.
 //   struct A { struct Foo *p; };
 // This is a severe problem because the importer decides if it has to create a
@@ -75,6 +74,10 @@ public:
   // The function should be called when the old context is definitely different
   // from the new.
   void update(NamedDecl *ND, DeclContext *OldDC);
+  // Same as 'update' but allow if 'ND' is not in the table or the old context
+  // is the same as the new.
+  // FIXME: The old redeclaration context is not handled.
+  void updateForced(NamedDecl *ND, DeclContext *OldDC);
   using LookupResult = DeclList;
   LookupResult lookup(DeclContext *DC, DeclarationName Name) const;
   // Check if the `ND` is within the lookup table (with its current name) in

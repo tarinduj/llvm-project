@@ -4,13 +4,13 @@
 define void @PR50374() {
 ; CHECK-LABEL: PR50374:
 ; CHECK:       # %bb.0: # %while.84.body.preheader
-; CHECK-NEXT:    .p2align 4, 0x90
+; CHECK-NEXT:    .p2align 4
 ; CHECK-NEXT:  .LBB0_1: # %vector.body1999
 ; CHECK-NEXT:    # =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    jmp .LBB0_1
 while.84.body.preheader:
-  %0 = load i8, i8* undef, align 1
-  %1 = load i8, i8* undef, align 4
+  %0 = load i8, ptr undef, align 1
+  %1 = load i8, ptr undef, align 4
   %.not14.2.2 = icmp eq i8 0, 0
   %2 = and i8 %0, 1
   %.not14.1.2 = icmp eq i8 %2, 0

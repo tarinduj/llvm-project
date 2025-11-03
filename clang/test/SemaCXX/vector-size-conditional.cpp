@@ -13,6 +13,7 @@ using TwoFloats = float __attribute__((__vector_size__(8)));
 using FourFloats = float __attribute__((__vector_size__(16)));
 using TwoDoubles = double __attribute__((__vector_size__(16)));
 using FourDoubles = double __attribute__((__vector_size__(32)));
+using EightBools = bool __attribute__((ext_vector_type(8)));
 
 FourShorts four_shorts;
 TwoInts two_ints;
@@ -25,6 +26,8 @@ TwoFloats two_floats;
 FourFloats four_floats;
 TwoDoubles two_doubles;
 FourDoubles four_doubles;
+EightBools eight_bools;
+EightBools other_eight_bools;
 
 enum E {};
 enum class SE {};
@@ -86,7 +89,7 @@ void Operands() {
   (void)(four_ints ? uss : shrt);    // should be fine, since they get promoted to int.
   (void)(four_ints ? shrt : shrt);   //expected-error {{vector condition type 'FourInts' (vector of 4 'int' values) and result type '__attribute__((__vector_size__(4 * sizeof(short)))) short' (vector of 4 'short' values) do not have elements of the same size}}
 
-  // Vectors must be the same type as eachother.
+  // Vectors must be the same type as each other.
   (void)(four_ints ? four_uints : four_floats); // expected-error {{vector operands to the vector conditional must be the same type ('FourUInts' (vector of 4 'unsigned int' values) and 'FourFloats' (vector of 4 'float' values))}}
   (void)(four_ints ? four_uints : four_ints);   // expected-error {{vector operands to the vector conditional must be the same type ('FourUInts' (vector of 4 'unsigned int' values) and 'FourInts' (vector of 4 'int' values))}}
   (void)(four_ints ? four_ints : four_uints);   // expected-error {{vector operands to the vector conditional must be the same type ('FourInts' (vector of 4 'int' values) and 'FourUInts' (vector of 4 'unsigned int' values))}}
@@ -94,6 +97,9 @@ void Operands() {
   // GCC rejects these, but our lax vector conversions don't seem to have a problem with them. Allow conversion of the float to an int as an extension.
   (void)(four_ints ? four_uints : 3.0f);
   (void)(four_ints ? four_ints : 3.0f);
+
+  // Allow conditional select on bool vectors.
+  (void)(eight_bools ? eight_bools : other_eight_bools);
 
   // When there is a vector and a scalar, conversions must be legal.
   (void)(four_ints ? four_floats : 3); // should work, ints can convert to floats.
@@ -163,10 +169,10 @@ void all_dependent(Cond C, LHS L, RHS R) {
 void Templates() {
   dependent_cond(two_ints);
   dependent_operand(two_floats);
-  // expected-error@159 {{vector operands to the vector conditional must be the same type ('__attribute__((__vector_size__(4 * sizeof(unsigned int)))) unsigned int' (vector of 4 'unsigned int' values) and '__attribute__((__vector_size__(4 * sizeof(double)))) double' (vector of 4 'double' values))}}}
+  // expected-error@165 {{vector operands to the vector conditional must be the same type ('__attribute__((__vector_size__(4 * sizeof(unsigned int)))) unsigned int' (vector of 4 'unsigned int' values) and '__attribute__((__vector_size__(4 * sizeof(double)))) double' (vector of 4 'double' values))}}}
   all_dependent(four_ints, four_uints, four_doubles); // expected-note {{in instantiation of}}
 
-  // expected-error@159 {{vector operands to the vector conditional must be the same type ('__attribute__((__vector_size__(4 * sizeof(unsigned int)))) unsigned int' (vector of 4 'unsigned int' values) and '__attribute__((__vector_size__(2 * sizeof(unsigned int)))) unsigned int' (vector of 2 'unsigned int' values))}}}
+  // expected-error@165 {{vector operands to the vector conditional must be the same type ('__attribute__((__vector_size__(4 * sizeof(unsigned int)))) unsigned int' (vector of 4 'unsigned int' values) and '__attribute__((__vector_size__(2 * sizeof(unsigned int)))) unsigned int' (vector of 2 'unsigned int' values))}}}
   all_dependent(four_ints, four_uints, two_uints); // expected-note {{in instantiation of}}
   all_dependent(four_ints, four_uints, four_uints);
 }

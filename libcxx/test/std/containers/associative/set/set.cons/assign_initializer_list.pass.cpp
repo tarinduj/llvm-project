@@ -26,9 +26,9 @@ void basic_test() {
     typedef std::set<int> C;
     typedef C::value_type V;
     C m = {10, 8};
-    m = {1, 2, 3, 4, 5, 6};
+    m   = {1, 2, 3, 4, 5, 6};
     assert(m.size() == 6);
-    assert(distance(m.begin(), m.end()) == 6);
+    assert(std::distance(m.begin(), m.end()) == 6);
     C::const_iterator i = m.cbegin();
     assert(*i == V(1));
     assert(*++i == V(2));
@@ -41,9 +41,9 @@ void basic_test() {
     typedef std::set<int, std::less<int>, min_allocator<int> > C;
     typedef C::value_type V;
     C m = {10, 8};
-    m = {1, 2, 3, 4, 5, 6};
+    m   = {1, 2, 3, 4, 5, 6};
     assert(m.size() == 6);
-    assert(distance(m.begin(), m.end()) == 6);
+    assert(std::distance(m.begin(), m.end()) == 6);
     C::const_iterator i = m.cbegin();
     assert(*i == V(1));
     assert(*++i == V(2));
@@ -55,17 +55,18 @@ void basic_test() {
 }
 
 void duplicate_keys_test() {
+  test_allocator_statistics alloc_stats;
   typedef std::set<int, std::less<int>, test_allocator<int> > Set;
   {
-    LIBCPP_ASSERT(test_alloc_base::alloc_count == 0);
-    Set s = {1, 2, 3};
-    LIBCPP_ASSERT(test_alloc_base::alloc_count == 3);
+    LIBCPP_ASSERT(alloc_stats.alloc_count == 0);
+    Set s({1, 2, 3}, std::less<int>(), test_allocator<int>(&alloc_stats));
+    LIBCPP_ASSERT(alloc_stats.alloc_count == 3);
     s = {4, 4, 4, 4, 4};
-    LIBCPP_ASSERT(test_alloc_base::alloc_count == 1);
+    LIBCPP_ASSERT(alloc_stats.alloc_count == 1);
     assert(s.size() == 1);
     assert(*s.begin() == 4);
   }
-  LIBCPP_ASSERT(test_alloc_base::alloc_count == 0);
+  LIBCPP_ASSERT(alloc_stats.alloc_count == 0);
 }
 
 int main(int, char**) {

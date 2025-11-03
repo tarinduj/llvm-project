@@ -20,7 +20,6 @@
 #include "X86.h"
 #include "X86InstrBuilder.h"
 #include "X86MachineFunctionInfo.h"
-#include "X86RegisterInfo.h"
 #include "X86Subtarget.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -36,7 +35,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "tile-config"
+#define DEBUG_TYPE "tileconfig"
 
 namespace {
 
@@ -50,8 +49,8 @@ struct X86TileConfig : public MachineFunctionPass {
   /// X86TileConfig analysis usage.
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
-    AU.addRequired<VirtRegMap>();
-    AU.addRequired<LiveIntervals>();
+    AU.addRequired<VirtRegMapWrapperLegacy>();
+    AU.addRequired<LiveIntervalsWrapperPass>();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 
@@ -59,8 +58,7 @@ struct X86TileConfig : public MachineFunctionPass {
   bool runOnMachineFunction(MachineFunction &mf) override;
 
   MachineFunctionProperties getRequiredProperties() const override {
-    return MachineFunctionProperties().set(
-        MachineFunctionProperties::Property::NoPHIs);
+    return MachineFunctionProperties().setNoPHIs();
   }
 
   static char ID;
@@ -70,19 +68,24 @@ struct X86TileConfig : public MachineFunctionPass {
 
 char X86TileConfig::ID = 0;
 
-INITIALIZE_PASS_BEGIN(X86TileConfig, "tileconfig", "Tile Register Configure",
+INITIALIZE_PASS_BEGIN(X86TileConfig, DEBUG_TYPE, "Tile Register Configure",
                       false, false)
-INITIALIZE_PASS_DEPENDENCY(VirtRegMap)
-INITIALIZE_PASS_END(X86TileConfig, "tileconfig", "Tile Register Configure",
-                    false, false)
+INITIALIZE_PASS_DEPENDENCY(VirtRegMapWrapperLegacy)
+INITIALIZE_PASS_END(X86TileConfig, DEBUG_TYPE, "Tile Register Configure", false,
+                    false)
 
 bool X86TileConfig::runOnMachineFunction(MachineFunction &MF) {
+  X86MachineFunctionInfo *X86FI = MF.getInfo<X86MachineFunctionInfo>();
+  // Early exit in the common case of non-AMX code.
+  if (X86FI->getAMXProgModel() != AMXProgModelEnum::ManagedRA)
+    return false;
+
   const X86Subtarget &ST = MF.getSubtarget<X86Subtarget>();
-  const TargetRegisterInfo *TRI = ST.getRegisterInfo();
+  const X86RegisterInfo *TRI = ST.getRegisterInfo();
   const TargetInstrInfo *TII = ST.getInstrInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-  LiveIntervals &LIS = getAnalysis<LiveIntervals>();
-  VirtRegMap &VRM = getAnalysis<VirtRegMap>();
+  LiveIntervals &LIS = getAnalysis<LiveIntervalsWrapperPass>().getLIS();
+  VirtRegMap &VRM = getAnalysis<VirtRegMapWrapperLegacy>().getVRM();
 
   if (VRM.isShapeMapEmpty())
     return false;
@@ -90,7 +93,7 @@ bool X86TileConfig::runOnMachineFunction(MachineFunction &MF) {
   int SS = INT_MAX;
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {
-      if (MI.getOpcode() == X86::LDTILECFG) {
+      if (MI.getOpcode() == X86::PLDTILECFGV) {
         SS = MI.getOperand(0).getIndex();
         break;
       }
@@ -98,6 +101,9 @@ bool X86TileConfig::runOnMachineFunction(MachineFunction &MF) {
     if (SS != INT_MAX)
       break;
   }
+  // Didn't find PLDTILECFGV, just return false;
+  if (SS == INT_MAX)
+    return false;
 
   // Try to find a point to insert MIs for constant shapes.
   // Here we are leveraging the palette id inserted in PreRA pass.
@@ -118,9 +124,12 @@ bool X86TileConfig::runOnMachineFunction(MachineFunction &MF) {
     Register VirtReg = Register::index2VirtReg(I);
     if (MRI.reg_nodbg_empty(VirtReg))
       continue;
-    if (MRI.getRegClass(VirtReg)->getID() != X86::TILERegClassID)
+    if (!TRI->isTileRegisterClass(MRI.getRegClass(VirtReg)))
       continue;
-    unsigned Index = VRM.getPhys(VirtReg) - X86::TMM0;
+    MCRegister PhysReg = VRM.getPhys(VirtReg);
+    if (!PhysReg)
+      continue;
+    unsigned Index = PhysReg - X86::TMM0;
     if (!Phys2Virt[Index])
       Phys2Virt[Index] = VirtReg;
   }
@@ -162,6 +171,7 @@ bool X86TileConfig::runOnMachineFunction(MachineFunction &MF) {
             continue;
           }
           Imm = DefMI.getOperand(1).getImm();
+
           NewMI = addFrameReference(
                       BuildMI(MF.front(), ++ConstMI->getIterator(), DL,
                               TII->get(IsRow ? X86::MOV8mi : X86::MOV16mi)),

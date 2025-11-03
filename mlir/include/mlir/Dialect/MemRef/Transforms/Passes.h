@@ -18,6 +18,17 @@
 namespace mlir {
 
 class AffineDialect;
+class ModuleOp;
+
+namespace func {
+namespace arith {
+class ArithDialect;
+} // namespace arith
+class FuncDialect;
+} // namespace func
+namespace scf {
+class SCFDialect;
+} // namespace scf
 namespace tensor {
 class TensorDialect;
 } // namespace tensor
@@ -28,44 +39,11 @@ class VectorDialect;
 namespace memref {
 
 //===----------------------------------------------------------------------===//
-// Patterns
-//===----------------------------------------------------------------------===//
-
-/// Appends patterns for folding memref.subview ops into consumer load/store ops
-/// into `patterns`.
-void populateFoldSubViewOpPatterns(RewritePatternSet &patterns);
-
-/// Appends patterns that resolve `memref.dim` operations with values that are
-/// defined by operations that implement the
-/// `ReifyRankedShapeTypeShapeOpInterface`, in terms of shapes of its input
-/// operands.
-void populateResolveRankedShapeTypeResultDimsPatterns(
-    RewritePatternSet &patterns);
-
-/// Appends patterns that resolve `memref.dim` operations with values that are
-/// defined by operations that implement the `InferShapedTypeOpInterface`, in
-/// terms of shapes of its input operands.
-void populateResolveShapedTypeResultDimsPatterns(RewritePatternSet &patterns);
-
-//===----------------------------------------------------------------------===//
 // Passes
 //===----------------------------------------------------------------------===//
 
-/// Creates an operation pass to fold memref.subview ops into consumer
-/// load/store ops into `patterns`.
-std::unique_ptr<Pass> createFoldSubViewOpsPass();
-
-/// Creates an operation pass to resolve `memref.dim` operations with values
-/// that are defined by operations that implement the
-/// `ReifyRankedShapeTypeShapeOpInterface`, in terms of shapes of its input
-/// operands.
-std::unique_ptr<Pass> createResolveRankedShapeTypeResultDimsPass();
-
-/// Creates an operation pass to resolve `memref.dim` operations with values
-/// that are defined by operations that implement the
-/// `InferShapedTypeOpInterface` or the `ReifyRankedShapeTypeShapeOpInterface`,
-/// in terms of shapes of its input operands.
-std::unique_ptr<Pass> createResolveShapedTypeResultDimsPass();
+#define GEN_PASS_DECL
+#include "mlir/Dialect/MemRef/Transforms/Passes.h.inc"
 
 //===----------------------------------------------------------------------===//
 // Registration

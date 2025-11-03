@@ -29,6 +29,12 @@ define %v2f32 @test_v2f32.cos(%v2f32 %a) {
   %1 = call %v2f32 @llvm.cos.v2f32(%v2f32 %a)
   ret %v2f32 %1
 }
+; CHECK-LABEL: test_v2f32.tan:{{.*}}
+define %v2f32 @test_v2f32.tan(%v2f32 %a) {
+  ; CHECK: tan
+  %1 = call %v2f32 @llvm.tan.v2f32(%v2f32 %a)
+  ret %v2f32 %1
+}
 ; CHECK-LABEL: test_v2f32.pow:{{.*}}
 define %v2f32 @test_v2f32.pow(%v2f32 %a, %v2f32 %b) {
   ; CHECK: pow
@@ -83,10 +89,10 @@ define %v2f32 @test_v2f32.floor(%v2f32 %a) {
   %1 = call %v2f32 @llvm.floor.v2f32(%v2f32 %a)
   ret %v2f32 %1
 }
-; CHECK-LABEL: test_v2f32.fceil:{{.*}}
-define %v2f32 @test_v2f32.fceil(%v2f32 %a) {
-  ; CHECK: ceil
-  %1 = call %v2f32 @llvm.fceil.v2f32(%v2f32 %a)
+; CHECK-LABEL: test_v2f32.ceil:{{.*}}
+define %v2f32 @test_v2f32.ceil(%v2f32 %a) {
+  ; CHECK: _ceilf
+  %1 = call %v2f32 @llvm.ceil.v2f32(%v2f32 %a)
   ret %v2f32 %1
 }
 ; CHECK-LABEL: test_v2f32.trunc:{{.*}}
@@ -112,6 +118,7 @@ declare %v2f32 @llvm.sqrt.v2f32(%v2f32) #0
 declare %v2f32 @llvm.powi.v2f32.i32(%v2f32, i32) #0
 declare %v2f32 @llvm.sin.v2f32(%v2f32) #0
 declare %v2f32 @llvm.cos.v2f32(%v2f32) #0
+declare %v2f32 @llvm.tan.v2f32(%v2f32) #0
 declare %v2f32 @llvm.pow.v2f32(%v2f32, %v2f32) #0
 declare %v2f32 @llvm.exp.v2f32(%v2f32) #0
 declare %v2f32 @llvm.exp2.v2f32(%v2f32) #0
@@ -121,7 +128,7 @@ declare %v2f32 @llvm.log2.v2f32(%v2f32) #0
 declare %v2f32 @llvm.fma.v2f32(%v2f32, %v2f32, %v2f32) #0
 declare %v2f32 @llvm.fabs.v2f32(%v2f32) #0
 declare %v2f32 @llvm.floor.v2f32(%v2f32) #0
-declare %v2f32 @llvm.fceil.v2f32(%v2f32) #0
+declare %v2f32 @llvm.ceil.v2f32(%v2f32) #0
 declare %v2f32 @llvm.trunc.v2f32(%v2f32) #0
 declare %v2f32 @llvm.rint.v2f32(%v2f32) #0
 declare %v2f32 @llvm.nearbyint.v2f32(%v2f32) #0
@@ -151,6 +158,12 @@ define %v4f32 @test_v4f32.sin(%v4f32 %a) {
 define %v4f32 @test_v4f32.cos(%v4f32 %a) {
   ; CHECK: cos
   %1 = call %v4f32 @llvm.cos.v4f32(%v4f32 %a)
+  ret %v4f32 %1
+}
+; CHECK-LABEL: test_v4f32.tan:{{.*}}
+define %v4f32 @test_v4f32.tan(%v4f32 %a) {
+  ; CHECK: tan
+  %1 = call %v4f32 @llvm.tan.v4f32(%v4f32 %a)
   ret %v4f32 %1
 }
 ; CHECK-LABEL: test_v4f32.pow:{{.*}}
@@ -207,10 +220,10 @@ define %v4f32 @test_v4f32.floor(%v4f32 %a) {
   %1 = call %v4f32 @llvm.floor.v4f32(%v4f32 %a)
   ret %v4f32 %1
 }
-; CHECK-LABEL: test_v4f32.fceil:{{.*}}
-define %v4f32 @test_v4f32.fceil(%v4f32 %a) {
-  ; CHECK: ceil
-  %1 = call %v4f32 @llvm.fceil.v4f32(%v4f32 %a)
+; CHECK-LABEL: test_v4f32.ceil:{{.*}}
+define %v4f32 @test_v4f32.ceil(%v4f32 %a) {
+  ; CHECK: _ceil
+  %1 = call %v4f32 @llvm.ceil.v4f32(%v4f32 %a)
   ret %v4f32 %1
 }
 ; CHECK-LABEL: test_v4f32.trunc:{{.*}}
@@ -236,6 +249,7 @@ declare %v4f32 @llvm.sqrt.v4f32(%v4f32) #0
 declare %v4f32 @llvm.powi.v4f32.i32(%v4f32, i32) #0
 declare %v4f32 @llvm.sin.v4f32(%v4f32) #0
 declare %v4f32 @llvm.cos.v4f32(%v4f32) #0
+declare %v4f32 @llvm.tan.v4f32(%v4f32) #0
 declare %v4f32 @llvm.pow.v4f32(%v4f32, %v4f32) #0
 declare %v4f32 @llvm.exp.v4f32(%v4f32) #0
 declare %v4f32 @llvm.exp2.v4f32(%v4f32) #0
@@ -245,7 +259,7 @@ declare %v4f32 @llvm.log2.v4f32(%v4f32) #0
 declare %v4f32 @llvm.fma.v4f32(%v4f32, %v4f32, %v4f32) #0
 declare %v4f32 @llvm.fabs.v4f32(%v4f32) #0
 declare %v4f32 @llvm.floor.v4f32(%v4f32) #0
-declare %v4f32 @llvm.fceil.v4f32(%v4f32) #0
+declare %v4f32 @llvm.ceil.v4f32(%v4f32) #0
 declare %v4f32 @llvm.trunc.v4f32(%v4f32) #0
 declare %v4f32 @llvm.rint.v4f32(%v4f32) #0
 declare %v4f32 @llvm.nearbyint.v4f32(%v4f32) #0
@@ -275,6 +289,12 @@ define %v2f64 @test_v2f64.sin(%v2f64 %a) {
 define %v2f64 @test_v2f64.cos(%v2f64 %a) {
   ; CHECK: cos
   %1 = call %v2f64 @llvm.cos.v2f64(%v2f64 %a)
+  ret %v2f64 %1
+}
+; CHECK-LABEL: test_v2f64.tan:{{.*}}
+define %v2f64 @test_v2f64.tan(%v2f64 %a) {
+  ; CHECK: tan
+  %1 = call %v2f64 @llvm.tan.v2f64(%v2f64 %a)
   ret %v2f64 %1
 }
 ; CHECK-LABEL: test_v2f64.pow:{{.*}}
@@ -332,10 +352,10 @@ define %v2f64 @test_v2f64.floor(%v2f64 %a) {
   %1 = call %v2f64 @llvm.floor.v2f64(%v2f64 %a)
   ret %v2f64 %1
 }
-; CHECK-LABEL: test_v2f64.fceil:{{.*}}
-define %v2f64 @test_v2f64.fceil(%v2f64 %a) {
-  ; CHECK: ceil
-  %1 = call %v2f64 @llvm.fceil.v2f64(%v2f64 %a)
+; CHECK-LABEL: test_v2f64.ceil:{{.*}}
+define %v2f64 @test_v2f64.ceil(%v2f64 %a) {
+  ; CHECK: _ceil
+  %1 = call %v2f64 @llvm.ceil.v2f64(%v2f64 %a)
   ret %v2f64 %1
 }
 ; CHECK-LABEL: test_v2f64.trunc:{{.*}}
@@ -361,6 +381,7 @@ declare %v2f64 @llvm.sqrt.v2f64(%v2f64) #0
 declare %v2f64 @llvm.powi.v2f64.i32(%v2f64, i32) #0
 declare %v2f64 @llvm.sin.v2f64(%v2f64) #0
 declare %v2f64 @llvm.cos.v2f64(%v2f64) #0
+declare %v2f64 @llvm.tan.v2f64(%v2f64) #0
 declare %v2f64 @llvm.pow.v2f64(%v2f64, %v2f64) #0
 declare %v2f64 @llvm.exp.v2f64(%v2f64) #0
 declare %v2f64 @llvm.exp2.v2f64(%v2f64) #0
@@ -370,7 +391,7 @@ declare %v2f64 @llvm.log2.v2f64(%v2f64) #0
 declare %v2f64 @llvm.fma.v2f64(%v2f64, %v2f64, %v2f64) #0
 declare %v2f64 @llvm.fabs.v2f64(%v2f64) #0
 declare %v2f64 @llvm.floor.v2f64(%v2f64) #0
-declare %v2f64 @llvm.fceil.v2f64(%v2f64) #0
+declare %v2f64 @llvm.ceil.v2f64(%v2f64) #0
 declare %v2f64 @llvm.trunc.v2f64(%v2f64) #0
 declare %v2f64 @llvm.rint.v2f64(%v2f64) #0
 declare %v2f64 @llvm.nearbyint.v2f64(%v2f64) #0

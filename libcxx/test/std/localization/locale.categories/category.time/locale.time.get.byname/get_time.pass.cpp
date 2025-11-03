@@ -19,9 +19,11 @@
 // get_time(iter_type s, iter_type end, ios_base& str,
 //          ios_base::iostate& err, tm* t) const;
 
-#include <locale>
 #include <cassert>
+#include <ctime>
 #include <ios>
+#include <locale>
+
 #include "test_macros.h"
 #include "test_iterators.h"
 
@@ -50,7 +52,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)-1);
+        assert(base(i) == in+sizeof(in)-1);
         assert(t.tm_hour == 13);
         assert(t.tm_min == 14);
         assert(t.tm_sec == 15);
@@ -62,7 +64,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)-1);
+        assert(base(i) == in+sizeof(in)-1);
         assert(t.tm_hour == 13);
         assert(t.tm_min == 14);
         assert(t.tm_sec == 15);
@@ -74,7 +76,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)-1);
+        assert(base(i) == in+sizeof(in)-1);
         assert(t.tm_hour == 13);
         assert(t.tm_min == 14);
         assert(t.tm_sec == 15);
@@ -86,7 +88,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)-1);
+        assert(base(i) == in+sizeof(in)-1);
         assert(t.tm_hour == 13);
         assert(t.tm_min == 14);
         assert(t.tm_sec == 15);

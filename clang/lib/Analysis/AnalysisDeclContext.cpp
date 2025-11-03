@@ -36,11 +36,9 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -71,8 +69,8 @@ AnalysisDeclContextManager::AnalysisDeclContextManager(
     bool addLoopExit, bool addScopes, bool synthesizeBodies,
     bool addStaticInitBranch, bool addCXXNewAllocator,
     bool addRichCXXConstructors, bool markElidedCXXConstructors,
-    bool addVirtualBaseBranches, CodeInjector *injector)
-    : Injector(injector), FunctionBodyFarm(ASTCtx, injector),
+    bool addVirtualBaseBranches, std::unique_ptr<CodeInjector> injector)
+    : Injector(std::move(injector)), FunctionBodyFarm(ASTCtx, Injector.get()),
       SynthesizeBodies(synthesizeBodies) {
   cfgBuildOptions.PruneTriviallyFalseEdges = !useUnoptimizedCFG;
   cfgBuildOptions.AddImplicitDtors = addImplicitDtors;
@@ -142,7 +140,7 @@ bool AnalysisDeclContext::isBodyAutosynthesizedFromModelFile() const {
 
 /// Returns true if \param VD is an Objective-C implicit 'self' parameter.
 static bool isSelfDecl(const VarDecl *VD) {
-  return isa<ImplicitParamDecl>(VD) && VD->getName() == "self";
+  return isa_and_nonnull<ImplicitParamDecl>(VD) && VD->getName() == "self";
 }
 
 const ImplicitParamDecl *AnalysisDeclContext::getSelfDecl() const {
@@ -169,8 +167,8 @@ const ImplicitParamDecl *AnalysisDeclContext::getSelfDecl() const {
     if (!LC.capturesVariable())
       continue;
 
-    VarDecl *VD = LC.getCapturedVar();
-    if (isSelfDecl(VD))
+    ValueDecl *VD = LC.getCapturedVar();
+    if (isSelfDecl(dyn_cast<VarDecl>(VD)))
       return dyn_cast<ImplicitParamDecl>(VD);
   }
 
@@ -231,8 +229,7 @@ CFG *AnalysisDeclContext::getCFG() {
 
 CFG *AnalysisDeclContext::getUnoptimizedCFG() {
   if (!builtCompleteCFG) {
-    SaveAndRestore<bool> NotPrune(cfgBuildOptions.PruneTriviallyFalseEdges,
-                                  false);
+    SaveAndRestore NotPrune(cfgBuildOptions.PruneTriviallyFalseEdges, false);
     completeCFG =
         CFG::buildCFG(D, getBody(), &D->getASTContext(), cfgBuildOptions);
     // Even when the cfg is not successfully built, we don't
@@ -352,7 +349,7 @@ std::string AnalysisDeclContext::getFunctionName(const Decl *D) {
       for (const auto &P : FD->parameters()) {
         if (P != *FD->param_begin())
           OS << ", ";
-        OS << P->getType().getAsString();
+        OS << P->getType();
       }
       OS << ')';
     }
@@ -387,7 +384,7 @@ std::string AnalysisDeclContext::getFunctionName(const Decl *D) {
     OS << ' ' << OMD->getSelector().getAsString() << ']';
   }
 
-  return OS.str();
+  return Str;
 }
 
 LocationContextManager &AnalysisDeclContext::getLocationContextManager() {

@@ -1,6 +1,5 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1
-! REQUIRES: shell
-! C718 Each named constant in a complex literal constant shall be of type 
+! RUN: %python %S/test_errors.py %s %flang_fc1
+! C718 Each named constant in a complex literal constant shall be of type
 ! integer or real.
 subroutine s()
   integer :: ivar = 35
@@ -27,8 +26,10 @@ subroutine s()
   !ERROR: must be a constant
   !ERROR: must be a constant
   complex :: cvar10 = (rvar, ivar)
-  !ERROR: operands must be INTEGER or REAL
+  !ERROR: operands must be INTEGER, UNSIGNED, REAL, or BOZ
   complex :: cvar11 = (cconst, 1.0)
-  !ERROR: operands must be INTEGER or REAL
+  !ERROR: operands must be INTEGER, UNSIGNED, REAL, or BOZ
   complex :: cvar12 = (lconst, 1.0)
+  !ERROR: operands cannot both be BOZ
+  complex :: cvar13 = (z'3f700000', z'00000000')
 end subroutine s

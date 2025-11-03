@@ -64,7 +64,7 @@ raw_ostream &llvm::operator<<(raw_ostream &OS, LegacyLegalizeAction Action) {
   return OS;
 }
 
-LegacyLegalizerInfo::LegacyLegalizerInfo() : TablesInitialized(false) {
+LegacyLegalizerInfo::LegacyLegalizerInfo() {
   // Set defaults.
   // FIXME: these two (G_ANYEXT and G_TRUNC?) can be legalized to the
   // fundamental load/store Jakob proposed. Once loads & stores are supported.
@@ -76,6 +76,9 @@ LegacyLegalizerInfo::LegacyLegalizerInfo() : TablesInitialized(false) {
 
   setScalarAction(TargetOpcode::G_INTRINSIC, 0, {{1, Legal}});
   setScalarAction(TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS, 0, {{1, Legal}});
+  setScalarAction(TargetOpcode::G_INTRINSIC_CONVERGENT, 0, {{1, Legal}});
+  setScalarAction(TargetOpcode::G_INTRINSIC_CONVERGENT_W_SIDE_EFFECTS, 0,
+                  {{1, Legal}});
 
   setLegalizeScalarToDifferentSizeStrategy(
       TargetOpcode::G_IMPLICIT_DEF, 0, narrowToSmallerAndUnsupportedIfTooSmall);
@@ -264,7 +267,7 @@ LegacyLegalizerInfo::findAction(const SizeAndActionsVec &Vec, const uint32_t Siz
     // Special case for scalarization:
     if (Vec == SizeAndActionsVec({{1, FewerElements}}))
       return {1, FewerElements};
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case NarrowScalar: {
     // The following needs to be a loop, as for now, we do allow needing to
     // go over "Unsupported" bit sizes before finding a legalizable bit size.
@@ -302,17 +305,16 @@ LegacyLegalizerInfo::findScalarLegalAction(const InstrAspect &Aspect) const {
   if (Aspect.Opcode < FirstOp || Aspect.Opcode > LastOp)
     return {NotFound, LLT()};
   const unsigned OpcodeIdx = getOpcodeIdxForOpcode(Aspect.Opcode);
-  if (Aspect.Type.isPointer() &&
-      AddrSpace2PointerActions[OpcodeIdx].find(Aspect.Type.getAddressSpace()) ==
-          AddrSpace2PointerActions[OpcodeIdx].end()) {
-    return {NotFound, LLT()};
+  ArrayRef<SizeAndActionsVec> Actions;
+  if (Aspect.Type.isPointer()) {
+    auto &PA = AddrSpace2PointerActions[OpcodeIdx];
+    auto It = PA.find(Aspect.Type.getAddressSpace());
+    if (It == PA.end())
+      return {NotFound, LLT()};
+    Actions = It->second;
+  } else {
+    Actions = ScalarActions[OpcodeIdx];
   }
-  const SmallVector<SizeAndActionsVec, 1> &Actions =
-      Aspect.Type.isPointer()
-          ? AddrSpace2PointerActions[OpcodeIdx]
-                .find(Aspect.Type.getAddressSpace())
-                ->second
-          : ScalarActions[OpcodeIdx];
   if (Aspect.Idx >= Actions.size())
     return {NotFound, LLT()};
   const SizeAndActionsVec &Vec = Actions[Aspect.Idx];

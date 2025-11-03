@@ -9,7 +9,6 @@
 #include "llvm-c/Core.h"
 #include "llvm-c/Error.h"
 #include "llvm-c/IRReader.h"
-#include "llvm-c/Initialization.h"
 #include "llvm-c/LLJIT.h"
 #include "llvm-c/Support.h"
 #include "llvm-c/Target.h"
@@ -68,11 +67,9 @@ const char MainMod[] =
 LLVMErrorRef parseExampleModule(const char *Source, size_t Len,
                                 const char *Name,
                                 LLVMOrcThreadSafeModuleRef *TSM) {
-  // Create a new ThreadSafeContext and underlying LLVMContext.
-  LLVMOrcThreadSafeContextRef TSCtx = LLVMOrcCreateNewThreadSafeContext();
 
-  // Get a reference to the underlying LLVMContext.
-  LLVMContextRef Ctx = LLVMOrcThreadSafeContextGetContext(TSCtx);
+  // Create an LLVMContext for the Module.
+  LLVMContextRef Ctx = LLVMContextCreate();
 
   // Wrap Source in a MemoryBuffer
   LLVMMemoryBufferRef MB =
@@ -86,6 +83,10 @@ LLVMErrorRef parseExampleModule(const char *Source, size_t Len,
     // TODO: LLVMDisposeMessage(ErrMsg);
   }
 
+  // Create a new ThreadSafeContext to hold the context.
+  LLVMOrcThreadSafeContextRef TSCtx =
+      LLVMOrcCreateNewThreadSafeContextFromLLVMContext(Ctx);
+
   // Our module is now complete. Wrap it and our ThreadSafeContext in a
   // ThreadSafeModule.
   *TSM = LLVMOrcCreateNewThreadSafeModule(M, TSCtx);
@@ -97,13 +98,12 @@ LLVMErrorRef parseExampleModule(const char *Source, size_t Len,
   return LLVMErrorSuccess;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
 
   int MainResult = 0;
 
   // Parse command line arguments and initialize LLVM Core.
-  LLVMParseCommandLineOptions(argc, (const char **)argv, "");
-  LLVMInitializeCore(LLVMGetGlobalPassRegistry());
+  LLVMParseCommandLineOptions(argc, argv, "");
 
   // Initialize native target codegen and asm printer.
   LLVMInitializeNativeTarget();
@@ -127,8 +127,8 @@ int main(int argc, char *argv[]) {
     LLVMErrorRef Err;
 
     LLVMOrcThreadSafeModuleRef FooTSM;
-    if ((Err =
-             parseExampleModule(FooMod, sizeof(FooMod), "foo-mod", &FooTSM))) {
+    if ((Err = parseExampleModule(FooMod, sizeof(FooMod) - 1, "foo-mod",
+                                  &FooTSM))) {
       MainResult = handleError(Err);
       goto jit_cleanup;
     }
@@ -142,8 +142,8 @@ int main(int argc, char *argv[]) {
     }
 
     LLVMOrcThreadSafeModuleRef BarTSM;
-    if ((Err =
-             parseExampleModule(BarMod, sizeof(BarMod), "bar-mod", &BarTSM))) {
+    if ((Err = parseExampleModule(BarMod, sizeof(BarMod) - 1, "bar-mod",
+                                  &BarTSM))) {
       MainResult = handleError(Err);
       goto jit_cleanup;
     }
@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
     }
 
     LLVMOrcThreadSafeModuleRef MainTSM;
-    if ((Err = parseExampleModule(MainMod, sizeof(MainMod), "main-mod",
+    if ((Err = parseExampleModule(MainMod, sizeof(MainMod) - 1, "main-mod",
                                   &MainTSM))) {
       MainResult = handleError(Err);
       goto jit_cleanup;

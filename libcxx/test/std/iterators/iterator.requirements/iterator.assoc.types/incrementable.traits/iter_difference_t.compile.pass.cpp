@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // template<class T>
 // using iter_difference_t;
@@ -16,6 +14,7 @@
 #include <iterator>
 
 #include <concepts>
+#include <cstddef>
 #include <vector>
 
 template <class T>

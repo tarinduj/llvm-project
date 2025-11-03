@@ -10,6 +10,7 @@
 
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Stream.h"
 
@@ -51,7 +52,7 @@ bool ThreadPlanStepOverBreakpoint::DoPlanExplainsStop(Event *event_ptr) {
   if (stop_info_sp) {
     StopReason reason = stop_info_sp->GetStopReason();
 
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+    Log *log = GetLog(LLDBLog::Step);
     LLDB_LOG(log, "Step over breakpoint stopped for reason: {0}.",
              Thread::StopReasonAsString(reason));
 
@@ -102,6 +103,13 @@ bool ThreadPlanStepOverBreakpoint::ShouldStop(Event *event_ptr) {
 
 bool ThreadPlanStepOverBreakpoint::StopOthers() { return true; }
 
+// This thread plan does a single instruction step over a breakpoint instruction
+// and needs to not resume other threads, so return false to stop the
+// ThreadPlanSingleThreadTimeout from timing out and trying to resume all
+// threads. If all threads gets resumed before we disable, single step and
+// re-enable the breakpoint, we can miss breakpoints on other threads.
+bool ThreadPlanStepOverBreakpoint::SupportsResumeOthers() { return false; }
+
 StateType ThreadPlanStepOverBreakpoint::GetPlanRunState() {
   return eStateStepping;
 }
@@ -134,7 +142,7 @@ bool ThreadPlanStepOverBreakpoint::MischiefManaged() {
     // didn't get a chance to run.
     return false;
   } else {
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+    Log *log = GetLog(LLDBLog::Step);
     LLDB_LOGF(log, "Completed step over breakpoint plan.");
     // Otherwise, re-enable the breakpoint we were stepping over, and we're
     // done.

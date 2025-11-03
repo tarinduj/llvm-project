@@ -7,17 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // template<class T>
 // struct incrementable_traits;
 
-#include <iterator>
-
 #include <concepts>
-
-#include "test_macros.h"
+#include <cstddef>
+#include <iterator>
 
 template <class T>
 concept check_has_difference_type = requires {

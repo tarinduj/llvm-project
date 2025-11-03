@@ -17,7 +17,6 @@
 
 #include "llvm-c/Core.h"
 #include "llvm-c/Error.h"
-#include "llvm-c/Initialization.h"
 #include "llvm-c/LLJIT.h"
 #include "llvm-c/Support.h"
 #include "llvm-c/Target.h"
@@ -31,9 +30,8 @@ int handleError(LLVMErrorRef Err) {
   return 1;
 }
 
-LLVMOrcThreadSafeModuleRef createDemoModule() {
-  LLVMOrcThreadSafeContextRef TSCtx = LLVMOrcCreateNewThreadSafeContext();
-  LLVMContextRef Ctx = LLVMOrcThreadSafeContextGetContext(TSCtx);
+LLVMOrcThreadSafeModuleRef createDemoModule(void) {
+  LLVMContextRef Ctx = LLVMContextCreate();
   LLVMModuleRef M = LLVMModuleCreateWithNameInContext("demo", Ctx);
   LLVMTypeRef ParamTypes[] = {LLVMInt32Type(), LLVMInt32Type()};
   LLVMTypeRef SumFunctionType =
@@ -46,6 +44,8 @@ LLVMOrcThreadSafeModuleRef createDemoModule() {
   LLVMValueRef SumArg1 = LLVMGetParam(SumFunction, 1);
   LLVMValueRef Result = LLVMBuildAdd(Builder, SumArg0, SumArg1, "result");
   LLVMBuildRet(Builder, Result);
+  LLVMOrcThreadSafeContextRef TSCtx =
+      LLVMOrcCreateNewThreadSafeContextFromLLVMContext(Ctx);
   LLVMOrcThreadSafeModuleRef TSM = LLVMOrcCreateNewThreadSafeModule(M, TSCtx);
   LLVMOrcDisposeThreadSafeContext(TSCtx);
   return TSM;
@@ -56,12 +56,11 @@ LLVMErrorRef dumpObjectsTransform(void *Ctx, LLVMMemoryBufferRef *ObjInOut) {
   return LLVMOrcDumpObjects_CallOperator(DumpObjects, ObjInOut);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
 
   int MainResult = 0;
 
-  LLVMParseCommandLineOptions(argc, (const char **)argv, "");
-  LLVMInitializeCore(LLVMGetGlobalPassRegistry());
+  LLVMParseCommandLineOptions(argc, argv, "");
 
   LLVMInitializeNativeTarget();
   LLVMInitializeNativeAsmPrinter();

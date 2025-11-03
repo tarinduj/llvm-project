@@ -17,8 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace lld {
-namespace macho {
+namespace lld::macho {
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
 class Symbol;
@@ -26,21 +25,23 @@ class InputSection;
 
 enum class RelocAttrBits {
   _0 = 0,              // invalid
-  PCREL = 1 << 0,      // Value is PC-relative offset
-  ABSOLUTE = 1 << 1,   // Value is an absolute address or fixed offset
+  BYTE1 = 1 << 0,      // 1 byte datum
+  BYTE2 = 1 << 1,      // 2 byte datum
   BYTE4 = 1 << 2,      // 4 byte datum
   BYTE8 = 1 << 3,      // 8 byte datum
-  EXTERN = 1 << 4,     // Can have an external symbol
-  LOCAL = 1 << 5,      // Can have a local symbol
-  ADDEND = 1 << 6,     // *_ADDEND paired prefix reloc
-  SUBTRAHEND = 1 << 7, // *_SUBTRACTOR paired prefix reloc
-  BRANCH = 1 << 8,     // Value is branch target
-  GOT = 1 << 9,        // References a symbol in the Global Offset Table
-  TLV = 1 << 10,       // References a thread-local symbol
-  LOAD = 1 << 11,      // Relaxable indirect load
-  POINTER = 1 << 12,   // Non-relaxable indirect load (pointer is taken)
-  UNSIGNED = 1 << 13,  // *_UNSIGNED relocs
-  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue*/ (1 << 14) - 1),
+  PCREL = 1 << 4,      // Value is PC-relative offset
+  ABSOLUTE = 1 << 5,   // Value is an absolute address or fixed offset
+  EXTERN = 1 << 6,     // Can have an external symbol
+  LOCAL = 1 << 7,      // Can have a local symbol
+  ADDEND = 1 << 8,     // *_ADDEND paired prefix reloc
+  SUBTRAHEND = 1 << 9, // *_SUBTRACTOR paired prefix reloc
+  BRANCH = 1 << 10,    // Value is branch target
+  GOT = 1 << 11,       // References a symbol in the Global Offset Table
+  TLV = 1 << 12,       // References a thread-local symbol
+  LOAD = 1 << 13,      // Relaxable indirect load
+  POINTER = 1 << 14,   // Non-relaxable indirect load (pointer is taken)
+  UNSIGNED = 1 << 15,  // *_UNSIGNED relocs
+  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue*/ (1 << 16) - 1),
 };
 // Note: SUBTRACTOR always pairs with UNSIGNED (a delta between two symbols).
 
@@ -56,11 +57,24 @@ struct Reloc {
   uint8_t length = 0;
   // The offset from the start of the subsection that this relocation belongs
   // to.
-  uint64_t offset = 0;
+  uint32_t offset = 0;
   // Adding this offset to the address of the referent symbol or subsection
   // gives the destination that this relocation refers to.
   int64_t addend = 0;
   llvm::PointerUnion<Symbol *, InputSection *> referent = nullptr;
+
+  Reloc() = default;
+
+  Reloc(uint8_t type, bool pcrel, uint8_t length, uint32_t offset,
+        int64_t addend, llvm::PointerUnion<Symbol *, InputSection *> referent)
+      : type(type), pcrel(pcrel), length(length), offset(offset),
+        addend(addend), referent(referent) {}
+
+  InputSection *getReferentInputSection() const;
+
+  // Must point to an offset within a CStringInputSection or a
+  // ConcatInputSection.
+  llvm::StringRef getReferentString() const;
 };
 
 bool validateSymbolRelocation(const Symbol *, const InputSection *,
@@ -70,28 +84,28 @@ bool validateSymbolRelocation(const Symbol *, const InputSection *,
  * v: The value the relocation is attempting to encode
  * bits: The number of bits actually available to encode this relocation
  */
-void reportRangeError(const Reloc &, const llvm::Twine &v, uint8_t bits,
-                      int64_t min, uint64_t max);
+void reportRangeError(void *loc, const Reloc &, const llvm::Twine &v,
+                      uint8_t bits, int64_t min, uint64_t max);
 
 struct SymbolDiagnostic {
   const Symbol *symbol;
   llvm::StringRef reason;
 };
 
-void reportRangeError(SymbolDiagnostic, const llvm::Twine &v, uint8_t bits,
-                      int64_t min, uint64_t max);
+void reportRangeError(void *loc, SymbolDiagnostic, const llvm::Twine &v,
+                      uint8_t bits, int64_t min, uint64_t max);
 
 template <typename Diagnostic>
-inline void checkInt(Diagnostic d, int64_t v, int bits) {
+inline void checkInt(void *loc, Diagnostic d, int64_t v, int bits) {
   if (v != llvm::SignExtend64(v, bits))
-    reportRangeError(d, llvm::Twine(v), bits, llvm::minIntN(bits),
+    reportRangeError(loc, d, llvm::Twine(v), bits, llvm::minIntN(bits),
                      llvm::maxIntN(bits));
 }
 
 template <typename Diagnostic>
-inline void checkUInt(Diagnostic d, uint64_t v, int bits) {
+inline void checkUInt(void *loc, Diagnostic d, uint64_t v, int bits) {
   if ((v >> bits) != 0)
-    reportRangeError(d, llvm::Twine(v), bits, 0, llvm::maxUIntN(bits));
+    reportRangeError(loc, d, llvm::Twine(v), bits, 0, llvm::maxUIntN(bits));
 }
 
 inline void writeAddress(uint8_t *loc, uint64_t addr, uint8_t length) {
@@ -107,9 +121,10 @@ inline void writeAddress(uint8_t *loc, uint64_t addr, uint8_t length) {
   }
 }
 
+InputSection *offsetToInputSection(uint64_t *);
+
 extern const RelocAttrs invalidRelocAttrs;
 
-} // namespace macho
-} // namespace lld
+} // namespace lld::Macho
 
 #endif

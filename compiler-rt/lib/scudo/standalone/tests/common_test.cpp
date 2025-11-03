@@ -10,63 +10,82 @@
 #include "tests/scudo_unit_test.h"
 
 #include "common.h"
+#include "mem_map.h"
+
+#include <errno.h>
+#include <string.h>
+#include <sys/mman.h>
+
 #include <algorithm>
-#include <fstream>
+#include <vector>
 
 namespace scudo {
 
-static uptr getResidentMemorySize() {
-  if (!SCUDO_LINUX)
-    UNREACHABLE("Not implemented!");
-  uptr Size;
-  uptr Resident;
-  std::ifstream IFS("/proc/self/statm");
-  IFS >> Size;
-  IFS >> Resident;
-  return Resident * getPageSizeCached();
+static void getResidentPages(void *BaseAddress, size_t TotalPages,
+                             size_t *ResidentPages) {
+  std::vector<unsigned char> Pages(TotalPages, 0);
+  ASSERT_EQ(
+      0, mincore(BaseAddress, TotalPages * getPageSizeCached(), Pages.data()))
+      << strerror(errno);
+  *ResidentPages = 0;
+  for (unsigned char Value : Pages) {
+    if (Value & 1) {
+      ++*ResidentPages;
+    }
+  }
 }
 
-// Fuchsia needs getResidentMemorySize implementation.
+// Fuchsia needs getResidentPages implementation.
 TEST(ScudoCommonTest, SKIP_ON_FUCHSIA(ResidentMemorySize)) {
-  uptr OnStart = getResidentMemorySize();
-  EXPECT_GT(OnStart, 0UL);
+  // Make sure to have the size of the map on a page boundary.
+  const uptr PageSize = getPageSizeCached();
+  const size_t NumPages = 1000;
+  const uptr SizeBytes = NumPages * PageSize;
 
-  const uptr Size = 1ull << 30;
-  const uptr Threshold = Size >> 3;
+  MemMapT MemMap;
+  ASSERT_TRUE(MemMap.map(/*Addr=*/0U, SizeBytes, "ResidentMemorySize"));
+  ASSERT_NE(MemMap.getBase(), 0U);
 
-  MapPlatformData Data = {};
-  void *P = map(nullptr, Size, "ResidentMemorySize", 0, &Data);
-  ASSERT_NE(nullptr, P);
-  EXPECT_LT(getResidentMemorySize(), OnStart + Threshold);
+  void *P = reinterpret_cast<void *>(MemMap.getBase());
+  size_t ResidentPages;
+  getResidentPages(P, NumPages, &ResidentPages);
+  EXPECT_EQ(0U, ResidentPages);
 
-  memset(P, 1, Size);
-  EXPECT_GT(getResidentMemorySize(), OnStart + Size - Threshold);
+  // Make the entire map resident.
+  memset(P, 1, SizeBytes);
+  getResidentPages(P, NumPages, &ResidentPages);
+  EXPECT_EQ(NumPages, ResidentPages);
 
-  releasePagesToOS((uptr)P, 0, Size, &Data);
-  EXPECT_LT(getResidentMemorySize(), OnStart + Threshold);
+  // Should release the memory to the kernel immediately.
+  MemMap.releasePagesToOS(MemMap.getBase(), SizeBytes);
+  getResidentPages(P, NumPages, &ResidentPages);
+  EXPECT_EQ(0U, ResidentPages);
 
-  memset(P, 1, Size);
-  EXPECT_GT(getResidentMemorySize(), OnStart + Size - Threshold);
+  // Make the entire map resident again.
+  memset(P, 1, SizeBytes);
+  getResidentPages(P, NumPages, &ResidentPages);
+  EXPECT_EQ(NumPages, ResidentPages);
 
-  unmap(P, Size, 0, &Data);
+  MemMap.unmap();
 }
 
 TEST(ScudoCommonTest, Zeros) {
   const uptr Size = 1ull << 20;
 
-  MapPlatformData Data = {};
-  uptr *P = reinterpret_cast<uptr *>(map(nullptr, Size, "Zeros", 0, &Data));
-  const ptrdiff_t N = Size / sizeof(*P);
-  ASSERT_NE(nullptr, P);
+  MemMapT MemMap;
+  ASSERT_TRUE(MemMap.map(/*Addr=*/0U, Size, "Zeros"));
+  ASSERT_NE(MemMap.getBase(), 0U);
+  uptr *P = reinterpret_cast<uptr *>(MemMap.getBase());
+  const ptrdiff_t N = Size / sizeof(uptr);
   EXPECT_EQ(std::count(P, P + N, 0), N);
 
   memset(P, 1, Size);
   EXPECT_EQ(std::count(P, P + N, 0), 0);
 
-  releasePagesToOS((uptr)P, 0, Size, &Data);
+  MemMap.releasePagesToOS(MemMap.getBase(), Size);
   EXPECT_EQ(std::count(P, P + N, 0), N);
 
-  unmap(P, Size, 0, &Data);
+  MemMap.unmap();
 }
 
 } // namespace scudo

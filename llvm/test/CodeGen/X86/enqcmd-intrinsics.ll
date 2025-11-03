@@ -2,8 +2,9 @@
 ; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+enqcmd | FileCheck %s --check-prefix=X64
 ; RUN: llc < %s -mtriple=i386-unknown-unknown -mattr=+enqcmd | FileCheck %s --check-prefix=X86
 ; RUN: llc < %s -mtriple=x86_64-linux-gnux32 -mattr=+enqcmd | FileCheck %s --check-prefix=X32
+; RUN: llc < %s -mtriple=x86_64-unknown-unknown -mattr=+enqcmd,+egpr --show-mc-encoding | FileCheck %s --check-prefix=EGPR
 
-define i8 @test_enqcmd(i8* %dst, i8* %src) {
+define i8 @test_enqcmd(ptr %dst, ptr %src) {
 ; X64-LABEL: test_enqcmd:
 ; X64:       # %bb.0: # %entry
 ; X64-NEXT:    enqcmd (%rsi), %rdi
@@ -23,14 +24,20 @@ define i8 @test_enqcmd(i8* %dst, i8* %src) {
 ; X32-NEXT:    enqcmd (%esi), %edi
 ; X32-NEXT:    sete %al
 ; X32-NEXT:    retq
+;
+; EGPR-LABEL: test_enqcmd:
+; EGPR:       # %bb.0: # %entry
+; EGPR-NEXT:    enqcmd (%rsi), %rdi # EVEX TO LEGACY Compression encoding: [0xf2,0x0f,0x38,0xf8,0x3e]
+; EGPR-NEXT:    sete %al # encoding: [0x0f,0x94,0xc0]
+; EGPR-NEXT:    retq # encoding: [0xc3]
 entry:
 
 
-  %0 = call i8 @llvm.x86.enqcmd(i8* %dst, i8* %src)
+  %0 = call i8 @llvm.x86.enqcmd(ptr %dst, ptr %src)
   ret i8 %0
 }
 
-define i8 @test_enqcmds(i8* %dst, i8* %src) {
+define i8 @test_enqcmds(ptr %dst, ptr %src) {
 ; X64-LABEL: test_enqcmds:
 ; X64:       # %bb.0: # %entry
 ; X64-NEXT:    enqcmds (%rsi), %rdi
@@ -50,12 +57,18 @@ define i8 @test_enqcmds(i8* %dst, i8* %src) {
 ; X32-NEXT:    enqcmds (%esi), %edi
 ; X32-NEXT:    sete %al
 ; X32-NEXT:    retq
+;
+; EGPR-LABEL: test_enqcmds:
+; EGPR:       # %bb.0: # %entry
+; EGPR-NEXT:    enqcmds (%rsi), %rdi # EVEX TO LEGACY Compression encoding: [0xf3,0x0f,0x38,0xf8,0x3e]
+; EGPR-NEXT:    sete %al # encoding: [0x0f,0x94,0xc0]
+; EGPR-NEXT:    retq # encoding: [0xc3]
 entry:
 
 
-  %0 = call i8 @llvm.x86.enqcmds(i8* %dst, i8* %src)
+  %0 = call i8 @llvm.x86.enqcmds(ptr %dst, ptr %src)
   ret i8 %0
 }
 
-declare i8 @llvm.x86.enqcmd(i8*, i8*)
-declare i8 @llvm.x86.enqcmds(i8*, i8*)
+declare i8 @llvm.x86.enqcmd(ptr, ptr)
+declare i8 @llvm.x86.enqcmds(ptr, ptr)

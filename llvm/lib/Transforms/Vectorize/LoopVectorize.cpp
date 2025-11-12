@@ -7041,6 +7041,13 @@ VectorizationFactor LoopVectorizationPlanner::computeBestVF() {
   VectorizationFactor ScalarFactor(ScalarVF, ScalarCost, ScalarCost);
   VectorizationFactor BestFactor = ScalarFactor;
 
+  // Cost analysis output (always enabled for research)
+  llvm::errs() << "\n=== VECTORIZATION COST ANALYSIS ===\n";
+  llvm::errs() << "Function: " << CM.TheFunction->getName() << "\n";
+  llvm::errs() << "Loop in: " << OrigLoop->getHeader()->getName() << "\n";
+  llvm::errs() << "Scalar Cost (VF=1): " << ScalarCost << "\n";
+  llvm::errs() << "-----------------------------------\n";
+
   bool ForceVectorization = Hints.getForce() == LoopVectorizeHints::FK_Enabled;
   if (ForceVectorization) {
     // Ignore scalar width, because the user explicitly wants vectorization.
@@ -7081,6 +7088,26 @@ VectorizationFactor LoopVectorizationPlanner::computeBestVF() {
 
       InstructionCost Cost = cost(*P, VF);
       VectorizationFactor CurrentFactor(VF, Cost, ScalarCost);
+
+      // Output cost for this VF
+      llvm::errs() << "VF: " << VF;
+      if (VF.isScalable())
+        llvm::errs() << " (scalable/SVE)";
+      else
+        llvm::errs() << " (fixed/NEON)";
+      llvm::errs() << " | Cost: " << Cost;
+      llvm::errs() << " | Scalar Cost: " << ScalarCost;
+      if (Cost.isValid() && Cost.getValue()) {
+        unsigned EstWidth = VF.getKnownMinValue();
+        if (VF.isScalable()) {
+          if (auto VScale = CM.TTI.getVScaleForTuning())
+            EstWidth *= *VScale;
+        }
+        if (EstWidth > 0) {
+          llvm::errs() << " | Cost-per-element: " << (Cost.getValue() / EstWidth);
+        }
+      }
+      llvm::errs() << "\n";
 
       if (CM.shouldConsiderRegPressureForVF(VF) &&
           RUs[I].exceedsMaxNumRegs(TTI, ForceTargetNumVectorRegs)) {
@@ -7127,6 +7154,18 @@ VectorizationFactor LoopVectorizationPlanner::computeBestVF() {
   assert((BestFactor.Width.isScalar() || BestFactor.ScalarCost > 0) &&
          "when vectorizing, the scalar cost must be computed.");
 #endif
+
+  // Output final selection
+  llvm::errs() << "===================================\n";
+  llvm::errs() << "SELECTED: VF=" << BestFactor.Width;
+  if (BestFactor.Width.isScalable())
+    llvm::errs() << " (Scalable/SVE)";
+  else if (BestFactor.Width.isVector())
+    llvm::errs() << " (Fixed/NEON)";
+  else
+    llvm::errs() << " (Scalar)";
+  llvm::errs() << " | Final Cost: " << BestFactor.Cost << "\n";
+  llvm::errs() << "===================================\n\n";
 
   LLVM_DEBUG(dbgs() << "LV: Selecting VF: " << BestFactor.Width << ".\n");
   return BestFactor;

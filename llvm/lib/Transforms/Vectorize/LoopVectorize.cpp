@@ -9917,6 +9917,11 @@ bool LoopVectorizePass::processLoop(Loop *L) {
   VectorizationFactor VF = LVP.computeBestVF();
   unsigned IC = 1;
 
+  // Track if this loop selected a scalable VF for cleanup in runImpl()
+  if (VF.Width.isScalable()) {
+    AnyLoopSelectedScalable = true;
+  }
+
   if (ORE->allowExtraAnalysis(LV_NAME))
     LVP.emitInvalidCostRemarks(ORE);
 
@@ -10143,6 +10148,26 @@ bool LoopVectorizePass::processLoop(Loop *L) {
 }
 
 LoopVectorizeResult LoopVectorizePass::runImpl(Function &F) {
+  // For AArch64 SME targets, add dual attributes to enable both NEON and SSVE
+  // cost evaluation simultaneously during vectorization.
+  bool NeedsNotification = false;
+  if (F.getParent()->getTargetTriple().isAArch64()) {
+    if (!F.hasFnAttribute("aarch64_pstate_sm_enabled")) {
+      F.addFnAttr("aarch64_pstate_sm_enabled");
+      AddedStreamingAttr = true;
+      NeedsNotification = true;
+    }
+    if (!F.hasFnAttribute("aarch64_pstate_sm_vectorization")) {
+      F.addFnAttr("aarch64_pstate_sm_vectorization");
+      AddedVectorizerAttr = true;
+      NeedsNotification = true;
+    }
+  }
+
+  // Notify TTI to refresh its cached Subtarget if we added attributes
+  if (NeedsNotification) {
+    TTI->notifyFunctionAttributesChanged();
+  }
 
   // Don't attempt if
   // 1. the target claims to have no vector registers, and
@@ -10194,6 +10219,24 @@ LoopVectorizeResult LoopVectorizePass::runImpl(Function &F) {
         SE->verify();
 #endif
     }
+  }
+
+  // Clean up dual attributes added for AArch64 SME cost comparison
+  // This is done after ALL loops in the function have been processed
+  bool RemovedAttributes = false;
+  if (AddedVectorizerAttr) {
+    F.removeFnAttr("aarch64_pstate_sm_vectorization");
+    RemovedAttributes = true;
+  }
+  // Only keep streaming attribute if any loop selected scalable vectorization
+  if (AddedStreamingAttr && !AnyLoopSelectedScalable) {
+    F.removeFnAttr("aarch64_pstate_sm_enabled");
+    RemovedAttributes = true;
+  }
+
+  // Notify TTI to refresh after removing attributes
+  if (RemovedAttributes && F.getParent()->getTargetTriple().isAArch64()) {
+    TTI->notifyFunctionAttributesChanged();
   }
 
   // Process each loop nest in the function.

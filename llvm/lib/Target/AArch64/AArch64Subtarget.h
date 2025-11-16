@@ -84,6 +84,7 @@ protected:
   bool IsLittle;
 
   bool IsStreaming;
+  bool InLoopVectorizer;
   bool IsStreamingCompatible;
   std::optional<unsigned> StreamingHazardSize;
   unsigned MinSVEVectorSizeInBits;
@@ -128,7 +129,7 @@ public:
                    unsigned MinSVEVectorSizeInBitsOverride = 0,
                    unsigned MaxSVEVectorSizeInBitsOverride = 0,
                    bool IsStreaming = false, bool IsStreamingCompatible = false,
-                   bool HasMinSize = false);
+                   bool InLoopVectorizer = false, bool HasMinSize = false);
 
 // Getters for SubtargetFeatures defined in tablegen
 #define GET_SUBTARGETINFO_MACRO(ATTRIBUTE, DEFAULT, GETTER)                    \
@@ -174,6 +175,9 @@ public:
   /// Returns true if the function has a streaming body.
   bool isStreaming() const { return IsStreaming; }
 
+  /// Returns true if the function is in the loop vectorizer.
+  bool isInLoopVectorizer() const { return InLoopVectorizer; }
+
   /// Returns true if the function has a streaming-compatible body.
   bool isStreamingCompatible() const { return IsStreamingCompatible; }
 
@@ -187,9 +191,10 @@ public:
   /// Returns true if the target has NEON and the function at runtime is known
   /// to have NEON enabled (e.g. the function is known not to be in streaming-SVE
   /// mode, which disables NEON instructions).
+  // In loop vectorizer, we allow NEON instructions to be used.
   bool isNeonAvailable() const {
     return hasNEON() &&
-           (hasSMEFA64() || (!isStreaming() && !isStreamingCompatible()));
+           (hasSMEFA64() || (!isStreaming() && !isStreamingCompatible()) || isInLoopVectorizer());
   }
 
   /// Returns true if the target has SVE and can use the full range of SVE

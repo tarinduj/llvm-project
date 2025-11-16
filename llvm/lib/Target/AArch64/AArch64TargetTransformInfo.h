@@ -45,8 +45,10 @@ class AArch64TTIImpl final : public BasicTTIImplBase<AArch64TTIImpl> {
 
   friend BaseT;
 
-  const AArch64Subtarget *ST;
-  const AArch64TargetLowering *TLI;
+  const AArch64TargetMachine *TM;
+  const Function *CachedFunction;
+  mutable const AArch64Subtarget *ST;
+  mutable const AArch64TargetLowering *TLI;
 
   static const FeatureBitset InlineInverseFeatures;
 
@@ -77,8 +79,8 @@ class AArch64TTIImpl final : public BasicTTIImplBase<AArch64TTIImpl> {
 
 public:
   explicit AArch64TTIImpl(const AArch64TargetMachine *TM, const Function &F)
-      : BaseT(TM, F.getDataLayout()), ST(TM->getSubtargetImpl(F)),
-        TLI(ST->getTargetLowering()) {}
+      : BaseT(TM, F.getDataLayout()), TM(TM), CachedFunction(&F),
+        ST(TM->getSubtargetImpl(F)), TLI(ST->getTargetLowering()) {}
 
   bool areInlineCompatible(const Function *Caller,
                            const Function *Callee) const override;
@@ -92,6 +94,8 @@ public:
   APInt getFeatureMask(const Function &F) const override;
 
   bool isMultiversionedFunction(const Function &F) const override;
+
+  void notifyFunctionAttributesChanged() const override;
 
   /// \name Scalar TTI Implementations
   /// @{

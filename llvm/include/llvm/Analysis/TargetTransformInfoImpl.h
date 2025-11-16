@@ -1155,6 +1155,12 @@ public:
 
   virtual bool allowVectorElementIndexingUsingGEP() const { return true; }
 
+  /// Notify the TTI that function attributes have changed and it should
+  /// refresh any cached state based on function attributes (like Subtarget).
+  /// The default implementation does nothing (most targets don't cache
+  /// function-specific state in TTI).
+  virtual void notifyFunctionAttributesChanged() const {}
+
 protected:
   // Obtain the minimum required size to hold the value (without the sign)
   // In case of a vector it returns the min required size for one element.

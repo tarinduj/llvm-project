@@ -421,6 +421,7 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
   bool IsStreaming = ForceStreaming ||
                      F.hasFnAttribute("aarch64_pstate_sm_enabled") ||
                      F.hasFnAttribute("aarch64_pstate_sm_body");
+  bool InLoopVectorizer = F.hasFnAttribute("aarch64_pstate_sm_vectorization");
   bool IsStreamingCompatible = ForceStreamingCompatible ||
                                F.hasFnAttribute("aarch64_pstate_sm_compatible");
 
@@ -452,6 +453,7 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
   raw_svector_ostream(Key) << "SVEMin" << MinSVEVectorSize << "SVEMax"
                            << MaxSVEVectorSize << "IsStreaming=" << IsStreaming
                            << "IsStreamingCompatible=" << IsStreamingCompatible
+                           << "InLoopVectorizer=" << InLoopVectorizer
                            << CPU << TuneCPU << FS
                            << "HasMinSize=" << HasMinSize;
 
@@ -463,7 +465,8 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
     resetTargetOptions(F);
     I = std::make_unique<AArch64Subtarget>(
         TargetTriple, CPU, TuneCPU, FS, *this, isLittle, MinSVEVectorSize,
-        MaxSVEVectorSize, IsStreaming, IsStreamingCompatible, HasMinSize);
+        MaxSVEVectorSize, IsStreaming, IsStreamingCompatible,
+        InLoopVectorizer, HasMinSize);
   }
 
   if (IsStreaming && !I->hasSME())

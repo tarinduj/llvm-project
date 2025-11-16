@@ -261,6 +261,14 @@ bool AArch64TTIImpl::isMultiversionedFunction(const Function &F) const {
   return F.hasFnAttribute("fmv-features");
 }
 
+void AArch64TTIImpl::notifyFunctionAttributesChanged() const {
+  // Refresh cached Subtarget and TargetLowering when function attributes change.
+  // This is necessary because function attributes like aarch64_pstate_sm_enabled
+  // can be modified during compilation (e.g., by LoopVectorize for cost comparison).
+  ST = TM->getSubtargetImpl(*CachedFunction);
+  TLI = ST->getTargetLowering();
+}
+
 const FeatureBitset AArch64TTIImpl::InlineInverseFeatures = {
     AArch64::FeatureExecuteOnly,
 };
@@ -2979,8 +2987,9 @@ std::optional<Value *> AArch64TTIImpl::simplifyDemandedVectorEltsIntrinsic(
 }
 
 bool AArch64TTIImpl::enableScalableVectorization() const {
-  return ST->isSVEAvailable() || (ST->isSVEorStreamingSVEAvailable() &&
-                                  EnableScalableAutovecInStreamingMode);
+  return ST->isSVEAvailable() ||
+         (ST->isSVEorStreamingSVEAvailable() &&
+          (EnableScalableAutovecInStreamingMode || ST->isInLoopVectorizer()));
 }
 
 TypeSize

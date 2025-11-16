@@ -138,6 +138,11 @@ private:
   /// If true, only loops that explicitly request vectorization are considered.
   bool VectorizeOnlyWhenForced;
 
+  /// Track whether we added dual attributes for AArch64 SME cost comparison
+  bool AddedStreamingAttr = false;
+  bool AddedVectorizerAttr = false;
+  bool AnyLoopSelectedScalable = false;
+
 public:
   LLVM_ABI LoopVectorizePass(LoopVectorizeOptions Opts = {});
 

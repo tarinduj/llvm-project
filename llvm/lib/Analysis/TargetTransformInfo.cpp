@@ -677,6 +677,10 @@ bool TargetTransformInfo::enableInterleavedAccessVectorization() const {
   return TTIImpl->enableInterleavedAccessVectorization();
 }
 
+void TargetTransformInfo::notifyFunctionAttributesChanged() const {
+  return TTIImpl->notifyFunctionAttributesChanged();
+}
+
 bool TargetTransformInfo::enableMaskedInterleavedAccessVectorization() const {
   return TTIImpl->enableMaskedInterleavedAccessVectorization();
 }

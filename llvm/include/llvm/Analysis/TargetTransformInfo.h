@@ -1045,6 +1045,12 @@ public:
   /// Enable matching of interleaved access groups.
   LLVM_ABI bool enableInterleavedAccessVectorization() const;
 
+  /// Notify the TTI that function attributes have changed and cached state
+  /// should refresh. Some TTI implementations cache state based on function
+  /// attributes (like Subtarget) and need to refresh when attributes are
+  /// modified during compilation.
+  LLVM_ABI void notifyFunctionAttributesChanged() const;
+
   /// Enable matching of interleaved access groups that contain predicated
   /// accesses or gaps and therefore vectorized using masked
   /// vector loads/stores.

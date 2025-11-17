@@ -3899,6 +3899,16 @@ bool LoopVectorizationPlanner::isMoreProfitable(const VectorizationFactor &A,
 void LoopVectorizationPlanner::emitInvalidCostRemarks(
     OptimizationRemarkEmitter *ORE) {
   using RecipeVFPair = std::pair<VPRecipeBase *, ElementCount>;
+
+  // Prototype hack: skip detailed per-recipe invalid-cost analysis entirely for
+  // loops that have scalable VFs. Some recipes do not yet provide valid costs
+  // under all scalable configurations, and trying to report them here can
+  // trigger crashes. We still print the aggregate cost table elsewhere.
+  for (const auto &Plan : VPlans)
+    for (ElementCount VF : Plan->vectorFactors())
+      if (VF.isScalable())
+        return;
+
   SmallVector<RecipeVFPair> InvalidCosts;
   for (const auto &Plan : VPlans) {
     for (ElementCount VF : Plan->vectorFactors()) {

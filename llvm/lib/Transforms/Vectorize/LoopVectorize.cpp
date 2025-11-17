@@ -294,6 +294,8 @@ static cl::opt<bool> ForceTargetSupportsScalableVectors(
         "Pretend that scalable vectors are supported, even if the target does "
         "not support them. This flag should only be used for testing."));
 
+static constexpr unsigned SVEAdditiveCost = 30;
+
 static cl::opt<unsigned> SmallLoopCost(
     "small-loop-cost", cl::init(20), cl::Hidden,
     cl::desc(
@@ -6882,6 +6884,11 @@ InstructionCost LoopVectorizationPlanner::cost(VPlan &Plan,
 
   // Now compute and add the VPlan-based cost.
   Cost += Plan.cost(VF, CostCtx);
+
+  // Add fixed additive cost for SVE (scalable) VFs
+  if (VF.isScalable() && SVEAdditiveCost > 0)
+    Cost += InstructionCost(SVEAdditiveCost);
+
 #ifndef NDEBUG
   unsigned EstimatedWidth = estimateElementCount(VF, CM.getVScaleForTuning());
   LLVM_DEBUG(dbgs() << "Cost for VF " << VF << ": " << Cost
@@ -7106,7 +7113,7 @@ VectorizationFactor LoopVectorizationPlanner::computeBestVF() {
         if (EstWidth > 0) {
           llvm::errs() << " | Cost-per-element: " << (Cost.getValue() / EstWidth);
         }
-      }
+      } 
       llvm::errs() << "\n";
 
       if (CM.shouldConsiderRegPressureForVF(VF) &&

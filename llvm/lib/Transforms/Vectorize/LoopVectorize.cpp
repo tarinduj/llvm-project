@@ -132,6 +132,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/InstructionCost.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/NativeFormatting.h"
 #include "llvm/Support/raw_ostream.h"
@@ -304,6 +305,11 @@ static cl::opt<bool> LoopVectorizeWithBlockFrequency(
     cl::desc("Enable the use of the block frequency analysis to access PGO "
              "heuristics minimizing code growth in cold regions and being more "
              "aggressive in hot regions."));
+
+static cl::opt<std::string> VectorizationFeatureOutput(
+    "loop-vectorize-feature-output", cl::init(""), cl::Hidden,
+    cl::desc("Output file for loop vectorization features (JSON format). "
+             "Features are grouped by function name for ML analysis."));
 
 // Runtime interleave loops for load/store throughput.
 static cl::opt<bool> EnableLoadStoreRuntimeInterleave(
@@ -831,6 +837,173 @@ static void reportVectorization(OptimizationRemarkEmitter *ORE, Loop *TheLoop,
 }
 
 } // end namespace llvm
+
+/// Helper class for extracting and serializing loop vectorization features
+/// for machine learning analysis. Features are grouped by function name.
+class LoopVectorizationFeatureExtractor {
+private:
+  std::map<std::string, std::vector<json::Object>> FunctionLoops;
+
+public:
+  /// Extract features for a single loop and store in memory
+  void extractLoopFeatures(Loop *L, ScalarEvolution *SE,
+                          LoopVectorizationLegality &LVL,
+                          LoopVectorizationCostModel &CM,
+                          TargetTransformInfo *TTI,
+                          VectorizationFactor VF,
+                          unsigned IC, bool Vectorized) {
+    StringRef FunctionName = L->getHeader()->getParent()->getName();
+
+    json::Object LoopFeatures;
+
+    // 1. Loop identification
+    LoopFeatures["location"] = L->getLocStr();
+    LoopFeatures["loop_depth"] = static_cast<int64_t>(L->getLoopDepth());
+    LoopFeatures["num_blocks"] = static_cast<int64_t>(L->getNumBlocks());
+
+    // 2. Trip count
+    json::Object TripCount;
+    unsigned SmallTC = SE->getSmallConstantTripCount(L);
+    TripCount["is_constant"] = SmallTC > 0;
+    if (SmallTC > 0) {
+      TripCount["value"] = static_cast<int64_t>(SmallTC);
+    }
+    LoopFeatures["trip_count"] = std::move(   );
+
+    // 3. Vectorization decision
+    json::Object VecDecision;
+    VecDecision["vectorized"] = Vectorized;
+
+    json::Object ChosenVF;
+    ChosenVF["width"] = static_cast<int64_t>(VF.Width.getKnownMinValue());
+    ChosenVF["is_scalable"] = VF.Width.isScalable();
+    VecDecision["chosen_vf"] = std::move(ChosenVF);
+
+    // Handle InstructionCost serialization
+    if (VF.Cost.isValid()) {
+      VecDecision["cost_vector"] = static_cast<int64_t>(VF.Cost.getValue());
+    }
+    if (VF.ScalarCost.isValid()) {
+      VecDecision["cost_scalar"] = static_cast<int64_t>(VF.ScalarCost.getValue());
+    }
+    VecDecision["interleave_count"] = static_cast<int64_t>(IC);
+    LoopFeatures["vectorization_decision"] = std::move(VecDecision);
+
+    // 4. Induction variables
+    json::Object Inductions;
+    const auto &IndVars = LVL.getInductionVars();
+    Inductions["count"] = static_cast<int64_t>(IndVars.size());
+    Inductions["has_primary"] = LVL.getPrimaryInduction() != nullptr;
+
+    json::Array IndTypes;
+    for (const auto &[Phi, IndDesc] : IndVars) {
+      switch (IndDesc.getKind()) {
+        case InductionDescriptor::IK_IntInduction:
+          IndTypes.push_back("IntInduction"); break;
+        case InductionDescriptor::IK_PtrInduction:
+          IndTypes.push_back("PtrInduction"); break;
+        case InductionDescriptor::IK_FpInduction:
+          IndTypes.push_back("FpInduction"); break;
+        default:
+          IndTypes.push_back("Unknown"); break;
+      }
+    }
+    Inductions["types"] = std::move(IndTypes);
+    LoopFeatures["inductions"] = std::move(Inductions);
+
+    // 5. Reductions
+    json::Object Reductions;
+    const auto &RedVars = LVL.getReductionVars();
+    Reductions["count"] = static_cast<int64_t>(RedVars.size());
+
+    json::Array RedKinds;
+    json::Array RedOrdered;
+    for (const auto &[Phi, RdxDesc] : RedVars) {
+      RedKinds.push_back(getRecurKindName(RdxDesc.getRecurrenceKind()));
+      RedOrdered.push_back(RdxDesc.isOrdered());
+    }
+    Reductions["kinds"] = std::move(RedKinds);
+    Reductions["ordered"] = std::move(RedOrdered);
+    LoopFeatures["reductions"] = std::move(Reductions);
+
+    // 6. Memory patterns
+    json::Object Memory;
+    const LoopAccessInfo *LAI = LVL.getLAI();
+    Memory["num_loads"] = static_cast<int64_t>(LAI->getNumLoads());
+    Memory["num_stores"] = static_cast<int64_t>(LAI->getNumStores());
+    Memory["safe_for_any_width"] = LVL.isSafeForAnyVectorWidth();
+    Memory["max_safe_width_bits"] = static_cast<int64_t>(LVL.getMaxSafeVectorWidthInBits());
+
+    const auto &SymStrides = LAI->getSymbolicStrides();
+    Memory["num_symbolic_strides"] = static_cast<int64_t>(SymStrides.size());
+    LoopFeatures["memory"] = std::move(Memory);
+
+    // 7. Target features
+    json::Object Target;
+    Target["supports_scalable"] = TTI->supportsScalableVectors();
+    // Note: Can't access CM.getVScaleForTuning() due to forward declaration limitation
+    Target["prefer_fixed"] = TTI->preferFixedOverScalableIfEqualCost(false);
+    LoopFeatures["target"] = std::move(Target);
+
+    // Add to function's loop list
+    FunctionLoops[FunctionName.str()].push_back(std::move(LoopFeatures));
+  }
+
+  /// Write accumulated features to JSON file
+  void writeToFile(StringRef Filename) {
+    std::error_code EC;
+    raw_fd_ostream OS(Filename, EC);
+    if (EC) {
+      errs() << "Error opening feature output file: " << EC.message() << "\n";
+      return;
+    }
+
+    json::Object Root;
+    json::Object Functions;
+
+    for (const auto &[FuncName, Loops] : FunctionLoops) {
+      json::Object FuncData;
+      json::Array LoopArray;
+      for (const auto &Loop : Loops) {
+        // Need to copy the Object into a Value
+        json::Object LoopCopy = Loop;
+        LoopArray.push_back(json::Value(std::move(LoopCopy)));
+      }
+      FuncData["loops"] = std::move(LoopArray);
+      Functions[FuncName] = std::move(FuncData);
+    }
+
+    Root["functions"] = std::move(Functions);
+
+    OS << formatv("{0:2}", json::Value(std::move(Root))) << "\n";
+  }
+
+private:
+  /// Convert RecurKind enum to string
+  static const char* getRecurKindName(RecurKind Kind) {
+    switch (Kind) {
+      case RecurKind::Add: return "Add";
+      case RecurKind::Mul: return "Mul";
+      case RecurKind::Or: return "Or";
+      case RecurKind::And: return "And";
+      case RecurKind::Xor: return "Xor";
+      case RecurKind::SMin: return "SMin";
+      case RecurKind::SMax: return "SMax";
+      case RecurKind::UMin: return "UMin";
+      case RecurKind::UMax: return "UMax";
+      case RecurKind::FAdd: return "FAdd";
+      case RecurKind::FMul: return "FMul";
+      case RecurKind::FMin: return "FMin";
+      case RecurKind::FMax: return "FMax";
+      case RecurKind::FMinimum: return "FMinimum";
+      case RecurKind::FMaximum: return "FMaximum";
+      default: return "Other";
+    }
+  }
+};
+
+/// Global feature extractor instance
+static std::unique_ptr<LoopVectorizationFeatureExtractor> GlobalFeatureExtractor;
 
 namespace llvm {
 
@@ -9878,6 +10051,12 @@ bool LoopVectorizePass::processLoop(Loop *L) {
   VectorizationFactor VF = LVP.computeBestVF();
   unsigned IC = 1;
 
+  // Extract features for ML analysis if enabled
+  if (GlobalFeatureExtractor) {
+    bool WillVectorize = VF.Width.isVector();
+    GlobalFeatureExtractor->extractLoopFeatures(L, SE, LVL, CM, TTI, VF, IC, WillVectorize);
+  }
+
   if (ORE->allowExtraAnalysis(LV_NAME))
     LVP.emitInvalidCostRemarks(ORE);
 
@@ -10163,6 +10342,22 @@ LoopVectorizeResult LoopVectorizePass::runImpl(Function &F) {
 
 PreservedAnalyses LoopVectorizePass::run(Function &F,
                                          FunctionAnalysisManager &AM) {
+  // Initialize feature extractor on first use if output file is specified
+  if (!VectorizationFeatureOutput.empty() && !GlobalFeatureExtractor) {
+    GlobalFeatureExtractor = std::make_unique<LoopVectorizationFeatureExtractor>();
+    // Register cleanup handler to write features on exit
+    static bool RegisteredCleanup = false;
+    if (!RegisteredCleanup) {
+      std::atexit([]() {
+        if (GlobalFeatureExtractor) {
+          GlobalFeatureExtractor->writeToFile(VectorizationFeatureOutput);
+          GlobalFeatureExtractor.reset();
+        }
+      });
+      RegisteredCleanup = true;
+    }
+  }
+
   LI = &AM.getResult<LoopAnalysis>(F);
   // There are no loops in the function. Return before computing other
   // expensive analyses.

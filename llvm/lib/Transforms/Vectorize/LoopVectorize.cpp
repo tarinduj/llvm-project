@@ -311,6 +311,11 @@ static cl::opt<std::string> VectorizationFeatureOutput(
     cl::desc("Output file for loop vectorization features (JSON format). "
              "Features are grouped by function name for ML analysis."));
 
+static cl::opt<bool> ExtendedFeatureOutput(
+    "loop-vectorize-extended-features", cl::init(false), cl::Hidden,
+    cl::desc("Include extended features (strides, deps, compute intensity) in JSON output. "
+             "When enabled, output filename will have '_extended' suffix."));
+
 // Runtime interleave loops for load/store throughput.
 static cl::opt<bool> EnableLoadStoreRuntimeInterleave(
     "enable-loadstore-runtime-interleave", cl::init(true), cl::Hidden,
@@ -838,6 +843,10 @@ static void reportVectorization(OptimizationRemarkEmitter *ORE, Loop *TheLoop,
 
 } // end namespace llvm
 
+//===----------------------------------------------------------------------===//
+// Extended Feature Extraction Helpers
+//===----------------------------------------------------------------------===//
+
 /// Helper class for extracting and serializing loop vectorization features
 /// for machine learning analysis. Features are grouped by function name.
 class LoopVectorizationFeatureExtractor {
@@ -851,7 +860,9 @@ public:
                           LoopVectorizationCostModel &CM,
                           TargetTransformInfo *TTI,
                           VectorizationFactor VF,
-                          unsigned IC, bool Vectorized) {
+                          unsigned IC, bool Vectorized,
+                          PredicatedScalarEvolution *PSE = nullptr,
+                          const DataLayout *DL = nullptr) {
     StringRef FunctionName = L->getHeader()->getParent()->getName();
 
     json::Object LoopFeatures;
@@ -868,7 +879,7 @@ public:
     if (SmallTC > 0) {
       TripCount["value"] = static_cast<int64_t>(SmallTC);
     }
-    LoopFeatures["trip_count"] = std::move(   );
+    LoopFeatures["trip_count"] = std::move(TripCount);
 
     // 3. Vectorization decision
     json::Object VecDecision;
@@ -945,14 +956,55 @@ public:
     Target["prefer_fixed"] = TTI->preferFixedOverScalableIfEqualCost(false);
     LoopFeatures["target"] = std::move(Target);
 
+    // === EXTENDED FEATURES (guarded by flag) ===
+    if (ExtendedFeatureOutput && PSE && DL) {
+      // 8. Per-access stride information and summary
+      auto AccessInfo = extractAccessInfo(LAI, *PSE, L, *DL);
+      if (auto *Accesses = AccessInfo.getArray("accesses"))
+        LoopFeatures["accesses"] = std::move(*Accesses);
+      if (auto *Summary = AccessInfo.getObject("stride_summary"))
+        LoopFeatures["stride_summary"] = std::move(*Summary);
+
+      // 9. Loop-carried dependency analysis
+      LoopFeatures["dependencies"] = extractDependencyInfo(LAI);
+
+      // 10. Compute intensity
+      LoopFeatures["compute_intensity"] = extractComputeIntensity(L);
+
+      // 11. Nested loop structure
+      LoopFeatures["nested_loop_info"] = extractNestedLoopInfo(L, SE);
+
+      // 12. Loop bounds (loop start offsets)
+      LoopFeatures["loop_bounds"] = extractLoopBoundsInfo(L, SE);
+
+      // 13. Recurrence/dependency patterns
+      LoopFeatures["recurrence_info"] = extractRecurrenceInfo(LAI, *PSE, L);
+
+      // 14. Access pattern info (1D vs 2D, index usage)
+      LoopFeatures["access_pattern"] = extractAccessPatternInfo(LAI, *PSE, L, *DL);
+
+      // 15. Arithmetic pattern classification
+      LoopFeatures["arithmetic_pattern"] = extractArithmeticPattern(L);
+    }
+
     // Add to function's loop list
     FunctionLoops[FunctionName.str()].push_back(std::move(LoopFeatures));
   }
 
   /// Write accumulated features to JSON file
   void writeToFile(StringRef Filename) {
+    // If extended features are enabled, append "_extended" before file extension
+    std::string OutputFilename = Filename.str();
+    if (ExtendedFeatureOutput) {
+      size_t DotPos = OutputFilename.rfind('.');
+      if (DotPos != std::string::npos)
+        OutputFilename.insert(DotPos, "_extended");
+      else
+        OutputFilename += "_extended";
+    }
+
     std::error_code EC;
-    raw_fd_ostream OS(Filename, EC);
+    raw_fd_ostream OS(OutputFilename, EC);
     if (EC) {
       errs() << "Error opening feature output file: " << EC.message() << "\n";
       return;
@@ -999,6 +1051,543 @@ private:
       case RecurKind::FMaximum: return "FMaximum";
       default: return "Other";
     }
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Extended Feature Extraction Methods
+  //===--------------------------------------------------------------------===//
+
+  /// Extract per-access stride information with base pointer grouping
+  json::Object extractAccessInfo(const LoopAccessInfo *LAI,
+                                  PredicatedScalarEvolution &PSE,
+                                  Loop *L, const DataLayout &DL) {
+    json::Object Result;
+    json::Array Accesses;
+    ScalarEvolution *SE = PSE.getSE();
+
+    // Map base pointer Value* to base_ptr_id (insertion order)
+    DenseMap<const Value*, int> BasePtrToId;
+    int NextBasePtrId = 0;
+
+    // Counters for stride summary
+    unsigned NumUnitStride = 0;
+    unsigned NumNonUnitStride = 0;
+    unsigned NumNonAffine = 0;
+    int64_t MaxStrideBytes = 0;
+    int64_t MinStrideBytes = INT64_MAX;
+
+    const auto &SymbolicStrides = LAI->getSymbolicStrides();
+    const MemoryDepChecker &DepChecker = LAI->getDepChecker();
+    const auto &MemInsts = DepChecker.getMemoryInstructions();
+
+    for (Instruction *I : MemInsts) {
+      json::Object AccessInfo;
+
+      // Determine load vs store
+      bool IsStore = isa<StoreInst>(I);
+      AccessInfo["type"] = IsStore ? "store" : "load";
+
+      // Get element type and size
+      Type *AccessTy = getLoadStoreType(I);
+      uint64_t ElementSizeBytes = DL.getTypeStoreSize(AccessTy);
+      AccessInfo["element_size_bytes"] = static_cast<int64_t>(ElementSizeBytes);
+
+      // Get pointer operand
+      Value *Ptr = getLoadStorePointerOperand(I);
+
+      // Get base pointer using SCEV
+      const SCEV *PtrSCEV = SE->getSCEV(Ptr);
+      const SCEV *BaseSCEV = SE->getPointerBase(PtrSCEV);
+      const Value *BasePtr = nullptr;
+      if (const SCEVUnknown *BaseUnknown = dyn_cast<SCEVUnknown>(BaseSCEV)) {
+        BasePtr = BaseUnknown->getValue();
+      }
+
+      // Assign base_ptr_id (insertion order)
+      int BasePtrId = -1;
+      if (BasePtr) {
+        auto It = BasePtrToId.find(BasePtr);
+        if (It != BasePtrToId.end()) {
+          BasePtrId = It->second;
+        } else {
+          BasePtrId = NextBasePtrId++;
+          BasePtrToId[BasePtr] = BasePtrId;
+        }
+      }
+      AccessInfo["base_ptr_id"] = static_cast<int64_t>(BasePtrId);
+
+      // Get stride using getPtrStride (returns stride in elements)
+      std::optional<int64_t> StrideOpt = getPtrStride(
+          PSE, AccessTy, Ptr, L, SymbolicStrides, /*Assume=*/false,
+          /*ShouldCheckWrap=*/false);
+
+      bool IsAffine = StrideOpt.has_value();
+      int64_t StrideElements = IsAffine ? *StrideOpt : 0;
+      int64_t StrideBytes = 0;
+
+      if (IsAffine) {
+        StrideBytes = std::abs(StrideElements) * static_cast<int64_t>(ElementSizeBytes);
+      } else {
+        ++NumNonAffine;
+      }
+
+      AccessInfo["stride_elements"] = StrideElements;
+      AccessInfo["stride_bytes"] = StrideBytes;
+      AccessInfo["is_affine"] = IsAffine;
+
+      // Update summary counters
+      if (IsAffine) {
+        if (StrideBytes == static_cast<int64_t>(ElementSizeBytes)) {
+          ++NumUnitStride;
+        } else {
+          ++NumNonUnitStride;
+        }
+
+        if (StrideBytes > 0) {
+          MaxStrideBytes = std::max(MaxStrideBytes, StrideBytes);
+          MinStrideBytes = std::min(MinStrideBytes, StrideBytes);
+        }
+      }
+
+      Accesses.push_back(std::move(AccessInfo));
+    }
+
+    Result["accesses"] = std::move(Accesses);
+
+    // Stride summary
+    json::Object StrideSummary;
+    StrideSummary["num_accesses"] = static_cast<int64_t>(MemInsts.size());
+    StrideSummary["num_unique_base_ptrs"] = static_cast<int64_t>(NextBasePtrId);
+    StrideSummary["num_unit_stride"] = static_cast<int64_t>(NumUnitStride);
+    StrideSummary["num_non_unit_stride"] = static_cast<int64_t>(NumNonUnitStride);
+    StrideSummary["has_non_affine"] = NumNonAffine > 0;
+
+    if (MinStrideBytes != INT64_MAX) {
+      StrideSummary["max_stride_bytes"] = MaxStrideBytes;
+      StrideSummary["min_stride_bytes"] = MinStrideBytes;
+    } else {
+      StrideSummary["max_stride_bytes"] = static_cast<int64_t>(0);
+      StrideSummary["min_stride_bytes"] = static_cast<int64_t>(0);
+    }
+
+    Result["stride_summary"] = std::move(StrideSummary);
+
+    return Result;
+  }
+
+  /// Extract loop-carried dependency information
+  json::Object extractDependencyInfo(const LoopAccessInfo *LAI) {
+    json::Object DepInfo;
+
+    const MemoryDepChecker &DepChecker = LAI->getDepChecker();
+    const auto *Deps = DepChecker.getDependences();
+
+    bool HasLoopCarriedDeps = false;
+    bool HasBackwardDeps = false;
+    bool HasForwardDeps = false;
+    bool HasUnknownDeps = false;
+    bool HasIndirectUnsafe = false;
+    unsigned NumDependences = 0;
+
+    if (Deps) {
+      NumDependences = Deps->size();
+
+      for (const auto &Dep : *Deps) {
+        switch (Dep.Type) {
+        case MemoryDepChecker::Dependence::Backward:
+        case MemoryDepChecker::Dependence::BackwardVectorizable:
+        case MemoryDepChecker::Dependence::BackwardVectorizableButPreventsForwarding:
+          HasBackwardDeps = true;
+          HasLoopCarriedDeps = true;
+          break;
+        case MemoryDepChecker::Dependence::Forward:
+        case MemoryDepChecker::Dependence::ForwardButPreventsForwarding:
+          HasForwardDeps = true;
+          break;
+        case MemoryDepChecker::Dependence::Unknown:
+          HasUnknownDeps = true;
+          HasLoopCarriedDeps = true; // Conservative assumption
+          break;
+        case MemoryDepChecker::Dependence::IndirectUnsafe:
+          HasIndirectUnsafe = true;
+          HasLoopCarriedDeps = true;
+          break;
+        case MemoryDepChecker::Dependence::NoDep:
+          break;
+        }
+      }
+    }
+
+    DepInfo["num_dependences"] = static_cast<int64_t>(NumDependences);
+    DepInfo["has_loop_carried_deps"] = HasLoopCarriedDeps;
+    DepInfo["has_backward_deps"] = HasBackwardDeps;
+    DepInfo["has_forward_deps"] = HasForwardDeps;
+    DepInfo["has_unknown_deps"] = HasUnknownDeps;
+    DepInfo["has_indirect_unsafe"] = HasIndirectUnsafe;
+
+    // Additional safety info from DepChecker
+    DepInfo["safe_for_vectorization"] = DepChecker.isSafeForVectorization();
+    DepInfo["safe_for_any_width"] = DepChecker.isSafeForAnyVectorWidth();
+
+    return DepInfo;
+  }
+
+  /// Extract compute/memory intensity information
+  json::Object extractComputeIntensity(Loop *L) {
+    json::Object ComputeInfo;
+
+    unsigned NumIntArithOps = 0;   // Add, Sub, Mul, Div, Rem, Shifts
+    unsigned NumFPArithOps = 0;    // FAdd, FSub, FMul, FDiv, FRem, FNeg
+    unsigned NumLogicOps = 0;      // And, Or, Xor
+    unsigned NumMemOps = 0;        // Load, Store
+    unsigned NumCompareOps = 0;    // ICmp, FCmp
+    unsigned NumConversionOps = 0; // Casts
+    unsigned NumCallOps = 0;       // Function calls
+    unsigned NumTotalOps = 0;
+
+    for (BasicBlock *BB : L->blocks()) {
+      for (Instruction &I : *BB) {
+        ++NumTotalOps;
+
+        switch (I.getOpcode()) {
+        // Integer arithmetic
+        case Instruction::Add:
+        case Instruction::Sub:
+        case Instruction::Mul:
+        case Instruction::UDiv:
+        case Instruction::SDiv:
+        case Instruction::URem:
+        case Instruction::SRem:
+        case Instruction::Shl:
+        case Instruction::LShr:
+        case Instruction::AShr:
+          ++NumIntArithOps;
+          break;
+
+        // FP arithmetic
+        case Instruction::FAdd:
+        case Instruction::FSub:
+        case Instruction::FMul:
+        case Instruction::FDiv:
+        case Instruction::FRem:
+        case Instruction::FNeg:
+          ++NumFPArithOps;
+          break;
+
+        // Logic
+        case Instruction::And:
+        case Instruction::Or:
+        case Instruction::Xor:
+          ++NumLogicOps;
+          break;
+
+        // Memory
+        case Instruction::Load:
+        case Instruction::Store:
+          ++NumMemOps;
+          break;
+
+        // Compare
+        case Instruction::ICmp:
+        case Instruction::FCmp:
+          ++NumCompareOps;
+          break;
+
+        // Casts
+        case Instruction::Trunc:
+        case Instruction::ZExt:
+        case Instruction::SExt:
+        case Instruction::FPTrunc:
+        case Instruction::FPExt:
+        case Instruction::UIToFP:
+        case Instruction::SIToFP:
+        case Instruction::FPToUI:
+        case Instruction::FPToSI:
+        case Instruction::IntToPtr:
+        case Instruction::PtrToInt:
+        case Instruction::BitCast:
+          ++NumConversionOps;
+          break;
+
+        // Calls
+        case Instruction::Call:
+          ++NumCallOps;
+          break;
+
+        default:
+          break;
+        }
+      }
+    }
+
+    unsigned TotalArithOps = NumIntArithOps + NumFPArithOps;
+    unsigned TotalComputeOps = TotalArithOps + NumLogicOps + NumCompareOps;
+
+    ComputeInfo["num_int_arith_ops"] = static_cast<int64_t>(NumIntArithOps);
+    ComputeInfo["num_fp_arith_ops"] = static_cast<int64_t>(NumFPArithOps);
+    ComputeInfo["num_logic_ops"] = static_cast<int64_t>(NumLogicOps);
+    ComputeInfo["num_memory_ops"] = static_cast<int64_t>(NumMemOps);
+    ComputeInfo["num_compare_ops"] = static_cast<int64_t>(NumCompareOps);
+    ComputeInfo["num_conversion_ops"] = static_cast<int64_t>(NumConversionOps);
+    ComputeInfo["num_call_ops"] = static_cast<int64_t>(NumCallOps);
+    ComputeInfo["num_total_ops"] = static_cast<int64_t>(NumTotalOps);
+
+    // Compute intensity ratio
+    double OpsPerMemory = 0.0;
+    if (NumMemOps > 0) {
+      OpsPerMemory =
+          static_cast<double>(TotalComputeOps) / static_cast<double>(NumMemOps);
+    }
+    ComputeInfo["ops_per_memory"] = OpsPerMemory;
+
+    return ComputeInfo;
+  }
+
+  /// Extract loop nesting structure information
+  json::Object extractNestedLoopInfo(Loop *L, ScalarEvolution *SE) {
+    json::Object NestInfo;
+
+    NestInfo["loop_depth"] = static_cast<int64_t>(L->getLoopDepth());
+    NestInfo["has_parent"] = (L->getParentLoop() != nullptr);
+    NestInfo["num_sub_loops"] =
+        static_cast<int64_t>(L->getSubLoops().size());
+
+    // Parent loop trip count (if this loop has a parent)
+    Loop *Parent = L->getParentLoop();
+    if (Parent) {
+      unsigned ParentTC = SE->getSmallConstantTripCount(Parent);
+      NestInfo["parent_trip_count"] = static_cast<int64_t>(ParentTC);
+      NestInfo["parent_trip_count_is_constant"] = ParentTC > 0;
+    }
+
+    return NestInfo;
+  }
+
+  /// Extract loop bounds information for this loop only
+  json::Object extractLoopBoundsInfo(Loop *L, ScalarEvolution *SE) {
+    json::Object BoundsInfo;
+
+    // Get loop bounds from SCEV
+    if (auto Bounds = L->getBounds(*SE)) {
+      // Initial value
+      if (const SCEVConstant *InitConst =
+              dyn_cast<SCEVConstant>(SE->getSCEV(&Bounds->getInitialIVValue()))) {
+        BoundsInfo["initial_iv_value"] =
+            InitConst->getAPInt().getSExtValue();
+      }
+      // Final value
+      if (const SCEVConstant *FinalConst =
+              dyn_cast<SCEVConstant>(SE->getSCEV(&Bounds->getFinalIVValue()))) {
+        BoundsInfo["final_iv_value"] =
+            FinalConst->getAPInt().getSExtValue();
+      }
+      // Step value
+      Value *StepVal = Bounds->getStepValue();
+      if (StepVal) {
+        const SCEV *StepSCEV = SE->getSCEV(StepVal);
+        if (const SCEVConstant *StepConst = dyn_cast<SCEVConstant>(StepSCEV)) {
+          BoundsInfo["step_value"] =
+              StepConst->getAPInt().getSExtValue();
+        }
+      }
+    }
+
+    return BoundsInfo;
+  }
+
+  /// Extract recurrence/dependency pattern information
+  json::Object extractRecurrenceInfo(const LoopAccessInfo *LAI,
+                                     PredicatedScalarEvolution &PSE, Loop *L) {
+    json::Object RecurrenceInfo;
+
+    const MemoryDepChecker &DepChecker = LAI->getDepChecker();
+    const auto *Deps = DepChecker.getDependences();
+
+    // Track recurrence patterns
+    bool HasRecurrence = false;
+    int64_t MinRecurrenceDistance = INT64_MAX;
+    int64_t MaxRecurrenceDistance = 0;
+    unsigned NumForwardDeps = 0;
+    unsigned NumBackwardDeps = 0;
+
+    if (Deps) {
+      for (const auto &Dep : *Deps) {
+        bool IsBackward = false;
+        bool IsForward = false;
+
+        switch (Dep.Type) {
+        case MemoryDepChecker::Dependence::Backward:
+        case MemoryDepChecker::Dependence::BackwardVectorizable:
+        case MemoryDepChecker::Dependence::BackwardVectorizableButPreventsForwarding:
+          IsBackward = true;
+          HasRecurrence = true;
+          ++NumBackwardDeps;
+          break;
+        case MemoryDepChecker::Dependence::Forward:
+        case MemoryDepChecker::Dependence::ForwardButPreventsForwarding:
+          IsForward = true;
+          ++NumForwardDeps;
+          break;
+        default:
+          break;
+        }
+
+        // Try to extract dependence distance from the source/dest instructions
+        if (IsBackward || IsForward) {
+          Instruction *Src = Dep.getSource(DepChecker);
+          Instruction *Dst = Dep.getDestination(DepChecker);
+
+          if (Src && Dst) {
+            Value *SrcPtr = getLoadStorePointerOperand(Src);
+            Value *DstPtr = getLoadStorePointerOperand(Dst);
+
+            if (SrcPtr && DstPtr) {
+              const SCEV *SrcSCEV = PSE.getSCEV(SrcPtr);
+              const SCEV *DstSCEV = PSE.getSCEV(DstPtr);
+
+              // Compute difference
+              const SCEV *Diff = PSE.getSE()->getMinusSCEV(DstSCEV, SrcSCEV);
+              if (const SCEVConstant *DiffConst =
+                      dyn_cast<SCEVConstant>(Diff)) {
+                int64_t Distance = DiffConst->getAPInt().getSExtValue();
+                if (Distance != 0) {
+                  MinRecurrenceDistance =
+                      std::min(MinRecurrenceDistance, std::abs(Distance));
+                  MaxRecurrenceDistance =
+                      std::max(MaxRecurrenceDistance, std::abs(Distance));
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    RecurrenceInfo["has_recurrence"] = HasRecurrence;
+    RecurrenceInfo["num_forward_deps"] = static_cast<int64_t>(NumForwardDeps);
+    RecurrenceInfo["num_backward_deps"] = static_cast<int64_t>(NumBackwardDeps);
+
+    if (HasRecurrence && MinRecurrenceDistance != INT64_MAX) {
+      RecurrenceInfo["min_recurrence_distance"] = MinRecurrenceDistance;
+      RecurrenceInfo["max_recurrence_distance"] = MaxRecurrenceDistance;
+    }
+
+    return RecurrenceInfo;
+  }
+
+  /// Extract access pattern info based on SCEV AddRec nesting depth
+  json::Object extractAccessPatternInfo(const LoopAccessInfo *LAI,
+                                        PredicatedScalarEvolution &PSE,
+                                        Loop *L, const DataLayout &DL) {
+    json::Object PatternInfo;
+
+    const MemoryDepChecker &DepChecker = LAI->getDepChecker();
+    const auto &MemInsts = DepChecker.getMemoryInstructions();
+    ScalarEvolution *SE = PSE.getSE();
+
+    SmallPtrSet<const Value *, 8> BasePointers;
+
+    // Count how many AddRecExpr levels each access has.
+    // Depth 1 = pointer depends on one loop, depth 2 = two loops, etc.
+    unsigned MaxAddRecDepth = 0;
+    unsigned MinAddRecDepth = UINT_MAX;
+    unsigned NumAccesses = 0;
+    unsigned TotalAddRecDepth = 0;
+
+    for (Instruction *I : MemInsts) {
+      Value *Ptr = getLoadStorePointerOperand(I);
+      if (!Ptr)
+        continue;
+
+      const SCEV *PtrSCEV = SE->getSCEV(Ptr);
+
+      // Identify base pointer
+      const SCEV *Base = SE->getPointerBase(PtrSCEV);
+      if (const SCEVUnknown *BaseUnknown = dyn_cast<SCEVUnknown>(Base)) {
+        BasePointers.insert(BaseUnknown->getValue());
+      }
+
+      // Count AddRecExpr nesting depth
+      unsigned Depth = 0;
+      const SCEV *Current = PtrSCEV;
+      while (const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(Current)) {
+        ++Depth;
+        Current = AR->getStart();
+      }
+
+      if (Depth > 0) {
+        MaxAddRecDepth = std::max(MaxAddRecDepth, Depth);
+        MinAddRecDepth = std::min(MinAddRecDepth, Depth);
+        TotalAddRecDepth += Depth;
+        ++NumAccesses;
+      }
+    }
+
+    PatternInfo["num_unique_arrays"] =
+        static_cast<int64_t>(BasePointers.size());
+    PatternInfo["max_addrec_depth"] = static_cast<int64_t>(MaxAddRecDepth);
+    PatternInfo["min_addrec_depth"] =
+        static_cast<int64_t>(MinAddRecDepth == UINT_MAX ? 0 : MinAddRecDepth);
+    PatternInfo["has_mixed_depth"] = (MaxAddRecDepth != MinAddRecDepth) &&
+                                      (MinAddRecDepth != UINT_MAX);
+
+    return PatternInfo;
+  }
+
+  /// Classify arithmetic operations in the loop
+  json::Object extractArithmeticPattern(Loop *L) {
+    json::Object ArithInfo;
+
+    unsigned NumAdd = 0, NumSub = 0, NumMul = 0, NumDiv = 0;
+    unsigned NumFMA = 0;  // Fused multiply-add pattern
+    bool HasMultiplyAdd = false;
+
+    for (BasicBlock *BB : L->blocks()) {
+      for (Instruction &I : *BB) {
+        switch (I.getOpcode()) {
+        case Instruction::FAdd:
+        case Instruction::Add:
+          ++NumAdd;
+          // Check for FMA pattern: fadd(fmul(a, b), c)
+          if (auto *BinOp = dyn_cast<BinaryOperator>(&I)) {
+            for (Use &U : BinOp->operands()) {
+              if (auto *MulOp = dyn_cast<BinaryOperator>(U.get())) {
+                if (MulOp->getOpcode() == Instruction::FMul ||
+                    MulOp->getOpcode() == Instruction::Mul) {
+                  ++NumFMA;
+                  HasMultiplyAdd = true;
+                }
+              }
+            }
+          }
+          break;
+        case Instruction::FSub:
+        case Instruction::Sub:
+          ++NumSub;
+          break;
+        case Instruction::FMul:
+        case Instruction::Mul:
+          ++NumMul;
+          break;
+        case Instruction::FDiv:
+        case Instruction::UDiv:
+        case Instruction::SDiv:
+          ++NumDiv;
+          break;
+        default:
+          break;
+        }
+      }
+    }
+
+    ArithInfo["num_add"] = static_cast<int64_t>(NumAdd);
+    ArithInfo["num_sub"] = static_cast<int64_t>(NumSub);
+    ArithInfo["num_mul"] = static_cast<int64_t>(NumMul);
+    ArithInfo["num_div"] = static_cast<int64_t>(NumDiv);
+    ArithInfo["num_fma_patterns"] = static_cast<int64_t>(NumFMA);
+    ArithInfo["has_multiply_add"] = HasMultiplyAdd;
+
+    return ArithInfo;
   }
 };
 
@@ -10054,7 +10643,9 @@ bool LoopVectorizePass::processLoop(Loop *L) {
   // Extract features for ML analysis if enabled
   if (GlobalFeatureExtractor) {
     bool WillVectorize = VF.Width.isVector();
-    GlobalFeatureExtractor->extractLoopFeatures(L, SE, LVL, CM, TTI, VF, IC, WillVectorize);
+    const DataLayout &DL = F->getDataLayout();
+    GlobalFeatureExtractor->extractLoopFeatures(L, SE, LVL, CM, TTI, VF, IC,
+                                                WillVectorize, &PSE, &DL);
   }
 
   if (ORE->allowExtraAnalysis(LV_NAME))

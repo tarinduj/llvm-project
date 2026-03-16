@@ -31,6 +31,7 @@ add_llvm_component_library(LLVMScalarOpts
   LoopAccessAnalysisPrinter.cpp
   LoopBoundSplit.cpp
   LoopSink.cpp
+  LoopStreamingSwitcher.cpp
   LoopDeletion.cpp
   LoopDataPrefetch.cpp
   LoopDistribute.cpp

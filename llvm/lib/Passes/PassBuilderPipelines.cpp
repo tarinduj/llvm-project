@@ -142,6 +142,7 @@
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 #include "llvm/Transforms/Utils/MoveAutoInit.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
+#include "llvm/Transforms/Scalar/LoopStreamingSwitcher.h"
 #include "llvm/Transforms/Utils/RelLookupTableConverter.h"
 #include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
@@ -1572,6 +1573,11 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // from the TargetLibraryInfo.
   OptimizePM.addPass(InjectTLIMappings());
 
+  // Automatically outline loops predicted to benefit from Streaming SVE into
+  // separate functions with aarch64_pstate_sm_body. Must run before the Loop
+  // Vectorizer so LV sees the streaming attribute and uses scalable SVE.
+  OptimizePM.addPass(LoopStreamingSwitcherPass());
+
   addVectorPasses(Level, OptimizePM, /* IsFullLTO */ false);
 
   invokeVectorizerEndEPCallbacks(OptimizePM, Level);
@@ -2161,6 +2167,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
       createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/false));
 
   MainFPM.addPass(LoopDistributePass());
+
+  MainFPM.addPass(LoopStreamingSwitcherPass());
 
   addVectorPasses(Level, MainFPM, /* IsFullLTO */ true);
 

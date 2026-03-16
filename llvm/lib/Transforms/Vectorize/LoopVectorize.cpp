@@ -964,6 +964,8 @@ public:
         LoopFeatures["accesses"] = std::move(*Accesses);
       if (auto *Summary = AccessInfo.getObject("stride_summary"))
         LoopFeatures["stride_summary"] = std::move(*Summary);
+      if (auto *DtypeSummary = AccessInfo.getObject("dtype_summary"))
+        LoopFeatures["dtype_summary"] = std::move(*DtypeSummary);
 
       // 9. Loop-carried dependency analysis
       LoopFeatures["dependencies"] = extractDependencyInfo(LAI);
@@ -1076,6 +1078,19 @@ private:
     int64_t MaxStrideBytes = 0;
     int64_t MinStrideBytes = INT64_MAX;
 
+    // Counters for dtype summary — per-width counts
+    unsigned NumF16Accesses = 0;  // half
+    unsigned NumBF16Accesses = 0; // bfloat
+    unsigned NumF32Accesses = 0;  // float
+    unsigned NumF64Accesses = 0;  // double
+    unsigned NumI8Accesses = 0;
+    unsigned NumI16Accesses = 0;
+    unsigned NumI32Accesses = 0;
+    unsigned NumI64Accesses = 0;
+    unsigned NumPtrAccesses = 0;
+    uint64_t MaxElementSizeBytes = 0;
+    uint64_t MinElementSizeBytes = UINT64_MAX;
+
     const auto &SymbolicStrides = LAI->getSymbolicStrides();
     const MemoryDepChecker &DepChecker = LAI->getDepChecker();
     const auto &MemInsts = DepChecker.getMemoryInstructions();
@@ -1091,6 +1106,29 @@ private:
       Type *AccessTy = getLoadStoreType(I);
       uint64_t ElementSizeBytes = DL.getTypeStoreSize(AccessTy);
       AccessInfo["element_size_bytes"] = static_cast<int64_t>(ElementSizeBytes);
+      AccessInfo["is_float"] = AccessTy->isFloatingPointTy();
+
+      // Update per-width dtype counters
+      if (AccessTy->isHalfTy())
+        ++NumF16Accesses;
+      else if (AccessTy->isBFloatTy())
+        ++NumBF16Accesses;
+      else if (AccessTy->isFloatTy())
+        ++NumF32Accesses;
+      else if (AccessTy->isDoubleTy())
+        ++NumF64Accesses;
+      else if (AccessTy->isIntegerTy(8))
+        ++NumI8Accesses;
+      else if (AccessTy->isIntegerTy(16))
+        ++NumI16Accesses;
+      else if (AccessTy->isIntegerTy(32))
+        ++NumI32Accesses;
+      else if (AccessTy->isIntegerTy(64))
+        ++NumI64Accesses;
+      else if (AccessTy->isPointerTy())
+        ++NumPtrAccesses;
+      MaxElementSizeBytes = std::max(MaxElementSizeBytes, ElementSizeBytes);
+      MinElementSizeBytes = std::min(MinElementSizeBytes, ElementSizeBytes);
 
       // Get pointer operand
       Value *Ptr = getLoadStorePointerOperand(I);
@@ -1171,6 +1209,25 @@ private:
     }
 
     Result["stride_summary"] = std::move(StrideSummary);
+
+    // Dtype summary — per-width access counts
+    json::Object DtypeSummary;
+    DtypeSummary["num_f16_accesses"] = static_cast<int64_t>(NumF16Accesses);
+    DtypeSummary["num_bf16_accesses"] = static_cast<int64_t>(NumBF16Accesses);
+    DtypeSummary["num_f32_accesses"] = static_cast<int64_t>(NumF32Accesses);
+    DtypeSummary["num_f64_accesses"] = static_cast<int64_t>(NumF64Accesses);
+    DtypeSummary["num_i8_accesses"] = static_cast<int64_t>(NumI8Accesses);
+    DtypeSummary["num_i16_accesses"] = static_cast<int64_t>(NumI16Accesses);
+    DtypeSummary["num_i32_accesses"] = static_cast<int64_t>(NumI32Accesses);
+    DtypeSummary["num_i64_accesses"] = static_cast<int64_t>(NumI64Accesses);
+    DtypeSummary["num_ptr_accesses"] = static_cast<int64_t>(NumPtrAccesses);
+    DtypeSummary["max_element_size_bytes"] =
+        static_cast<int64_t>(MaxElementSizeBytes);
+    DtypeSummary["min_element_size_bytes"] =
+        static_cast<int64_t>(MinElementSizeBytes == UINT64_MAX
+                                 ? 0
+                                 : MinElementSizeBytes);
+    Result["dtype_summary"] = std::move(DtypeSummary);
 
     return Result;
   }

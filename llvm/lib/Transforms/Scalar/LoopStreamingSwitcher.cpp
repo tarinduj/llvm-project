@@ -663,7 +663,6 @@ static json::Object featuresToJson(const StreamingDecisionFeatures &F) {
   J["safe_for_any_width"] = F.safe_for_any_width;
   J["induction_count"] = F.induction_count;
   J["has_primary_induction"] = F.has_primary_induction;
-  J["reduction_count"] = F.reduction_count;
   J["ci_num_int_arith_ops"] = F.ci_num_int_arith_ops;
   J["ci_num_fp_arith_ops"] = F.ci_num_fp_arith_ops;
   J["ci_num_logic_ops"] = F.ci_num_logic_ops;
@@ -707,7 +706,6 @@ static json::Object featuresToJson(const StreamingDecisionFeatures &F) {
   J["lb_initial_iv_value"] = F.lb_initial_iv_value;
   J["lb_final_iv_value"] = F.lb_final_iv_value;
   J["lb_step_value"] = F.lb_step_value;
-  J["rec_has_recurrence"] = F.rec_has_recurrence;
   J["rec_num_backward_deps"] = F.rec_num_backward_deps;
   J["rec_num_forward_deps"] = F.rec_num_forward_deps;
   J["dtype_max_element_size_bytes"] = F.dtype_max_element_size_bytes;
@@ -721,13 +719,6 @@ static json::Object featuresToJson(const StreamingDecisionFeatures &F) {
   J["dtype_num_f16_accesses"] = F.dtype_num_f16_accesses;
   J["dtype_num_bf16_accesses"] = F.dtype_num_bf16_accesses;
   J["dtype_num_ptr_accesses"] = F.dtype_num_ptr_accesses;
-  J["cost_scalar"] = F.cost_scalar;
-  J["cost_vector"] = F.cost_vector;
-  J["vf_width"] = F.vf_width;
-  J["vf_is_scalable"] = F.vf_is_scalable;
-  J["interleave_count"] = F.interleave_count;
-  J["vectorized"] = F.vectorized;
-  J["cost_ratio"] = F.cost_ratio;
   return J;
 }
 

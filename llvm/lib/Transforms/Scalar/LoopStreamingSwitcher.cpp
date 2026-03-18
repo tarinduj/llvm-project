@@ -858,21 +858,18 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
     }
   }
 
-  for (Loop *L : InnermostLoops) {
-    // Get LoopAccessInfo for this loop
-    const LoopAccessInfo &LAI = LAIs.getInfo(*L);
+  // Feature dumping mode: extract and dump features for all innermost loops,
+  // then return without modifying anything. Mutually exclusive with switching.
+  if (DumpFeatures) {
+    for (Loop *L : InnermostLoops) {
+      const LoopAccessInfo &LAI = LAIs.getInfo(*L);
+      StreamingDecisionFeatures Features =
+          extractDecisionFeatures(L, SE, LAI, DL);
 
-    // Extract features and evaluate decision tree
-    StreamingDecisionFeatures Features =
-        extractDecisionFeatures(L, SE, LAI, DL);
-
-    // Dump features if requested — accumulate loops per function
-    if (DumpFeatures && GlobalSwitcherFeatures) {
       std::string FuncName = F.getName().str();
       json::Object LoopObj = featuresToJson(Features);
       LoopObj["location"] = L->getLocStr();
 
-      // Append to existing function entry, or create new one
       if (json::Value *Existing = GlobalSwitcherFeatures->get(FuncName)) {
         if (json::Object *ExObj = Existing->getAsObject()) {
           if (json::Array *Loops = ExObj->getArray("loops")) {
@@ -887,22 +884,21 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
         (*GlobalSwitcherFeatures)[FuncName] = std::move(FuncData);
       }
     }
+    return PreservedAnalyses::all();
+  }
 
-    if (!AutoStreamingMode)
-      continue;
+  // Switching mode: evaluate decision tree and outline SSVE-beneficial loops.
+  for (Loop *L : InnermostLoops) {
+    const LoopAccessInfo &LAI = LAIs.getInfo(*L);
+    StreamingDecisionFeatures Features =
+        extractDecisionFeatures(L, SE, LAI, DL);
 
-    // Skip loops with reductions — scalable SVE cannot expand reductions
-    // and will crash the backend with "Expanding reductions for scalable
-    // vectors is undefined".
     if (Features.reduction_count > 0) {
       LLVM_DEBUG(dbgs() << "LSS: Skipping loop with reductions: "
                         << L->getLocStr() << "\n");
       continue;
     }
 
-    // Skip loops with non-intrinsic calls — real function calls (memcpy,
-    // printf, user functions) may not be streaming-compatible.
-    // LLVM intrinsics (fma, sqrt, etc.) are fine in streaming mode.
     {
       bool HasNonIntrinsicCall = false;
       for (BasicBlock *BB : L->blocks()) {
@@ -933,13 +929,10 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
     LLVM_DEBUG(dbgs() << "LSS: Decision tree predicts SSVE for loop: "
                       << L->getLocStr() << "\n");
 
-    // Outline the loop into a streaming function
     Function *NewFunc = outlineLoopForStreaming(L, DT, AC, F);
     if (NewFunc) {
       LLVM_DEBUG(dbgs() << "LSS: Outlined loop into streaming function: "
                         << NewFunc->getName() << "\n");
-      // Invalidate ALL analyses — CodeExtractor restructures the function.
-      // The pass manager will re-run this pass to find more candidates.
       return PreservedAnalyses::none();
     }
   }

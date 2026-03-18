@@ -900,13 +900,29 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
       continue;
     }
 
-    // Skip loops with function calls — calls to non-streaming-compatible
-    // functions (memcpy, printf, user functions) will fail in streaming
-    // mode (e.g., __arm_sc_memcpy link errors).
-    if (Features.ci_num_call_ops > 0) {
-      LLVM_DEBUG(dbgs() << "LSS: Skipping loop with calls: "
-                        << L->getLocStr() << "\n");
-      continue;
+    // Skip loops with non-intrinsic calls — real function calls (memcpy,
+    // printf, user functions) may not be streaming-compatible.
+    // LLVM intrinsics (fma, sqrt, etc.) are fine in streaming mode.
+    {
+      bool HasNonIntrinsicCall = false;
+      for (BasicBlock *BB : L->blocks()) {
+        for (Instruction &I : *BB) {
+          if (auto *CI = dyn_cast<CallInst>(&I)) {
+            Function *Callee = CI->getCalledFunction();
+            if (!Callee || !Callee->isIntrinsic()) {
+              HasNonIntrinsicCall = true;
+              break;
+            }
+          }
+        }
+        if (HasNonIntrinsicCall)
+          break;
+      }
+      if (HasNonIntrinsicCall) {
+        LLVM_DEBUG(dbgs() << "LSS: Skipping loop with non-intrinsic calls: "
+                          << L->getLocStr() << "\n");
+        continue;
+      }
     }
 
     if (!shouldUseStreamingSVE(Features)) {

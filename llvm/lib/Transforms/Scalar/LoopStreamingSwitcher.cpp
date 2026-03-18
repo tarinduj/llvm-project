@@ -889,6 +889,8 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
 
   // Switching mode: evaluate decision tree and outline SSVE-beneficial loops.
   for (Loop *L : InnermostLoops) {
+    if (!L->isLoopSimplifyForm())
+      continue;
     const LoopAccessInfo &LAI = LAIs.getInfo(*L);
     StreamingDecisionFeatures Features =
         extractDecisionFeatures(L, SE, LAI, DL);

@@ -164,87 +164,132 @@ struct StreamingDecisionFeatures {
   double cost_ratio = 1.0;   // Default: no benefit
 };
 
-/// Auto-generated from decision tree (depth=10, 21 leaves, 17 features)
-/// Features used: ci_num_compare_ops, ci_num_int_arith_ops, ci_num_memory_ops,
-/// ci_num_total_ops, ci_ops_per_memory, cost_vector, dep_num_dependences,
-/// dtype_num_i16_accesses, dtype_num_i8_accesses, has_primary_induction,
-/// lb_final_iv_value, nested_parent_trip_count, stride_num_non_unit_stride,
-/// stride_num_unit_stride, trip_count_value, vectorized, vf_width
+/// Auto-generated from decision tree (depth=11, 31 leaves, 17 features)
+/// Features used: ci_num_fp_arith_ops, ci_num_int_arith_ops, ci_num_total_ops,
+/// ci_ops_per_memory, dep_num_dependences, dtype_max_element_size_bytes,
+/// dtype_num_i32_accesses, dtype_num_i8_accesses, lb_final_iv_value,
+/// lb_initial_iv_value, loop_depth, num_stores, stride_max_stride_bytes,
+/// stride_min_stride_bytes, stride_num_non_unit_stride,
+/// stride_num_unique_base_ptrs, trip_count_value
 /// Classes: 0 = NEON, 1 = SSVE
 static bool shouldUseStreamingSVE(const StreamingDecisionFeatures &F) {
-  if (F.stride_num_unit_stride <= 32) {
-    if (F.ci_num_memory_ops <= 76) {
-      if (F.ci_ops_per_memory <= 0.387500) {
-        return true; // SSVE (87%)
-      } else {
-        if (F.trip_count_value <= 2043) {
-          if (F.ci_num_compare_ops <= 1) {
-            if (F.nested_parent_trip_count <= 250000) {
-              if (F.trip_count_value <= 106) {
-                return false; // NEON (62%)
-              } else {
-                if (F.dtype_num_i16_accesses <= 2) {
-                  if (F.stride_num_non_unit_stride <= 0) {
-                    return false; // NEON (100%)
-                  } else {
-                    if (F.cost_vector <= 14) {
-                      return false; // NEON (75%)
+  if (F.stride_min_stride_bytes <= 384) {
+    if (F.ci_ops_per_memory <= 1.225000) {
+      if (F.stride_num_unique_base_ptrs <= 5) {
+        if (F.ci_num_int_arith_ops <= 133) {
+          if (F.dtype_num_i32_accesses <= 190) {
+            if (F.dtype_num_i8_accesses <= 6) {
+              if (F.dtype_num_i32_accesses <= 2) {
+                if (F.loop_depth <= 2) {
+                  if (F.ci_num_int_arith_ops <= 1) {
+                    if (F.lb_final_iv_value <= 47) {
+                      if (F.trip_count_value <= 31) {
+                        return false; // NEON (100%)
+                      } else {
+                        return false; // NEON (99%)
+                      }
                     } else {
                       return false; // NEON (100%)
                     }
+                  } else {
+                    if (F.ci_num_total_ops <= 21) {
+                      return false; // NEON (93%)
+                    } else {
+                      if (F.lb_initial_iv_value <= 0) {
+                        return false; // NEON (100%)
+                      } else {
+                        return false; // NEON (100%)
+                      }
+                    }
                   }
                 } else {
-                  return false; // NEON (67%)
+                  return false; // NEON (99%)
+                }
+              } else {
+                if (F.num_stores <= 4) {
+                  return false; // NEON (80%)
+                } else {
+                  if (F.dep_num_dependences <= 58) {
+                    return false; // NEON (100%)
+                  } else {
+                    return false; // NEON (91%)
+                  }
                 }
               }
             } else {
-              return false; // NEON (100%)
-            }
-          } else {
-            return false; // NEON (51%)
-          }
-        } else {
-          if (F.vectorized <= 0) {
-            if (F.ci_num_total_ops <= 15) {
-              return true; // SSVE (69%)
-            } else {
-              if (F.lb_final_iv_value <= 23997) {
-                return false; // NEON (100%)
+              if (F.stride_num_non_unit_stride <= 39) {
+                return false; // NEON (85%)
               } else {
-                return false; // NEON (78%)
+                return false; // NEON (100%)
               }
             }
           } else {
-            return true; // SSVE (84%)
+            return false; // NEON (80%)
           }
+        } else {
+          if (F.ci_ops_per_memory <= 0.509273) {
+            return false; // NEON (100%)
+          } else {
+            return true; // SSVE (90%)
+          }
+        }
+      } else {
+        if (F.dtype_max_element_size_bytes <= 3) {
+          return false; // NEON (86%)
+        } else {
+          return true; // SSVE (69%)
         }
       }
     } else {
-      return false; // NEON (100%)
-    }
-  } else {
-    if (F.vf_width <= 1) {
-      return false; // NEON (100%)
-    } else {
-      if (F.has_primary_induction <= 0) {
-        if (F.ci_num_int_arith_ops <= 47) {
-          return false; // NEON (100%)
-        } else {
-          return true; // SSVE (73%)
-        }
+      if (F.ci_num_int_arith_ops <= 2) {
+        return false; // NEON (90%)
       } else {
-        if (F.dtype_num_i8_accesses <= 17) {
-          if (F.ci_num_total_ops <= 173) {
-            return true; // SSVE (76%)
-          } else {
-            if (F.dep_num_dependences <= 8) {
-              return true; // SSVE (92%)
+        if (F.ci_ops_per_memory <= 1.516667) {
+          if (F.stride_max_stride_bytes <= 3) {
+            if (F.lb_initial_iv_value <= 1) {
+              return true; // SSVE (60%)
             } else {
-              return true; // SSVE (100%)
+              return false; // NEON (87%)
+            }
+          } else {
+            if (F.stride_max_stride_bytes <= 384) {
+              if (F.lb_final_iv_value <= 96) {
+                if (F.stride_max_stride_bytes <= 96) {
+                  return false; // NEON (73%)
+                } else {
+                  return true; // SSVE (88%)
+                }
+              } else {
+                return true; // SSVE (94%)
+              }
+            } else {
+              return false; // NEON (77%)
             }
           }
         } else {
-          return false; // NEON (63%)
+          if (F.ci_ops_per_memory <= 2.125000) {
+            return false; // NEON (100%)
+          } else {
+            return false; // NEON (94%)
+          }
+        }
+      }
+    }
+  } else {
+    if (F.ci_num_fp_arith_ops <= 0) {
+      return false; // NEON (99%)
+    } else {
+      if (F.dtype_max_element_size_bytes <= 6) {
+        if (F.stride_max_stride_bytes <= 768) {
+          return true; // SSVE (96%)
+        } else {
+          return true; // SSVE (100%)
+        }
+      } else {
+        if (F.trip_count_value <= 81) {
+          return false; // NEON (75%)
+        } else {
+          return true; // SSVE (96%)
         }
       }
     }

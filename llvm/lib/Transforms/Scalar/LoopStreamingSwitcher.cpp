@@ -936,16 +936,10 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
   for (Loop *L : InnermostLoops) {
     if (!L->isLoopSimplifyForm())
       continue;
-    const LoopAccessInfo &LAI = LAIs.getInfo(*L);
-    StreamingDecisionFeatures Features =
-        extractDecisionFeatures(L, SE, LAI, DL);
 
-    if (Features.reduction_count > 0) {
-      LLVM_DEBUG(dbgs() << "LSS: Skipping loop with reductions: "
-                        << L->getLocStr() << "\n");
-      continue;
-    }
-
+    // Check for non-intrinsic calls BEFORE feature extraction — loops with
+    // calls (memcpy, external functions) can't be outlined and their complex
+    // pointer expressions can crash SCEV during feature extraction.
     {
       bool HasNonIntrinsicCall = false;
       for (BasicBlock *BB : L->blocks()) {
@@ -966,6 +960,25 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
                           << L->getLocStr() << "\n");
         continue;
       }
+    }
+
+    const LoopAccessInfo &LAI = LAIs.getInfo(*L);
+
+    // Skip loops where LAI couldn't analyze memory — SCEV may be in a
+    // partial state that causes crashes during feature extraction.
+    if (!LAI.canVectorizeMemory()) {
+      LLVM_DEBUG(dbgs() << "LSS: Skipping loop — LAI can't vectorize memory: "
+                        << L->getLocStr() << "\n");
+      continue;
+    }
+
+    StreamingDecisionFeatures Features =
+        extractDecisionFeatures(L, SE, LAI, DL);
+
+    if (Features.reduction_count > 0) {
+      LLVM_DEBUG(dbgs() << "LSS: Skipping loop with reductions: "
+                        << L->getLocStr() << "\n");
+      continue;
     }
 
     if (!shouldUseStreamingSVE(Features)) {

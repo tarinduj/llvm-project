@@ -51,6 +51,10 @@ static cl::opt<std::string> SwitcherFeatureOutput(
     cl::desc("Output file for pre-LV loop features (JSON). "
              "Dumps features from the LoopStreamingSwitcher pass."));
 
+static cl::opt<bool> SwitcherVerbose(
+    "loop-streaming-switcher-verbose", cl::init(false), cl::Hidden,
+    cl::desc("Print per-loop SSVE/NEON decisions to stderr."));
+
 //===----------------------------------------------------------------------===//
 // Decision Tree Features and Classifier
 //===----------------------------------------------------------------------===//
@@ -958,6 +962,8 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
       if (HasNonIntrinsicCall) {
         LLVM_DEBUG(dbgs() << "LSS: Skipping loop with non-intrinsic calls: "
                           << L->getLocStr() << "\n");
+        if (SwitcherVerbose)
+          errs() << "LSS: NEON — " << F.getName() << " " << L->getLocStr() << "\n";
         continue;
       }
     }
@@ -969,6 +975,8 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
     if (!LAI.canVectorizeMemory()) {
       LLVM_DEBUG(dbgs() << "LSS: Skipping loop — LAI can't vectorize memory: "
                         << L->getLocStr() << "\n");
+      if (SwitcherVerbose)
+        errs() << "LSS: NEON — " << F.getName() << " " << L->getLocStr() << "\n";
       continue;
     }
 
@@ -978,16 +986,22 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
     if (Features.reduction_count > 0) {
       LLVM_DEBUG(dbgs() << "LSS: Skipping loop with reductions: "
                         << L->getLocStr() << "\n");
+      if (SwitcherVerbose)
+        errs() << "LSS: NEON — " << F.getName() << " " << L->getLocStr() << "\n";
       continue;
     }
 
     if (!shouldUseStreamingSVE(Features)) {
       LLVM_DEBUG(dbgs() << "LSS: Loop stays NEON: " << L->getLocStr() << "\n");
+      if (SwitcherVerbose)
+        errs() << "LSS: NEON — " << F.getName() << " " << L->getLocStr() << "\n";
       continue;
     }
 
     LLVM_DEBUG(dbgs() << "LSS: Decision tree predicts SSVE for loop: "
                       << L->getLocStr() << "\n");
+    if (SwitcherVerbose)
+      errs() << "LSS: SSVE — " << F.getName() << " " << L->getLocStr() << "\n";
 
     Function *NewFunc = outlineLoopForStreaming(L, DT, AC, F);
     if (NewFunc) {

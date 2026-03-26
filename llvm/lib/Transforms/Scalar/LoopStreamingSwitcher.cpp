@@ -144,52 +144,18 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
   }
 
   for (Loop *L : InnermostLoops) {
-    if (!L->isLoopSimplifyForm())
+    if (!isQualifyingLoop(L, SE, LAIs, DL)) {
+      LLVM_DEBUG(dbgs() << "LSS: Loop not qualifying: "
+                        << L->getLocStr() << "\n");
+      if (SwitcherVerbose)
+        errs() << "LSS: NEON — " << F.getName() << " " << L->getLocStr() << "\n";
       continue;
-
-    {
-      bool HasNonIntrinsicCall = false;
-      for (BasicBlock *BB : L->blocks()) {
-        for (Instruction &I : *BB) {
-          if (auto *CI = dyn_cast<CallInst>(&I)) {
-            Function *Callee = CI->getCalledFunction();
-            if (!Callee || !Callee->isIntrinsic()) {
-              HasNonIntrinsicCall = true;
-              break;
-            }
-          }
-        }
-        if (HasNonIntrinsicCall)
-          break;
-      }
-      if (HasNonIntrinsicCall) {
-        LLVM_DEBUG(dbgs() << "LSS: Skipping loop with non-intrinsic calls: "
-                          << L->getLocStr() << "\n");
-        if (SwitcherVerbose)
-          errs() << "LSS: NEON — " << F.getName() << " " << L->getLocStr() << "\n";
-        continue;
-      }
     }
 
+    // Safe to get LAI here — isQualifyingLoop already verified no
+    // non-intrinsic calls and computed LAI internally.
     const LoopAccessInfo &LAI = LAIs.getInfo(*L);
-
-    if (!LAI.canVectorizeMemory()) {
-      LLVM_DEBUG(dbgs() << "LSS: Skipping loop — LAI can't vectorize memory: "
-                        << L->getLocStr() << "\n");
-      if (SwitcherVerbose)
-        errs() << "LSS: NEON — " << F.getName() << " " << L->getLocStr() << "\n";
-      continue;
-    }
-
     LoopVectorFeatures Features = extractLoopVectorFeatures(L, SE, LAI, DL);
-
-    if (Features.reduction_count > 0) {
-      LLVM_DEBUG(dbgs() << "LSS: Skipping loop with reductions: "
-                        << L->getLocStr() << "\n");
-      if (SwitcherVerbose)
-        errs() << "LSS: NEON — " << F.getName() << " " << L->getLocStr() << "\n";
-      continue;
-    }
 
     if (!shouldUseStreamingSVE(Features)) {
       LLVM_DEBUG(dbgs() << "LSS: Loop stays NEON: " << L->getLocStr() << "\n");

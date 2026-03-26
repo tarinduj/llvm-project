@@ -464,6 +464,41 @@ json::Object llvm::featuresToJson(const LoopVectorFeatures &F) {
 }
 
 //===----------------------------------------------------------------------===//
+// Qualifying Loop Check
+//===----------------------------------------------------------------------===//
+
+bool llvm::isQualifyingLoop(Loop *L, ScalarEvolution &SE,
+                            LoopAccessAnalysis &LAIs, const DataLayout &DL) {
+  if (!L->isLoopSimplifyForm())
+    return false;
+
+  // Check for non-intrinsic calls BEFORE LAI/feature extraction — loops with
+  // calls (memcpy, external functions) have complex pointer expressions that
+  // can crash SCEV during LAI construction or feature extraction.
+  for (BasicBlock *BB : L->blocks()) {
+    for (Instruction &I : *BB) {
+      if (auto *CI = dyn_cast<CallInst>(&I)) {
+        Function *Callee = CI->getCalledFunction();
+        if (!Callee || !Callee->isIntrinsic())
+          return false;
+      }
+    }
+  }
+
+  // Safe to compute LAI now that we know there are no non-intrinsic calls.
+  const LoopAccessInfo &LAI = LAIs.getInfo(*L);
+
+  if (!LAI.canVectorizeMemory())
+    return false;
+
+  LoopVectorFeatures Features = extractLoopVectorFeatures(L, SE, LAI, DL);
+  if (Features.reduction_count > 0)
+    return false;
+
+  return true;
+}
+
+//===----------------------------------------------------------------------===//
 // Feature Dump Pass
 //===----------------------------------------------------------------------===//
 

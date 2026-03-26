@@ -48,6 +48,11 @@ static cl::opt<bool> SwitcherVerbose(
     "loop-streaming-switcher-verbose", cl::init(false), cl::Hidden,
     cl::desc("Print per-loop SSVE/NEON decisions to stderr."));
 
+static cl::opt<int> OutlineLoopIndex(
+    "outline-loop-index", cl::init(-1), cl::Hidden,
+    cl::desc("Outline only the Nth qualifying inner loop (0-indexed). "
+             "Bypasses GBM. -1 (default) uses GBM as normal."));
+
 //===----------------------------------------------------------------------===//
 // GBM Classifier (auto-generated)
 //===----------------------------------------------------------------------===//
@@ -110,7 +115,7 @@ static Function *outlineLoopForStreaming(Loop *L, DominatorTree &DT,
 
 PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
                                                   FunctionAnalysisManager &AM) {
-  if (!AutoStreamingMode)
+  if (!AutoStreamingMode && OutlineLoopIndex < 0)
     return PreservedAnalyses::all();
 
   if (F.hasFnAttribute("aarch64_pstate_sm_enabled") ||
@@ -143,6 +148,8 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
     }
   }
 
+  int QualifyingIdx = 0;
+
   for (Loop *L : InnermostLoops) {
     if (!isQualifyingLoop(L, SE, LAIs, DL)) {
       LLVM_DEBUG(dbgs() << "LSS: Loop not qualifying: "
@@ -152,20 +159,28 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
       continue;
     }
 
-    // Safe to get LAI here — isQualifyingLoop already verified no
-    // non-intrinsic calls and computed LAI internally.
-    const LoopAccessInfo &LAI = LAIs.getInfo(*L);
-    LoopVectorFeatures Features = extractLoopVectorFeatures(L, SE, LAI, DL);
+    bool ShouldOutline = false;
 
-    if (!shouldUseStreamingSVE(Features)) {
+    if (OutlineLoopIndex >= 0) {
+      // Forced mode: outline only the Nth qualifying loop, bypass GBM.
+      ShouldOutline = (QualifyingIdx == OutlineLoopIndex);
+    } else {
+      // GBM mode: let the model decide.
+      const LoopAccessInfo &LAI = LAIs.getInfo(*L);
+      LoopVectorFeatures Features = extractLoopVectorFeatures(L, SE, LAI, DL);
+      ShouldOutline = shouldUseStreamingSVE(Features);
+    }
+
+    ++QualifyingIdx;
+
+    if (!ShouldOutline) {
       LLVM_DEBUG(dbgs() << "LSS: Loop stays NEON: " << L->getLocStr() << "\n");
       if (SwitcherVerbose)
         errs() << "LSS: NEON — " << F.getName() << " " << L->getLocStr() << "\n";
       continue;
     }
 
-    LLVM_DEBUG(dbgs() << "LSS: GBM predicts SSVE for loop: "
-                      << L->getLocStr() << "\n");
+    LLVM_DEBUG(dbgs() << "LSS: Outlining loop: " << L->getLocStr() << "\n");
     if (SwitcherVerbose)
       errs() << "LSS: SSVE — " << F.getName() << " " << L->getLocStr() << "\n";
 

@@ -561,13 +561,20 @@ PreservedAnalyses LoopVectorFeatureDumpPass::run(Function &F,
     }
   }
 
+  std::string FuncName = F.getName().str();
+  int64_t QualifyingIndex = 0;
+
   for (Loop *L : InnermostLoops) {
+    if (!isQualifyingLoop(L, SE, LAIs, DL))
+      continue;
+
     const LoopAccessInfo &LAI = LAIs.getInfo(*L);
     LoopVectorFeatures Features = extractLoopVectorFeatures(L, SE, LAI, DL);
 
-    std::string FuncName = F.getName().str();
     json::Object LoopObj = featuresToJson(Features);
     LoopObj["location"] = L->getLocStr();
+    LoopObj["qualifying_index"] = QualifyingIndex;
+    ++QualifyingIndex;
 
     if (json::Value *Existing = GlobalFeatures->get(FuncName)) {
       if (json::Object *ExObj = Existing->getAsObject()) {
@@ -583,5 +590,15 @@ PreservedAnalyses LoopVectorFeatureDumpPass::run(Function &F,
       (*GlobalFeatures)[FuncName] = std::move(FuncData);
     }
   }
+
+  // Write qualifying_loop_count to the function-level object.
+  if (QualifyingIndex > 0) {
+    if (json::Value *Existing = GlobalFeatures->get(FuncName)) {
+      if (json::Object *ExObj = Existing->getAsObject()) {
+        (*ExObj)["qualifying_loop_count"] = QualifyingIndex;
+      }
+    }
+  }
+
   return PreservedAnalyses::all();
 }

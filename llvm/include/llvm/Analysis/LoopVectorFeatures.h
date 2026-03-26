@@ -115,15 +115,15 @@ LoopVectorFeatures extractLoopVectorFeatures(Loop *L, ScalarEvolution &SE,
 
 json::Object featuresToJson(const LoopVectorFeatures &F);
 
-class LoopAccessAnalysis;
+class LoopAccessInfoManager;
 
 /// Check whether a loop qualifies for streaming SVE outlining.
 /// A loop qualifies if it is in LoopSimplify form, contains no non-intrinsic
 /// calls, has vectorizable memory accesses, and has no reductions.
-/// Takes LoopAccessAnalysis (lazy) rather than a pre-computed LoopAccessInfo
+/// Takes LoopAccessInfoManager (lazy) rather than a pre-computed LoopAccessInfo
 /// because LAI construction can crash SCEV on loops with non-intrinsic calls.
 bool isQualifyingLoop(Loop *L, ScalarEvolution &SE,
-                      LoopAccessAnalysis &LAIs, const DataLayout &DL);
+                      LoopAccessInfoManager &LAIs, const DataLayout &DL);
 
 struct LoopVectorFeatureDumpPass
     : public PassInfoMixin<LoopVectorFeatureDumpPass> {

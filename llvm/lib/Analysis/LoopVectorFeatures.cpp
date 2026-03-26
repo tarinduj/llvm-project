@@ -468,7 +468,7 @@ json::Object llvm::featuresToJson(const LoopVectorFeatures &F) {
 //===----------------------------------------------------------------------===//
 
 bool llvm::isQualifyingLoop(Loop *L, ScalarEvolution &SE,
-                            LoopAccessAnalysis &LAIs, const DataLayout &DL) {
+                            LoopAccessInfoManager &LAIs, const DataLayout &DL) {
   if (!L->isLoopSimplifyForm())
     return false;
 

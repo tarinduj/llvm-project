@@ -16,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/LoopStreamingSwitcher.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -52,6 +53,11 @@ static cl::opt<int> OutlineLoopIndex(
     "outline-loop-index", cl::init(-1), cl::Hidden,
     cl::desc("Outline only the Nth qualifying inner loop (0-indexed). "
              "Bypasses GBM. -1 (default) uses GBM as normal."));
+
+static cl::list<int> OutlineLoopIndices(
+    "outline-loop-indices", cl::Hidden, cl::CommaSeparated,
+    cl::desc("Comma-separated list of qualifying loop indices to outline. "
+             "Bypasses GBM. Overrides -outline-loop-index if non-empty."));
 
 //===----------------------------------------------------------------------===//
 // GBM Classifier (auto-generated)
@@ -115,7 +121,7 @@ static Function *outlineLoopForStreaming(Loop *L, DominatorTree &DT,
 
 PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
                                                   FunctionAnalysisManager &AM) {
-  if (!AutoStreamingMode && OutlineLoopIndex < 0)
+  if (!AutoStreamingMode && OutlineLoopIndex < 0 && OutlineLoopIndices.empty())
     return PreservedAnalyses::all();
 
   if (F.hasFnAttribute("aarch64_pstate_sm_enabled") ||
@@ -148,7 +154,14 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
     }
   }
 
+  // Build set of forced indices for list mode.
+  DenseSet<int> ForcedIndices;
+  for (int Idx : OutlineLoopIndices)
+    ForcedIndices.insert(Idx);
+
+  // First pass: decide which loops to outline, collecting pointers.
   int QualifyingIdx = 0;
+  SmallVector<Loop *, 8> ToOutline;
 
   for (Loop *L : InnermostLoops) {
     if (!isQualifyingLoop(L, SE, LAIs, DL)) {
@@ -161,7 +174,10 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
 
     bool ShouldOutline = false;
 
-    if (OutlineLoopIndex >= 0) {
+    if (!ForcedIndices.empty()) {
+      // List mode: outline loops whose qualifying index is in the set.
+      ShouldOutline = ForcedIndices.count(QualifyingIdx);
+    } else if (OutlineLoopIndex >= 0) {
       // Forced mode: outline only the Nth qualifying loop, bypass GBM.
       ShouldOutline = (QualifyingIdx == OutlineLoopIndex);
     } else {
@@ -180,17 +196,26 @@ PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
       continue;
     }
 
-    LLVM_DEBUG(dbgs() << "LSS: Outlining loop: " << L->getLocStr() << "\n");
+    LLVM_DEBUG(dbgs() << "LSS: Will outline loop: " << L->getLocStr() << "\n");
     if (SwitcherVerbose)
       errs() << "LSS: SSVE — " << F.getName() << " " << L->getLocStr() << "\n";
 
+    ToOutline.push_back(L);
+  }
+
+  if (ToOutline.empty())
+    return PreservedAnalyses::all();
+
+  // Second pass: outline collected loops in reverse order so that earlier
+  // loop pointers remain valid (later blocks are extracted first).
+  for (int I = (int)ToOutline.size() - 1; I >= 0; --I) {
+    Loop *L = ToOutline[I];
     Function *NewFunc = outlineLoopForStreaming(L, DT, AC, F);
     if (NewFunc) {
       LLVM_DEBUG(dbgs() << "LSS: Outlined loop into streaming function: "
                         << NewFunc->getName() << "\n");
-      return PreservedAnalyses::none();
     }
   }
 
-  return PreservedAnalyses::all();
+  return PreservedAnalyses::none();
 }

@@ -144,6 +144,7 @@
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Analysis/LoopVectorFeatures.h"
 #include "llvm/Transforms/Scalar/LoopStreamingSwitcher.h"
+#include "llvm/Transforms/Vectorize/MatMulRecognize.h"
 #include "llvm/Transforms/Utils/RelLookupTableConverter.h"
 #include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
@@ -151,6 +152,11 @@
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
 
 using namespace llvm;
+
+static cl::opt<bool> EnableMatMulSME(
+    "enable-matmul-sme", cl::init(false), cl::Hidden,
+    cl::desc("Enable matmul pattern recognition and SME FMOPA lowering. "
+             "Fully opt-in; does not affect existing passes when disabled."));
 
 namespace llvm {
 
@@ -1577,6 +1583,11 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // Dump loop features for training data collection (no-op if flag not set).
   OptimizePM.addPass(LoopVectorFeatureDumpPass());
 
+  // Recognize matmul loop nests and lower to SME FMOPA (opt-in).
+  // Must run before LoopStreamingSwitcher so matmul nests are claimed first.
+  if (EnableMatMulSME)
+    OptimizePM.addPass(MatMulRecognizeAndLowerPass());
+
   // Automatically outline loops predicted to benefit from Streaming SVE into
   // separate functions with aarch64_pstate_sm_body. Must run before the Loop
   // Vectorizer so LV sees the streaming attribute and uses scalable SVE.
@@ -2173,6 +2184,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   MainFPM.addPass(LoopDistributePass());
 
   MainFPM.addPass(LoopVectorFeatureDumpPass());
+  if (EnableMatMulSME)
+    MainFPM.addPass(MatMulRecognizeAndLowerPass());
   MainFPM.addPass(LoopStreamingSwitcherPass());
 
   addVectorPasses(Level, MainFPM, /* IsFullLTO */ true);

@@ -1,6 +1,8 @@
 add_llvm_component_library(LLVMVectorize
   LoadStoreVectorizer.cpp
   LoopIdiomVectorize.cpp
+  MatMulRecognize.cpp
+  MatMulSMELower.cpp
   LoopVectorizationLegality.cpp
   LoopVectorize.cpp
   SandboxVectorizer/DependencyGraph.cpp

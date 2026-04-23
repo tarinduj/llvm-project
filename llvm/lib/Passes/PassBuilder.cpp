@@ -308,6 +308,7 @@
 #include "llvm/Transforms/Scalar/LoopSimplifyCFG.h"
 #include "llvm/Transforms/Scalar/LoopSink.h"
 #include "llvm/Analysis/LoopVectorFeatures.h"
+#include "llvm/Transforms/Scalar/LoopAVX512Switcher.h"
 #include "llvm/Transforms/Scalar/LoopStreamingSwitcher.h"
 #include "llvm/Transforms/Scalar/LoopStrengthReduce.h"
 #include "llvm/Transforms/Scalar/LoopTermFold.h"

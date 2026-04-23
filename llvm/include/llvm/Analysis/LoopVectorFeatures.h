@@ -115,6 +115,13 @@ LoopVectorFeatures extractLoopVectorFeatures(Loop *L, ScalarEvolution &SE,
 
 json::Object featuresToJson(const LoopVectorFeatures &F);
 
+class LoopAccessInfoManager;
+
+/// Check whether a loop is eligible for switcher-pass outlining:
+/// LoopSimplify form, no non-intrinsic calls, LAI can vectorize memory.
+bool isQualifyingLoop(Loop *L, ScalarEvolution &SE,
+                      LoopAccessInfoManager &LAIs, const DataLayout &DL);
+
 struct LoopVectorFeatureDumpPass
     : public PassInfoMixin<LoopVectorFeatureDumpPass> {
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);

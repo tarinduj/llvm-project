@@ -143,6 +143,7 @@
 #include "llvm/Transforms/Utils/MoveAutoInit.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Analysis/LoopVectorFeatures.h"
+#include "llvm/Transforms/Scalar/LoopAVX512Switcher.h"
 #include "llvm/Transforms/Scalar/LoopStreamingSwitcher.h"
 #include "llvm/Transforms/Utils/RelLookupTableConverter.h"
 #include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
@@ -1582,6 +1583,11 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // Vectorizer so LV sees the streaming attribute and uses scalable SVE.
   OptimizePM.addPass(LoopStreamingSwitcherPass());
 
+  // Automatically outline loops predicted to benefit from 512-bit AVX-512
+  // into separate functions with prefer-vector-width=512. Must run before
+  // the Loop Vectorizer so LV sees the wider register width via TTI.
+  OptimizePM.addPass(LoopAVX512SwitcherPass());
+
   addVectorPasses(Level, OptimizePM, /* IsFullLTO */ false);
 
   invokeVectorizerEndEPCallbacks(OptimizePM, Level);
@@ -2174,6 +2180,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   MainFPM.addPass(LoopVectorFeatureDumpPass());
   MainFPM.addPass(LoopStreamingSwitcherPass());
+  MainFPM.addPass(LoopAVX512SwitcherPass());
 
   addVectorPasses(Level, MainFPM, /* IsFullLTO */ true);
 

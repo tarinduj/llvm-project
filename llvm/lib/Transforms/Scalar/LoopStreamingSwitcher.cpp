@@ -59,6 +59,14 @@ static cl::list<int> OutlineLoopIndices(
     cl::desc("Comma-separated list of qualifying loop indices to outline. "
              "Bypasses GBM. Overrides -outline-loop-index if non-empty."));
 
+static cl::opt<std::string> OutlineLoopFunction(
+    "outline-loop-function", cl::init(""), cl::Hidden,
+    cl::desc("Restrict -outline-loop-index / -outline-loop-indices to only "
+             "this function name. The pass returns early on every other "
+             "function. Used by per-loop OOD collectors so a single per-"
+             "kernel build outlines exactly one targeted loop without "
+             "side-effect outlining in unrelated kernels or helper TUs."));
+
 //===----------------------------------------------------------------------===//
 // GBM Classifier (auto-generated)
 //===----------------------------------------------------------------------===//
@@ -122,6 +130,16 @@ static Function *outlineLoopForStreaming(Loop *L, DominatorTree &DT,
 PreservedAnalyses LoopStreamingSwitcherPass::run(Function &F,
                                                   FunctionAnalysisManager &AM) {
   if (!AutoStreamingMode && OutlineLoopIndex < 0 && OutlineLoopIndices.empty())
+    return PreservedAnalyses::all();
+
+  // Function-name gate: when -outline-loop-function is set, only run on the
+  // named function. Returns early for every other function in the TU (other
+  // kernel definitions in the same source file, helper functions linked
+  // from common.c / polybench.c / LCALS support files, etc.). Without this
+  // gate, -outline-loop-index applies per-function across the entire TU,
+  // causing side-effect outlining in unrelated functions and (under loose
+  // qualifying checks) backend-fatal codegen in their reduction loops.
+  if (!OutlineLoopFunction.empty() && F.getName() != OutlineLoopFunction)
     return PreservedAnalyses::all();
 
   if (F.hasFnAttribute("aarch64_pstate_sm_enabled") ||

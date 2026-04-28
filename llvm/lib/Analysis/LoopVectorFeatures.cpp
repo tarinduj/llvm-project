@@ -486,15 +486,14 @@ bool llvm::isQualifyingLoop(Loop *L, ScalarEvolution &SE,
   }
 
   // Safe to compute LAI now that we know there are no non-intrinsic calls.
-  const LoopAccessInfo &LAI = LAIs.getInfo(*L);
-
-  if (!LAI.canVectorizeMemory())
-    return false;
-
-  LoopVectorFeatures Features = extractLoopVectorFeatures(L, SE, LAI, DL);
-  if (Features.reduction_count > 0)
-    return false;
-
+  // We do NOT filter on LAI.canVectorizeMemory() or reduction_count: those
+  // would discard loops with backward deps / reductions / indirect addressing,
+  // but SSVE outlining can still benefit them (predication, scalable register
+  // file, etc.). The dependency situation is reported as features
+  // (dep_has_backward_deps, dep_has_loop_carried_deps, reduction_count, ...)
+  // so the model can learn from it. The downstream outlining pass and the
+  // collector handle any actual codegen failures via one-strike-skip.
+  (void)LAIs.getInfo(*L);
   return true;
 }
 
